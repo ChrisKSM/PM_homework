@@ -1,0 +1,3 @@
+@echo off
+echo Starting webpack dev server...
+node node_modules\webpack\bin\webpack.js serve --mode development
