@@ -1,7 +1,16 @@
 import axios from 'axios'
 
+// 런타임(Docker 컨테이너): entrypoint.sh가 window.workspace_env 에 환경변수 주입
+// 개발환경: .env 파일의 process.env 사용
+const workspaceEnv = (window as any).workspace_env ?? {}
+
+const baseURL =
+  workspaceEnv.VITE_API_BASE_URL ||
+  process.env.VITE_API_BASE_URL ||
+  '/api'
+
 const client = axios.create({
-  baseURL: process.env.VITE_API_BASE_URL || '/api',
+  baseURL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

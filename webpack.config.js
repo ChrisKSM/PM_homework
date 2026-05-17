@@ -1,6 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
+const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = (env, argv) => {
   const isDev = argv.mode === 'development';
@@ -9,7 +10,7 @@ module.exports = (env, argv) => {
     entry: './src/main.tsx',
 
     output: {
-      path: path.resolve(__dirname, 'dist'),
+      path: path.resolve(__dirname, 'build'),
       filename: isDev ? '[name].js' : '[name].[contenthash].js',
       clean: true,
       publicPath: '/',
@@ -49,6 +50,18 @@ module.exports = (env, argv) => {
         safe: false,
         silent: true,
       }),
+      // public/ 폴더의 정적 파일(workspace_env.js 등)을 build/ 로 복사
+      new CopyPlugin({
+        patterns: [
+          {
+            from: 'public',
+            to: '.',
+            globOptions: {
+              ignore: ['**/index.html'],
+            },
+          },
+        ],
+      }),
     ],
 
     devServer: {
@@ -57,6 +70,11 @@ module.exports = (env, argv) => {
       hot: true,
       historyApiFallback: true,
       allowedHosts: ['workspace.hedej.lge.com', 'localhost'],
+      // public/ 폴더를 개발 서버에서도 정적 파일로 서빙 (workspace_env.js 포함)
+      static: {
+        directory: path.join(__dirname, 'public'),
+        publicPath: '/',
+      },
       proxy: [
         {
           context: ['/api'],
