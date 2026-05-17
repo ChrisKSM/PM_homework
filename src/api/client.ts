@@ -5,8 +5,8 @@ import axios from 'axios'
 const workspaceEnv = (window as any).workspace_env ?? {}
 
 const baseURL =
-  workspaceEnv.VITE_API_BASE_URL ||
-  process.env.VITE_API_BASE_URL ||
+  workspaceEnv.REACT_APP_API_BASE_URL ||
+  process.env.REACT_APP_API_BASE_URL ||
   '/api'
 
 const client = axios.create({

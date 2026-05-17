@@ -67,8 +67,8 @@ git checkout webpack-migration
 루트에 `.env` 파일 생성:
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000/api
-VITE_USE_MOCK=true
+REACT_APP_API_BASE_URL=http://localhost:8000/api
+REACT_APP_USE_MOCK=true
 ```
 
 백엔드 환경변수 파일 생성:
@@ -190,6 +190,6 @@ npm.cmd run build
 `entrypoint.sh`가 `VITE_` 접두사 환경변수를 자동으로 `window.workspace_env`에 주입합니다.
 
 ```
-VITE_API_BASE_URL=https://your-api-server/api
-VITE_USE_MOCK=false
+REACT_APP_API_BASE_URL=https://your-api-server/api
+REACT_APP_USE_MOCK=false
 ```
