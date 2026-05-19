@@ -8,6 +8,10 @@ import warnings
 from typing import Any
 
 from config import settings
+import logging
+import json
+
+logger = logging.getLogger(__name__)
 
 # 내부 서버 자체 서명 인증서 경고 억제
 if not settings.jira_verify_ssl:
@@ -124,14 +128,26 @@ class JiraClient:
     async def get_active_sprint(self) -> dict | None:
         """현재 활성 스프린트 반환 (없으면 None)."""
         data = await self.get_board_sprints(state="active", max_results=1)
+        
+        logger.info(f"get_active_sprint data: {json.dumps(data, indent=2, ensure_ascii=False)}")
+
         sprints = data.get("values", [])
+        print(sprints[0])
         return sprints[0] if sprints else None
 
-    async def get_closed_sprints(self, count: int = 7) -> list[dict]:
+    async def get_closed_sprints(self, count: int = 3) -> list[dict]:
         """최근 완료된 스프린트 목록 (최신순)."""
-        data = await self.get_board_sprints(state="closed", max_results=count)
+
+        data = await self.get_board_sprints(state="closed", max_results=50)
         sprints = data.get("values", [])
-        return sorted(sprints, key=lambda s: s.get("id", 0))
+
+        sprints = sorted(
+            sprints,
+            key=lambda s: s.get("startDate") or "",
+            reverse=True
+        )
+        return sprints[:count]
+
 
 
 # 싱글톤
