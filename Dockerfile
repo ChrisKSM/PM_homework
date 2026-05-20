@@ -1,4 +1,6 @@
+
 FROM node:20 as builder
+FROM nginx:alpine
 
 WORKDIR /usr/src/app
 ENV PATH /usr/src/app/node_modules/.bin:$PATH
@@ -33,5 +35,6 @@ COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # 3000포트 오픈하고 nginx 실행
-EXPOSE 3000
+EXPOSE 80
 ENTRYPOINT ["/entrypoint.sh"]
+
