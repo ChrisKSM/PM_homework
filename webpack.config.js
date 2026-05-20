@@ -13,7 +13,7 @@ module.exports = (env, argv) => {
       path: path.resolve(__dirname, 'build'),
       filename: isDev ? '[name].js' : '[name].[contenthash].js',
       clean: true,
-      publicPath: '/',
+      publicPath: 'auto',
     },
 
     resolve: {
@@ -67,7 +67,8 @@ module.exports = (env, argv) => {
     devServer: {
       port: 3000,
       host: '0.0.0.0',
-      hot: true,
+      hot: false,
+      liveReload: true, 
       historyApiFallback: true,
       allowedHosts: ['workspace.hedej.lge.com', 'localhost'],
       // public/ 폴더를 개발 서버에서도 정적 파일로 서빙 (workspace_env.js 포함)
@@ -75,16 +76,7 @@ module.exports = (env, argv) => {
         directory: path.join(__dirname, 'public'),
         publicPath: '/',
       },
-      proxy: [
-        {
-          context: ['/api'],
-          target: 'http://localhost:8000',
-          changeOrigin: true,
-        },
-      ],
-      client: {
-        webSocketURL: 'auto://0.0.0.0:0/ws',
-      },
+      client: false,
     },
 
     devtool: isDev ? 'eval-source-map' : 'source-map',

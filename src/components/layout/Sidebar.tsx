@@ -4,7 +4,7 @@ import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { to: '/manager', icon: LayoutDashboard, label: '책임자 대시보드' },
+  { to: '/manager', icon: LayoutDashboard, label: '리더 대시보드' },
   { to: '/devteam', icon: Users, label: '개발팀 대시보드' },
 ]
 
@@ -34,7 +34,7 @@ export default function Sidebar() {
           </div>
           {sidebarOpen && (
             <span className="font-semibold text-white text-sm whitespace-nowrap">
-              Jira Dashboard
+              Soundbar Dashboard
             </span>
           )}
           <button
@@ -54,7 +54,7 @@ export default function Sidebar() {
             </p>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700">
               <div className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
-              <span className="text-sm text-slate-200 truncate">PROJ — Sample Project</span>
+              <span className="text-sm text-slate-200 truncate">S80C Project</span>
             </div>
           </div>
         )}

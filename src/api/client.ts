@@ -5,9 +5,9 @@ import axios from 'axios'
 const workspaceEnv = (window as any).workspace_env ?? {}
 
 const baseURL =
-  workspaceEnv.REACT_APP_API_BASE_URL ||
-  process.env.REACT_APP_API_BASE_URL ||
-  '/api'
+  window.location.pathname.includes("/proxy/")
+    ? "/project/be-audio-test/seokmin-koh/proxy/8000/api"
+    : process.env.REACT_APP_BASE_URL || "http://localhost:8000/api";
 
 const client = axios.create({
   baseURL,
