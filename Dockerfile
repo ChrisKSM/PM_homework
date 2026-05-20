@@ -1,6 +1,4 @@
-
 FROM node:20 as builder
-FROM nginx:alpine
 
 WORKDIR /usr/src/app
 ENV PATH /usr/src/app/node_modules/.bin:$PATH
@@ -29,7 +27,8 @@ RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
 # 위에서 생성한 앱의 빌드산출물을 nginx의 샘플 앱이 사용하던 폴더로 이동
 COPY --from=builder /usr/src/app/build /usr/share/nginx/html
-COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
+@COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /usr/src/app/nginx.conf /etc/nginx/conf.d/default.conf
 
 COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
@@ -37,4 +36,3 @@ RUN chmod +x /entrypoint.sh
 # 3000포트 오픈하고 nginx 실행
 EXPOSE 80
 ENTRYPOINT ["/entrypoint.sh"]
-
