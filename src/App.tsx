@@ -5,8 +5,8 @@ import DevTeamDashboard from './pages/DevTeamDashboard'
 
 const basename =
   window.location.pathname.includes("/proxy/")
-    ? "/project/react-audio/seokmin-koh/proxy/3000"
-    : "/";
+    ? "/project/react-audio/seokmin-koh/proxy/3000"   // workspace dev
+    : "/";                                            // production
 
 export default function App() {
   return (
