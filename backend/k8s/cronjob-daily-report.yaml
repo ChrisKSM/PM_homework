@@ -1,0 +1,33 @@
+# K8s CronJob — 매일 평일 08:00 KST
+# 배포 전 image, namespace, env Secret 이름을 회사 환경에 맞게 수정하세요.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jira-dashboard-daily-report
+  namespace: your-namespace
+spec:
+  schedule: "0 8 * * 1-5"
+  timeZone: "Asia/Seoul"  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: daily-report
+              image: your-registry/hedej-projects/jira-dashboard-backend:latest
+              command: ["python", "scripts/send_daily_report.py"]
+              workingDir: /app
+              envFrom:
+                - secretRef:
+                    name: jira-dashboard-backend-env
+              resources:
+                requests:
+                  memory: "128Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "256Mi"
+                  cpu: "200m"

@@ -22,6 +22,21 @@ class Settings(BaseSettings):
     done_status_category: str = "done"
     inprogress_status_category: str = "indeterminate"
 
+    # Daily report
+    report_enabled: bool = True
+    report_recipients: str = "seokmin.koh@lge.com"
+    report_subject_prefix: str = "[Jira Dashboard]"
+    report_dashboard_url: str = ""
+    report_api_key: str = ""
+
+    # SMTP
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

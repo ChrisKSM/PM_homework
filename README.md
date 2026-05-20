@@ -30,11 +30,21 @@ LGE Jira Server 기반 프로젝트 관리 대시보드 — 조직 책임자 및
 │   ├── cache.py
 │   ├── requirements.txt
 │   ├── .env.example
+│   ├── DAILY_REPORT.md         (일일 리포트 설계 문서)
+│   ├── templates/
+│   │   └── daily_report.html   (HTML 이메일 템플릿)
+│   ├── scripts/
+│   │   └── send_daily_report.py
+│   ├── k8s/
+│   │   └── cronjob-daily-report.yaml
 │   ├── routers/
 │   │   ├── manager.py          (책임자 대시보드 API)
-│   │   └── devteam.py          (개발팀 대시보드 API)
+│   │   ├── devteam.py          (개발팀 대시보드 API)
+│   │   └── report.py           (리포트 미리보기/발송 API)
 │   └── services/
-│       └── jira_service.py     (Jira 비즈니스 로직)
+│       ├── jira_service.py     (Jira 비즈니스 로직)
+│       ├── report_service.py   (리포트 데이터 수집)
+│       └── email_service.py    (SMTP 발송)
 │
 ├── public/
 │   ├── index.html
@@ -149,13 +159,82 @@ npm.cmd run build
 |------|------|
 | 프레임워크 | React 18 + TypeScript |
 | 빌드 도구 | Webpack 5 + Babel |
-| 스타일 | Tailwind CSS (다크 테마) |
+| 스타일 | Tailwind CSS (LG 화이트 + 레드 테마) |
 | 차트 | Recharts |
 | 데이터 페칭 | TanStack React Query v5 |
 | 상태 관리 | Zustand |
 | 라우팅 | React Router v6 |
 | HTTP 클라이언트 | Axios |
 | 백엔드 | Python FastAPI |
+
+---
+
+## Daily Report (매일 이메일 스냅샷)
+
+매일 **평일 오전 8시(KST)** 에 책임자·개발팀 대시보드 현황을 HTML 이메일로 발송합니다.
+
+### 수신자
+
+- `seokmin.koh@lge.com`
+
+### 발송 스케줄
+
+- **08:00 KST**, 월~금 (`0 8 * * 1-5`, `Asia/Seoul`)
+- K8s CronJob: `backend/k8s/cronjob-daily-report.yaml`
+
+### 리포트 포함 섹션
+
+**조직 책임자 대시보드**
+- KPI 4종 (전체 진행률, Epic, Story, 블로커)
+- Epic 진행률 Top 5
+- 이슈 상태 분포
+- Velocity 최근 3스프린트
+- 리스크/블로커 Top 5
+
+**개발팀 대시보드**
+- 스프린트 KPI (이름, D-day, 완료율, 블로커)
+- Burndown 요약
+- 팀원별 워크로드 Top 5
+
+### 환경 변수 (`backend/.env`)
+
+```env
+REPORT_ENABLED=true
+REPORT_RECIPIENTS=seokmin.koh@lge.com
+REPORT_SUBJECT_PREFIX=[Jira Dashboard]
+REPORT_DASHBOARD_URL=https://workspace.hedej.lge.com/your-app
+
+SMTP_HOST=smtp.lge.com
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASSWORD=
+SMTP_FROM=noreply@lge.com
+SMTP_USE_TLS=true
+```
+
+### 로컬 테스트
+
+```powershell
+cd backend
+pip install -r requirements.txt
+
+# HTML만 생성 (메일 발송 X)
+python scripts/send_daily_report.py --dry-run --output report.html
+
+# 브라우저 미리보기 (uvicorn 실행 중)
+# http://localhost:8000/api/report/preview
+
+# 즉시 발송 (SMTP 설정 필요)
+python scripts/send_daily_report.py
+```
+
+### 수동 API 발송
+
+```powershell
+curl -X POST http://localhost:8000/api/report/send -H "X-Report-Key: your-key"
+```
+
+상세 설계: [`backend/DAILY_REPORT.md`](backend/DAILY_REPORT.md)
 
 ---
 
@@ -187,7 +266,7 @@ npm.cmd run build
 
 ### 환경변수 (Docker/K8s)
 
-`entrypoint.sh`가 `VITE_` 접두사 환경변수를 자동으로 `window.workspace_env`에 주입합니다.
+`entrypoint.sh`가 `REACT_APP_` 접두사 환경변수를 자동으로 `window.workspace_env`에 주입합니다.
 
 ```
 REACT_APP_API_BASE_URL=https://your-api-server/api

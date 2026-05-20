@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jira Dashboard Daily Report</title>
+</head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:Inter,Arial,sans-serif;color:#111827;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8f9fa;padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table width="640" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#A50034;padding:20px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <div style="font-size:18px;font-weight:700;color:#ffffff;">Jira Dashboard</div>
+                    <div style="font-size:12px;color:#f5e6ea;margin-top:4px;">Daily Snapshot Report</div>
+                  </td>
+                  <td align="right" style="font-size:11px;color:#f5e6ea;">{{ generated_at }}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Meta -->
+          <tr>
+            <td style="padding:16px 24px;border-bottom:1px solid #f0f0f0;font-size:12px;color:#6b7280;">
+              Board ID: {{ board_id }}
+              {% if dashboard_url %}
+              · <a href="{{ dashboard_url }}" style="color:#A50034;">대시보드 열기</a>
+              {% endif %}
+            </td>
+          </tr>
+
+          <!-- ===== 책임자 대시보드 ===== -->
+          <tr>
+            <td style="padding:20px 24px 8px;">
+              <div style="font-size:15px;font-weight:700;color:#111827;border-left:4px solid #A50034;padding-left:10px;">
+                조직 책임자 대시보드
+              </div>
+            </td>
+          </tr>
+
+          <!-- KPI row -->
+          <tr>
+            <td style="padding:0 24px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  {% set s = manager.summary %}
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #059669;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;font-weight:600;">전체 진행률</div>
+                      <div style="font-size:22px;font-weight:700;color:#059669;">{{ s.totalProgress }}%</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #2563eb;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;font-weight:600;">완료 Epic</div>
+                      <div style="font-size:22px;font-weight:700;color:#2563eb;">{{ s.completedEpics }}/{{ s.totalEpics }}</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #A50034;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;font-weight:600;">완료 Story</div>
+                      <div style="font-size:22px;font-weight:700;color:#A50034;">{{ s.completedStories }}/{{ s.totalStories }}</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #d97706;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;font-weight:600;">블로커</div>
+                      <div style="font-size:22px;font-weight:700;color:#d97706;">{{ s.blockerCount }}</div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Epic Top 5 -->
+          <tr>
+            <td style="padding:0 24px 16px;">
+              <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Epic 진행률 Top 5</div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;font-size:12px;">
+                <tr style="background:#f8f9fa;">
+                  <th align="left" style="padding:8px 10px;color:#111827;font-weight:700;">Epic</th>
+                  <th align="right" style="padding:8px 10px;color:#111827;font-weight:700;">완료</th>
+                  <th align="right" style="padding:8px 10px;color:#111827;font-weight:700;">진행중</th>
+                  <th align="right" style="padding:8px 10px;color:#111827;font-weight:700;">미시작</th>
+                  <th align="right" style="padding:8px 10px;color:#111827;font-weight:700;">%</th>
+                </tr>
+                {% for epic in manager.epics_top %}
+                {% set pct = (epic.done / epic.total * 100) if epic.total else 0 %}
+                <tr style="border-top:1px solid #f0f0f0;">
+                  <td style="padding:8px 10px;color:#374151;font-weight:600;">{{ epic.epicName }}</td>
+                  <td align="right" style="padding:8px 10px;color:#059669;">{{ epic.done }}</td>
+                  <td align="right" style="padding:8px 10px;color:#2563eb;">{{ epic.inProgress }}</td>
+                  <td align="right" style="padding:8px 10px;color:#6b7280;">{{ epic.todo }}</td>
+                  <td align="right" style="padding:8px 10px;color:#111827;font-weight:700;">{{ pct | round(0) | int }}%</td>
+                </tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+
+          <!-- Issue distribution + Velocity -->
+          <tr>
+            <td style="padding:0 24px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="50%" valign="top" style="padding-right:8px;">
+                    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">이슈 상태 분포</div>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;font-size:12px;">
+                      {% for item in manager.distribution %}
+                      <tr style="border-top:1px solid #f0f0f0;">
+                        <td style="padding:8px 10px;color:#374151;font-weight:600;">{{ item.status }}</td>
+                        <td align="right" style="padding:8px 10px;color:#111827;font-weight:700;">{{ item.count }}</td>
+                      </tr>
+                      {% endfor %}
+                    </table>
+                  </td>
+                  <td width="50%" valign="top" style="padding-left:8px;">
+                    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Velocity (최근 3스프린트)</div>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;font-size:12px;">
+                      <tr style="background:#f8f9fa;">
+                        <th align="left" style="padding:8px 10px;">스프린트</th>
+                        <th align="right" style="padding:8px 10px;">계획</th>
+                        <th align="right" style="padding:8px 10px;">완료</th>
+                      </tr>
+                      {% for v in manager.velocity_recent %}
+                      <tr style="border-top:1px solid #f0f0f0;">
+                        <td style="padding:8px 10px;color:#374151;">{{ v.sprintName }}</td>
+                        <td align="right" style="padding:8px 10px;color:#94a3b8;">{{ v.planned }} SP</td>
+                        <td align="right" style="padding:8px 10px;color:#059669;font-weight:700;">{{ v.completed }} SP</td>
+                      </tr>
+                      {% endfor %}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Risks -->
+          <tr>
+            <td style="padding:0 24px 20px;">
+              <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">주요 리스크 / 블로커</div>
+              <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;font-size:12px;">
+                <tr style="background:#f8f9fa;">
+                  <th align="left" style="padding:8px 10px;">키</th>
+                  <th align="left" style="padding:8px 10px;">제목</th>
+                  <th align="left" style="padding:8px 10px;">담당</th>
+                  <th align="left" style="padding:8px 10px;">상태</th>
+                </tr>
+                {% for issue in manager.risks %}
+                <tr style="border-top:1px solid #f0f0f0;{% if issue.status == 'Blocked' %}background:#fdf2f4;{% endif %}">
+                  <td style="padding:8px 10px;color:#A50034;font-weight:700;">{{ issue.issueKey }}</td>
+                  <td style="padding:8px 10px;color:#374151;">{{ issue.summary }}</td>
+                  <td style="padding:8px 10px;color:#6b7280;">{{ issue.assignee }}</td>
+                  <td style="padding:8px 10px;color:#374151;font-weight:600;">{{ issue.status }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" style="padding:12px;color:#6b7280;text-align:center;">리스크 이슈 없음</td></tr>
+                {% endfor %}
+              </table>
+            </td>
+          </tr>
+
+          <!-- ===== 개발팀 대시보드 ===== -->
+          <tr>
+            <td style="padding:8px 24px 8px;border-top:2px solid #f0f0f0;">
+              <div style="font-size:15px;font-weight:700;color:#111827;border-left:4px solid #A50034;padding-left:10px;">
+                개발팀 대시보드
+              </div>
+            </td>
+          </tr>
+
+          {% set sp = devteam.sprint %}
+          <tr>
+            <td style="padding:0 24px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #A50034;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;">스프린트</div>
+                      <div style="font-size:16px;font-weight:700;color:#A50034;">{{ sp.sprintName }}</div>
+                      <div style="font-size:10px;color:#6b7280;margin-top:2px;">D-{{ sp.daysLeft }}</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #d97706;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;">남은 SP</div>
+                      <div style="font-size:22px;font-weight:700;color:#d97706;">{{ sp.remainingPoints }}</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #059669;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;">완료율</div>
+                      <div style="font-size:22px;font-weight:700;color:#059669;">{{ sp.completionRate }}%</div>
+                    </div>
+                  </td>
+                  <td width="25%" style="padding:4px;">
+                    <div style="border:1px solid #e5e7eb;border-top:3px solid #dc2626;border-radius:8px;padding:12px;">
+                      <div style="font-size:10px;color:#6b7280;">블로커</div>
+                      <div style="font-size:22px;font-weight:700;color:#dc2626;">{{ sp.blockerCount }}</div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          {% set bd = devteam.burndown %}
+          <tr>
+            <td style="padding:0 24px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="50%" valign="top" style="padding-right:8px;">
+                    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">Burndown 요약</div>
+                    <div style="border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px;color:#374151;">
+                      <div>스프린트: <strong>{{ bd.sprint_name }}</strong></div>
+                      <div style="margin-top:6px;">총 SP: <strong>{{ bd.total_points }}</strong></div>
+                      <div style="margin-top:6px;">최신 실제 잔여: <strong style="color:#A50034;">{{ bd.latest_actual }} SP</strong></div>
+                      <div style="margin-top:4px;">이상적 잔여: <strong style="color:#6b7280;">{{ bd.latest_ideal }} SP</strong></div>
+                    </div>
+                  </td>
+                  <td width="50%" valign="top" style="padding-left:8px;">
+                    <div style="font-size:13px;font-weight:700;color:#374151;margin-bottom:8px;">팀원별 워크로드 Top 5</div>
+                    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7eb;border-radius:8px;font-size:12px;">
+                      {% for m in devteam.workload_top %}
+                      <tr style="border-top:1px solid #f0f0f0;">
+                        <td style="padding:8px 10px;color:#374151;font-weight:600;">{{ m.name }}</td>
+                        <td align="right" style="padding:8px 10px;color:#A50034;font-weight:700;">{{ m.storyPoints }} SP</td>
+                        <td align="right" style="padding:8px 10px;color:#6b7280;">{{ m.issueCount }}건</td>
+                      </tr>
+                      {% endfor %}
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:16px 24px;background:#f8f9fa;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center;">
+              이 메일은 Jira Dashboard Daily Report Job에서 자동 발송되었습니다.<br/>
+              리포트 섹션 구성은 초안이며, 다음 단계에서 조정됩니다.
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
