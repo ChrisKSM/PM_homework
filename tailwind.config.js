@@ -4,11 +4,16 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        lg: {
+          red: '#A50034',
+          'red-light': '#F5E6EA',
+          'red-mid': '#D4004C',
+        },
         surface: {
-          950: '#020617',
-          900: '#0f172a',
-          800: '#1e293b',
-          700: '#334155',
+          page: '#F8F9FA',
+          card: '#FFFFFF',
+          border: '#E5E7EB',
+          muted: '#F0F0F0',
         },
       },
       fontFamily: {

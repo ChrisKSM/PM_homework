@@ -10,50 +10,41 @@ import {
   ReferenceLine,
 } from 'recharts'
 import type { BurndownData } from '../../types/jira'
+import { CHART } from '../../theme/colors'
 
 interface Props {
   data: BurndownData
 }
 
-const TOOLTIP_STYLE = {
-  backgroundColor: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 8,
-  color: '#f1f5f9',
-  fontSize: 12,
-}
-
 export default function BurndownChart({ data }: Props) {
   return (
     <ResponsiveContainer width="100%" height={280}>
-      <LineChart data={data.points} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+      <LineChart data={data.points} margin={{ top: 8, right: 16, left: -8, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} />
         <XAxis
           dataKey="day"
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
-          axisLine={{ stroke: '#334155' }}
+          tick={{ fill: CHART.axis, fontSize: 11, fontWeight: 600 }}
+          axisLine={{ stroke: CHART.grid }}
           tickLine={false}
         />
         <YAxis
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: CHART.axis, fontSize: 11, fontWeight: 500 }}
           axisLine={false}
           tickLine={false}
           unit=" SP"
         />
         <Tooltip
-          contentStyle={TOOLTIP_STYLE}
-          labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
+          contentStyle={CHART.tooltip}
+          labelStyle={{ color: CHART.axisMuted, marginBottom: 4, fontWeight: 600 }}
           formatter={(value: number, name: string) => [`${value} SP`, name]}
         />
-        <Legend
-          wrapperStyle={{ fontSize: 12, color: '#94a3b8', paddingTop: 8 }}
-        />
-        <ReferenceLine y={0} stroke="#334155" />
+        <Legend wrapperStyle={{ fontSize: 12, color: CHART.legend, fontWeight: 600, paddingTop: 8 }} />
+        <ReferenceLine y={0} stroke={CHART.grid} />
         <Line
           type="monotone"
           dataKey="ideal"
           name="이상적 번다운"
-          stroke="#64748b"
+          stroke={CHART.colors.ideal}
           strokeWidth={2}
           strokeDasharray="5 4"
           dot={false}
@@ -63,9 +54,9 @@ export default function BurndownChart({ data }: Props) {
           type="monotone"
           dataKey="actual"
           name="실제 번다운"
-          stroke="#f87171"
+          stroke={CHART.colors.lgRed}
           strokeWidth={2}
-          dot={{ fill: '#f87171', r: 3 }}
+          dot={{ fill: CHART.colors.lgRed, r: 3 }}
           activeDot={{ r: 5 }}
         />
       </LineChart>

@@ -11,11 +11,11 @@ interface SectionCardProps {
 
 export default function SectionCard({ title, subtitle, children, className, action }: SectionCardProps) {
   return (
-    <div className={clsx('bg-slate-900 border border-slate-800 rounded-xl', className)}>
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+    <div className={clsx('bg-white border border-surface-border rounded-xl', className)}>
+      <div className="flex items-center justify-between px-5 py-4 border-b border-surface-muted">
         <div>
-          <h3 className="text-sm font-semibold text-white">{title}</h3>
-          {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+          <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+          {subtitle && <p className="text-xs text-gray-500 mt-0.5 font-medium">{subtitle}</p>}
         </div>
         {action && <div>{action}</div>}
       </div>
