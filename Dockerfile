@@ -9,7 +9,7 @@ RUN npm config set registry https://nexus.hedej.lge.com/repository/npm-group/ --
 
 ARG BUILD_ARGS
 RUN if [ -n "$BUILD_ARGS" ]; then \
-      echo ${BUILD_ARGS} | base64 -d > .env; \
+      echo ${BUILD_ARGS} | base64 -d > .env || echo "skip env" \
     else \
       touch .env; \
     fi
@@ -25,13 +25,16 @@ FROM nginx:1.28.1-alpine
 # 보안패치
 RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
-# 위에서 생성한 앱의 빌드산출물을 nginx의 샘플 앱이 사용하던 폴더로 이동
-COPY --from=builder /usr/src/app/build /usr/share/nginx/html
-COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
+RUN cat .env
+ # 소스를 작업폴더로 복사하고 빌드
+ COPY . /usr/src/app
+@@ -23,6 +24,10 @@ FROM nginx:1.18-alpine
+ COPY --from=builder /usr/src/app/build /usr/share/nginx/html
+ COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
 
+# entrypoint 스크립트 복사 및 실행 권한 부여
 COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# 3000포트 오픈하고 nginx 실행
 EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]
