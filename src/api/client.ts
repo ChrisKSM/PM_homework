@@ -1,37 +1,34 @@
-FROM node:20 as builder
+import axios from 'axios'
 
-WORKDIR /usr/src/app
-ENV PATH /usr/src/app/node_modules/.bin:$PATH
+const PROD_API_BASE_URL = 'https://be-audio-test.apps.hedej.lge.com/api'
 
-COPY package.json ./
-RUN npm config set registry https://nexus.hedej.lge.com/repository/npm-group/ --global && \
-    npm install -f
+function resolveApiBaseUrl(): string {
+  const env = (window as any).workspace_env ?? {}
 
-ARG BUILD_ARGS
-RUN if [ -n "$BUILD_ARGS" ]; then \
-      echo ${BUILD_ARGS} | base64 -d > .env; \
-    else \
-      touch .env; \
-    fi
+  if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
+  if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
 
-COPY . .
+  // K8s prod FE
+  if (
+    window.location.hostname.endsWith('.apps.hedej.lge.com') &&
+    !window.location.hostname.includes('be-audio-test')
+  ) {
+    return PROD_API_BASE_URL
+  }
 
-# ESLint 경고 무시 + Source Map 비활성화
-RUN export DISABLE_ESLINT_PLUGIN=true && \
-    export GENERATE_SOURCEMAP=false && \
-    npm run build
+  // workspace dev
+  if (window.location.hostname.includes('workspace')) {
+    const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
+    if (m) return `${window.location.origin}${m[1]}8000/api`
+  }
 
-FROM nginx:1.28.1-alpine
-# 보안패치
-RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+  return 'http://localhost:8000/api'
+}
 
-# 위에서 생성한 앱의 빌드산출물을 nginx의 샘플 앱이 사용하던 폴더로 이동
-COPY --from=builder /usr/src/app/build /usr/share/nginx/html
-COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
+const client = axios.create({
+  baseURL: resolveApiBaseUrl(),
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+})
 
-COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-# 3000포트 오픈하고 nginx 실행
-EXPOSE 3000
-ENTRYPOINT ["/entrypoint.sh"]
+export default client
