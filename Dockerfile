@@ -31,7 +31,7 @@ COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default
 
 
 #COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+#RUN chmod +x /entrypoint.sh
 
 # 3000포트 오픈하고 nginx 실행
 EXPOSE 80
