@@ -1,23 +1,34 @@
 import axios from 'axios'
 
-const BACKEND_BASE_URL =
-  window.location.hostname.includes("workspace")
-    ? "https://workspace.hedej.lge.com/project/be-audio-test/seokmin-koh/proxy/8000"
-    : "http://localhost:8000";
+const PROD_API_BASE_URL = 'https://be-audio-test.apps.hedej.lge.com/api'
 
-export const client = axios.create({
-  baseURL: BACKEND_BASE_URL,
-  withCredentials: true,
-});
+function resolveApiBaseUrl(): string {
+  const env = (window as any).workspace_env ?? {}
 
-client.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      console.error('Unauthorized — Jira API 인증이 필요합니다.')
-    }
-    return Promise.reject(error)
+  if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
+  if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
+
+  // K8s prod FE
+  if (
+    window.location.hostname.endsWith('.apps.hedej.lge.com') &&
+    !window.location.hostname.includes('be-audio-test')
+  ) {
+    return PROD_API_BASE_URL
   }
-)
+
+  // workspace dev
+  if (window.location.hostname.includes('workspace')) {
+    const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
+    if (m) return `${window.location.origin}${m[1]}8000/api`
+  }
+
+  return 'http://localhost:8000/api'
+}
+
+const client = axios.create({
+  baseURL: resolveApiBaseUrl(),
+  timeout: 10000,
+  headers: { 'Content-Type': 'application/json' },
+})
 
 export default client
