@@ -2,21 +2,16 @@ import axios from 'axios'
 
 // 런타임(Docker 컨테이너): entrypoint.sh가 window.workspace_env 에 환경변수 주입
 // 개발환경: .env 파일의 process.env 사용
-const workspaceEnv = (window as any).workspace_env ?? {}
+const isProd = process.env.NODE_ENV === "production";
 
-const isWorkspace = window.location.hostname.includes("workspace");
-const isDev = process.env.NODE_ENV === "development";
-
-const baseURL =
-  process.env.NODE_ENV === "production"
-    ? "https://workspace.hedej.lge.com/project/be-audio-test/seokmin-koh/proxy/8000/api"
-    : "/project/be-audio-test/seokmin-koh/proxy/8000/api";
-
+const backendUrl = isProd
+  ? "https://workspace.hedej.lge.com/project/be-audio-test/seokmin-koh/proxy/8000"
+  : "https://workspace.hedej.lge.com/project/be-audio-test/seokmin-koh/proxy/8000";
 
 
 export const client = axios.create({
-  baseURL,
-  timeout: 10000,
+  baseURL: backendUrl,
+  withCredentials: true,
 });
 
 
