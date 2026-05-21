@@ -4,18 +4,19 @@ import axios from 'axios'
 // 개발환경: .env 파일의 process.env 사용
 const workspaceEnv = (window as any).workspace_env ?? {}
 
-const baseURL =
-  window.location.pathname.includes("/proxy/")
-    ? "/project/be-audio-test/seokmin-koh/proxy/8000/api"
-    : process.env.REACT_APP_BASE_URL || "http://localhost:8000/api";
+const isWorkspace = window.location.hostname.includes("workspace");
+const isDev = process.env.NODE_ENV === "development";
 
-const client = axios.create({
-  baseURL: "/api",
+const baseURL = isWorkspace
+  ? "/project/be-audio-test/seokmin-koh/proxy/8000/api"
+  : "http://localhost:8000/api";
+
+
+export const client = axios.create({
+  baseURL,
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-})
+});
+
 
 client.interceptors.response.use(
   (response) => response,
