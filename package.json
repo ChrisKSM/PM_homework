@@ -1,6 +1,6 @@
 {
   "name": "jira-dashboard-frontend",
-  "version": "1.0.16",
+  "version": "1.0.17",
   "private": true,
   "scripts": {
     "dev": "webpack serve --mode development",
