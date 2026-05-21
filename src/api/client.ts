@@ -12,7 +12,6 @@ function isProdFeHost(): boolean {
 function resolveApiBaseUrl(): string {
   const workspaceEnv = (window as any).workspace_env ?? {}
 
-  // prod FE — BUILD_ARGS / workspace_env 무조건 무시
   if (
     window.location.hostname === 'react-audio.apps.hedej.lge.com' ||
     isProdFeHost()
