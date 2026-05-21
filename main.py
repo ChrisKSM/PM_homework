@@ -18,7 +18,9 @@ app = FastAPI(
 # CORS — React 개발 서버 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000",
+    "https://react-audio.apps.hedej.lge.com",
+    "https://workspace.hedej.lge.com",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
