@@ -7,9 +7,11 @@ const workspaceEnv = (window as any).workspace_env ?? {}
 const isWorkspace = window.location.hostname.includes("workspace");
 const isDev = process.env.NODE_ENV === "development";
 
-const baseURL = isWorkspace
-  ? "/project/be-audio-test/seokmin-koh/proxy/8000/api"
-  : "http://localhost:8000/api";
+const baseURL =
+  process.env.NODE_ENV === "production"
+    ? "https://workspace.hedej.lge.com/project/be-audio-test/seokmin-koh/proxy/8000/api"
+    : "/project/be-audio-test/seokmin-koh/proxy/8000/api";
+
 
 
 export const client = axios.create({
