@@ -16,53 +16,34 @@ interface Props {
 }
 
 export default function VelocityChart({ data }: Props) {
-  // ✅ 핵심: 반드시 배열 보장
-  const safeData = Array.isArray(data) ? data : [];
+  const safeData = Array.isArray(data) ? data : []
 
   return (
     <ResponsiveContainer width="100%" height={240}>
-      <BarChart data={data} margin={{ top: 8, right: 16, left: -8, bottom: 0 }} barGap={3}>
+      <BarChart data={safeData} margin={{ top: 8, right: 16, left: -8, bottom: 0 }} barGap={3}>
         <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
-
         <XAxis
           dataKey="sprintName"
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
-          axisLine={{ stroke: '#334155' }}
+          tick={{ fill: CHART.axis, fontSize: 11, fontWeight: 600 }}
+          axisLine={{ stroke: CHART.grid }}
           tickLine={false}
-          tickFormatter={(v: string) => (v ? v.replace('Sprint ', 'S') : '')}
+          tickFormatter={(v: string) => v.replace('Sprint ', 'S')}
         />
-
         <YAxis
-          tick={{ fill: '#94a3b8', fontSize: 11 }}
+          tick={{ fill: CHART.axis, fontSize: 11, fontWeight: 500 }}
           axisLine={false}
           tickLine={false}
           unit=" SP"
         />
-
         <Tooltip
-          contentStyle={TOOLTIP_STYLE}
-          labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
-          formatter={(value: number, name: string) => [`${value ?? 0} SP`, name]}
+          contentStyle={CHART.tooltip}
+          labelStyle={{ color: CHART.axisMuted, marginBottom: 4, fontWeight: 600 }}
+          formatter={(value: number, name: string) => [`${value} SP`, name]}
         />
-
-        <Legend wrapperStyle={{ fontSize: 12, color: '#94a3b8', paddingTop: 8 }} />
-
-        <Bar
-          dataKey="planned"
-          name="계획"
-          fill="#4338ca"
-          radius={[3, 3, 0, 0]}
-          maxBarSize={28}
-        />
-
-        <Bar
-          dataKey="completed"
-          name="완료"
-          fill="#34d399"
-          radius={[3, 3, 0, 0]}
-          maxBarSize={28}
-        />
+        <Legend wrapperStyle={{ fontSize: 12, color: CHART.legend, fontWeight: 600, paddingTop: 8 }} />
+        <Bar dataKey="planned" name="계획" fill={CHART.colors.planned} radius={[3, 3, 0, 0]} maxBarSize={28} />
+        <Bar dataKey="completed" name="완료" fill={CHART.colors.success} radius={[3, 3, 0, 0]} maxBarSize={28} />
       </BarChart>
     </ResponsiveContainer>
-  );
+  )
 }
