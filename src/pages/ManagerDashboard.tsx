@@ -9,6 +9,8 @@ import VelocityChart from '../components/charts/VelocityChart'
 
 import { useEffect } from "react";
 import axios from "axios";
+import { analytics, setConfig } from "dej-sdk";
+
 
 import {
   useProjectSummary,
@@ -27,10 +29,14 @@ function LoadingSpinner() {
   )
 }
 
-const API_BASE =
-  window.workspace_env?.REACT_APP__API_BASE_URL || "/api";
+const API_BASE =   window.workspace_env?.REACT_APP__API_BASE_URL;
 
 axios.get(`${API_BASE}/metrics/summary`);
+
+
+console.log("env:", window.workspace_env);
+console.log("API_BASE:", window.workspace_env?.REACT_APP__API_BASE_URL);
+
 
 export default function ManagerDashboard() {
   useEffect(() => {
