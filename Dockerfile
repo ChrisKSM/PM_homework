@@ -25,15 +25,13 @@ FROM nginx:1.28.1-alpine
 # 보안패치
 RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
-RUN cat .env
- # 소스를 작업폴더로 복사하고 빌드
- COPY . /usr/src/app
 @@ -23,6 +24,10 @@ FROM nginx:1.18-alpine
  COPY --from=builder /usr/src/app/build /usr/share/nginx/html
  COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
 
 # entrypoint 스크립트 복사 및 실행 권한 부여
 COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
+
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 3000
