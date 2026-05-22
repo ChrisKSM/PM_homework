@@ -1,1 +1,0 @@
-window.workspace_env={};
