@@ -5,7 +5,7 @@ const PROD_API_BASE_URL = 'https://be-audio-test.apps.hedej.lge.com/api'
 function resolveApiBaseUrl(): string {
   const env = (window as any).workspace_env ?? {}
 
-  if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
+  if (env.REACT_APP__API_BASE_URL) return env.REACT_APP__API_BASE_URL
   if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
 
   // K8s prod FE
@@ -13,7 +13,7 @@ function resolveApiBaseUrl(): string {
     window.location.hostname.endsWith('.apps.hedej.lge.com') &&
     !window.location.hostname.includes('be-audio-test')
   ) {
-    return PROD_API_BASE_URL
+    return '/api'
   }
 
   // workspace dev
@@ -26,7 +26,8 @@ function resolveApiBaseUrl(): string {
 }
 
 const client = axios.create({
-  baseURL: resolveApiBaseUrl(),
+  //baseURL: resolveApiBaseUrl(),
+  baseURL: "/api",
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 })
