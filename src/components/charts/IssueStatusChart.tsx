@@ -22,8 +22,12 @@ const TOOLTIP_STYLE = {
 }
 
 export default function IssueStatusChart({ data }: Props) {
-  const total = data.reduce((s, d) => s + d.count, 0)
-
+  //const total = data.reduce((s, d) => s + d.count, 0)
+  const total = (Array.isArray(data) ? data : []).reduce(
+    (s, d) => s + (d.count ?? 0),
+    0
+  );
+  
   return (
     <div className="relative">
       <ResponsiveContainer width="100%" height={260}>
