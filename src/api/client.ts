@@ -5,18 +5,18 @@ const PROD_API_BASE_URL = 'https://be-audio-test.apps.hedej.lge.com/api'
 function resolveApiBaseUrl(): string {
   const env = (window as any).workspace_env ?? {}
 
-  if (env.REACT_APP__API_BASE_URL) return env.REACT_APP__API_BASE_URL
-  if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
-
-  // K8s prod FE
+  // prod FE — BE 직접 호출
   if (
-    window.location.hostname.endsWith('.apps.hedej.lge.com') &&
-    !window.location.hostname.includes('be-audio-test')
+    window.location.hostname === 'react-audio.apps.hedej.lge.com' ||
+    (window.location.hostname.endsWith('.apps.hedej.lge.com') &&
+      !window.location.hostname.includes('be-audio-test'))
   ) {
-    return '/api'
+    return PROD_API_BASE_URL
   }
 
-  // workspace dev
+  if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
+  if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
+
   if (window.location.hostname.includes('workspace')) {
     const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
     if (m) return `${window.location.origin}${m[1]}8000/api`
@@ -26,7 +26,7 @@ function resolveApiBaseUrl(): string {
 }
 
 const client = axios.create({
-  baseURL: "/api",
+  baseURL: resolveApiBaseUrl(),   // ← 이 줄이 핵심
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 })
