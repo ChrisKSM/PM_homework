@@ -9,17 +9,10 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { SprintVelocity } from '../../types/jira'
+import { CHART } from '../../theme/colors'
 
 interface Props {
   data: SprintVelocity[]
-}
-
-const TOOLTIP_STYLE = {
-  backgroundColor: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 8,
-  color: '#f1f5f9',
-  fontSize: 12,
 }
 
 export default function VelocityChart({ data }: Props) {
@@ -28,12 +21,8 @@ export default function VelocityChart({ data }: Props) {
 
   return (
     <ResponsiveContainer width="100%" height={240}>
-      <BarChart
-        data={safeData}
-        margin={{ top: 8, right: 16, left: -16, bottom: 0 }}
-        barGap={3}
-      >
-        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+      <BarChart data={data} margin={{ top: 8, right: 16, left: -8, bottom: 0 }} barGap={3}>
+        <CartesianGrid strokeDasharray="3 3" stroke={CHART.grid} vertical={false} />
 
         <XAxis
           dataKey="sprintName"

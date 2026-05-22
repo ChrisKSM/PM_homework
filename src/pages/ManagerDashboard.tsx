@@ -17,7 +17,7 @@ import {
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-32">
-      <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+      <div className="w-6 h-6 border-2 border-lg-red border-t-transparent rounded-full animate-spin" />
     </div>
   )
 }
@@ -69,6 +69,7 @@ export default function ManagerDashboard() {
               label="완료 Story"
               value={`${summary.completedStories} / ${summary.totalStories}`}
               sub={`완료율 ${Math.round((summary.completedStories / summary.totalStories) * 100)}%`}
+              tone="default"
               icon={<CheckCircle2 size={16} />}
             />
             <KpiCard

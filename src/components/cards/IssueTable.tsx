@@ -6,34 +6,34 @@ interface Props {
 }
 
 const TYPE_STYLES: Record<string, string> = {
-  Epic: 'bg-violet-500/15 text-violet-400',
-  Story: 'bg-indigo-500/15 text-indigo-400',
-  'Sub-task': 'bg-sky-500/15 text-sky-400',
-  Bug: 'bg-red-500/15 text-red-400',
-  Task: 'bg-slate-600/40 text-slate-300',
+  Epic: 'bg-purple-50 text-purple-700',
+  Story: 'bg-blue-50 text-blue-700',
+  'Sub-task': 'bg-sky-50 text-sky-700',
+  Bug: 'bg-red-50 text-lg-red',
+  Task: 'bg-gray-100 text-gray-700',
 }
 
 const STATUS_DOT: Record<string, string> = {
-  Done: 'bg-emerald-400',
-  'In Progress': 'bg-indigo-400',
-  'In Review': 'bg-amber-400',
-  'To Do': 'bg-slate-500',
-  Blocked: 'bg-red-400',
+  Done: 'bg-emerald-500',
+  'In Progress': 'bg-blue-500',
+  'In Review': 'bg-amber-500',
+  'To Do': 'bg-gray-400',
+  Blocked: 'bg-lg-red',
 }
 
 const STATUS_TEXT: Record<string, string> = {
-  Done: 'text-emerald-400',
-  'In Progress': 'text-indigo-400',
-  'In Review': 'text-amber-400',
-  'To Do': 'text-slate-400',
-  Blocked: 'text-red-400',
+  Done: 'text-emerald-600',
+  'In Progress': 'text-blue-600',
+  'In Review': 'text-amber-600',
+  'To Do': 'text-gray-500',
+  Blocked: 'text-lg-red',
 }
 
 const PRIORITY_BADGE: Record<string, string> = {
-  Critical: 'text-red-400',
-  High: 'text-orange-400',
-  Medium: 'text-amber-400',
-  Low: 'text-slate-500',
+  Critical: 'text-lg-red font-semibold',
+  High: 'text-orange-600 font-semibold',
+  Medium: 'text-amber-600 font-semibold',
+  Low: 'text-gray-500 font-medium',
 }
 
 export default function IssueTable({ issues }: Props) {

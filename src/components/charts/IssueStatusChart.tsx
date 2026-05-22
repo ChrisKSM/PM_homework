@@ -1,24 +1,17 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import type { IssueDistribution } from '../../types/jira'
+import { CHART } from '../../theme/colors'
 
 interface Props {
   data: IssueDistribution[]
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  Done: '#34d399',
-  'In Progress': '#6366f1',
-  'In Review': '#f59e0b',
-  'To Do': '#64748b',
-  Blocked: '#f87171',
-}
-
-const TOOLTIP_STYLE = {
-  backgroundColor: '#1e293b',
-  border: '1px solid #334155',
-  borderRadius: 8,
-  color: '#f1f5f9',
-  fontSize: 12,
+  Done: CHART.colors.success,
+  'In Progress': CHART.colors.info,
+  'In Review': CHART.colors.warning,
+  'To Do': CHART.colors.neutral,
+  Blocked: CHART.colors.lgRed,
 }
 
 export default function IssueStatusChart({ data }: Props) {

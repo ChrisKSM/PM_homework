@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Menu, X, Activity } from 'lucide-react'
+import { LayoutDashboard, Users, Menu, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
@@ -75,10 +75,10 @@ export default function Sidebar() {
               to={to}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-[3px]',
                   isActive
-                    ? 'bg-indigo-600/20 text-indigo-400'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-lg-red-light text-lg-red border-lg-red'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-surface-page border-transparent'
                 )
               }
               title={!sidebarOpen ? label : undefined}
@@ -89,10 +89,9 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        {/* 하단 버전 */}
         {sidebarOpen && (
-          <div className="px-4 py-3 border-t border-slate-800 shrink-0">
-            <p className="text-xs text-slate-600">v1.0.0 — Mock Data Mode</p>
+          <div className="px-4 py-3 border-t border-surface-border shrink-0">
+            <p className="text-xs text-gray-400 font-medium">v1.0.0 — Mock Data Mode</p>
           </div>
         )}
       </aside>

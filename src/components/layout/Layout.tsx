@@ -7,7 +7,7 @@ export default function Layout() {
   const { sidebarOpen } = useDashboardStore()
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
+    <div className="min-h-screen bg-surface-page text-gray-900">
       <Sidebar />
       <main
         className={clsx(
