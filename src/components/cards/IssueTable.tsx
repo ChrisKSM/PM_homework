@@ -52,7 +52,7 @@ export default function IssueTable({ issues }: Props) {
           </tr>
         </thead>
         <tbody>
-          {issues.map((issue) => (
+          {(Array.isArray(issues) ? issues : []).map((issue) => (
             <tr
               key={issue.issueKey}
               className={clsx(

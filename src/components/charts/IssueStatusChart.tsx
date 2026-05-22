@@ -27,7 +27,7 @@ export default function IssueStatusChart({ data }: Props) {
     (s, d) => s + (d.count ?? 0),
     0
   );
-  
+
   return (
     <div className="relative">
       <ResponsiveContainer width="100%" height={260}>
@@ -43,12 +43,14 @@ export default function IssueStatusChart({ data }: Props) {
             paddingAngle={2}
             strokeWidth={0}
           >
-            {data.map((entry) => (
-              <Cell
-                key={entry.status}
-                fill={STATUS_COLORS[entry.status] ?? '#64748b'}
-              />
-            ))}
+            
+          {(Array.isArray(data) ? data : []).map((entry) => (
+            <Cell
+              key={entry.status}
+              fill={STATUS_COLORS[entry.status] ?? '#64748b'}
+            />
+          ))}
+
           </Pie>
           <Tooltip
             contentStyle={TOOLTIP_STYLE}

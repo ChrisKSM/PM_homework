@@ -34,7 +34,7 @@ export default function RiskTable({ issues }: Props) {
           </tr>
         </thead>
         <tbody>
-          {issues.map((issue, i) => (
+          {(Array.isArray(issues) ? issues : []).map((issue, i) => (
             <tr
               key={issue.issueKey}
               className={clsx(
