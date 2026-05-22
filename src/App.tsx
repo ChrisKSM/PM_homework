@@ -10,7 +10,7 @@ const basename =
 
 export default function App() {
   return (
-    <BrowserRouter basename={basename}>
+    <BrowserRouter basename={"/project/react-audio/seokmin-koh/proxy/3000"}>
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/manager" replace />} />
