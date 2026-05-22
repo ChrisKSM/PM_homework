@@ -1,4 +1,4 @@
-FROM node:18 as builder
+FROM node:20 as builder
 
 RUN apt-get update && apt-get upgrade -y && apt-get clean
 
@@ -20,11 +20,10 @@ RUN npm run build
 RUN ls /usr/src/app
 
 
-FROM nginx:1.18-alpine
+FROM nginx:1.28.1-alpine
 
-RUN apk update && \
-    apk upgrade apk-tools curl openssl zlib && \
-    rm -rf /var/cache/apk/*
+# 보안패치
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
     
 # 위에서 생성한 앱의 빌드산출물을 nginx의 샘플 앱이 사용하던 폴더로 이동
