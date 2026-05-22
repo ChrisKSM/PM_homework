@@ -15,9 +15,14 @@ export const jiraApi = {
   // 책임자 대시보드
   getProjectSummary: () =>
     client.get<ProjectSummary>('/metrics/summary').then((r) => r.data),
-
+    
   getEpicProgress: () =>
-    client.get<EpicProgress[]>('/epics/progress').then((r) => r.data),
+    //client.get<EpicProgress[]>('/epics/progress').then((r) => r.data),
+    client.get('/metrics/epic-progress')
+    .then((r) => {
+      console.log("API epic:", r.data)  // 디버깅
+      return Array.isArray(r.data) ? r.data : r.data?.data ?? [];
+    }),
 
   getIssueDistribution: () =>
     client.get<IssueDistribution[]>('/issues/distribution').then((r) => r.data),
