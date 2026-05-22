@@ -29,6 +29,14 @@ export default function ManagerDashboard() {
   const { data: velocity, isLoading: loadingVelocity } = useVelocity()
   const { data: risks, isLoading: loadingRisks } = useRiskIssues()
 
+  
+  // ✅ 여기 추가 (중요)
+  console.log("✅ summary:", summary)
+  console.log("✅ epics:", epics)
+  console.log("✅ distribution:", distribution)
+  console.log("✅ velocity:", velocity)
+  console.log("✅ risks:", risks)
+
   return (
     <>
       <Header
