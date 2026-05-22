@@ -27,13 +27,17 @@ function LoadingSpinner() {
   )
 }
 
+const API_BASE =
+  window.workspace_env?.REACT_APP__API_BASE_URL || "/api";
+
+axios.get(`${API_BASE}/metrics/summary`);
 
 export default function ManagerDashboard() {
   useEffect(() => {
     console.log("🔥 ManagerDashboard mounted");
 
     axios.get(
-      "https://workspace.hedej.lge.com/project/be-audio-test/seokmin-koh/proxy/8000/api/metrics/summary"
+      "/api/metrics/summary"
     )
     .then(res => {
       console.log("✅ API OK", res.data);
