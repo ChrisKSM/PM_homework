@@ -34,5 +34,5 @@ COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 3000
+EXPOSE 80
 ENTRYPOINT ["/entrypoint.sh"]
