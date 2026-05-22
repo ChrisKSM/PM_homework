@@ -35,5 +35,6 @@ COPY --from=builder /usr/src/app/settings/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # 3000포트 오픈하고 entrypoint 스크립트 실행
-EXPOSE 80
+EXPOSE 3000
 ENTRYPOINT ["/entrypoint.sh"]
+CMD ["nginx", "-g", "daemon off;"]
