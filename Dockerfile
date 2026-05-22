@@ -25,7 +25,7 @@ FROM nginx:1.28.1-alpine
 # 보안패치
 RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
 
-@@ -23,6 +24,10 @@ FROM nginx:1.18-alpine
+# @@ -23,6 +24,10 @@ FROM nginx:1.18-alpine
  COPY --from=builder /usr/src/app/build /usr/share/nginx/html
  COPY --from=builder /usr/src/app/settings/default.conf /etc/nginx/conf.d/default.conf
 
