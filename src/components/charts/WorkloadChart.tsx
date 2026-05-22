@@ -25,23 +25,33 @@ const TOOLTIP_STYLE = {
 const BAR_COLORS = ['#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#6366f1', '#818cf8']
 
 export default function WorkloadChart({ data }: Props) {
-  const avg = data.length > 0
-    ? Math.round(data.reduce((s, d) => s + d.storyPoints, 0) / data.length)
-    : 0
+  // ✅ 핵심: data를 반드시 배열로 보장
+  const safeData = Array.isArray(data) ? data : [];
+
+  // ✅ 평균 계산도 safeData 기준
+  const avg =
+    safeData.length > 0
+      ? Math.round(
+          safeData.reduce((s, d) => s + (d.storyPoints ?? 0), 0) /
+            safeData.length
+        )
+      : 0;
 
   return (
     <div>
       <p className="text-xs text-slate-500 mb-3">
         평균 <span className="text-indigo-400 font-medium">{avg} SP</span>
       </p>
+
       <ResponsiveContainer width="100%" height={260}>
         <BarChart
-          data={data}
+          data={safeData}  // ✅ 여기 중요
           layout="vertical"
           margin={{ top: 0, right: 32, left: 0, bottom: 0 }}
           barSize={18}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+
           <XAxis
             type="number"
             tick={{ fill: '#94a3b8', fontSize: 11 }}
@@ -49,6 +59,7 @@ export default function WorkloadChart({ data }: Props) {
             tickLine={false}
             unit=" SP"
           />
+
           <YAxis
             type="category"
             dataKey="name"
@@ -57,20 +68,24 @@ export default function WorkloadChart({ data }: Props) {
             tickLine={false}
             width={52}
           />
+
           <Tooltip
             contentStyle={TOOLTIP_STYLE}
             formatter={(value: number, _name: string, props) => [
-              `${value} SP · ${(props.payload as MemberWorkload).issueCount}개 이슈`,
+              `${value ?? 0} SP · ${
+                (props.payload as MemberWorkload)?.issueCount ?? 0
+              }개 이슈`,
               '담당 작업',
             ]}
           />
+
           <Bar dataKey="storyPoints" radius={[0, 4, 4, 0]}>
-            {data.map((_, i) => (
+            {safeData.map((_, i) => (
               <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
             ))}
           </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
-  )
+  );
 }
