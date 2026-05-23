@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Menu, X, Activity } from 'lucide-react'
+import { GitBranch, LayoutDashboard, Users, Menu, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
@@ -6,6 +6,7 @@ import clsx from 'clsx'
 const NAV_ITEMS = [
   { to: '/manager', icon: LayoutDashboard, label: '리더 대시보드' },
   { to: '/devteam', icon: Users, label: '개발팀 대시보드' },
+  { to: '/planning', icon: GitBranch, label: '계획 추적성' },
 ]
 
 export default function Sidebar() {
