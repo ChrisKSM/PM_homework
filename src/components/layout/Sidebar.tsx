@@ -1,4 +1,4 @@
-import { GitBranch, LayoutDashboard, Users, Menu, X } from 'lucide-react'
+import { GitBranch, LayoutDashboard, Users, Menu, X, Activity } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
