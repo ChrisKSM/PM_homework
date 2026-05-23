@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from services import planning_service
 
-router = APIRouter(prefix="/api/planning", tags=["planning"])
+router = APIRouter(prefix="/api", tags=["planning"])
 
 
 @router.get("/filters")
