@@ -30,17 +30,11 @@ export default function ManagerDashboard() {
   const { data: risks, isLoading: loadingRisks } = useRiskIssues()
 
   
-  // ✅ 여기 추가 (중요)
-  console.log("✅ summary:", summary)
-  console.log("✅ epics:", epics)
-  console.log("✅ distribution:", distribution)
-  console.log("✅ velocity:", velocity)
-  console.log("✅ risks:", risks)
 
   return (
     <>
       <Header
-        title="조직 책임자 대시보드"
+        title="리더 대시보드"
         subtitle="전체 프로젝트 현황 — KPI, Epic 진행률, Velocity, 리스크 관리"
       />
 
