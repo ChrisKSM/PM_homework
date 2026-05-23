@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # Jira Server 연결
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
-    jira_api_token: str = ""
+    jira_api_token: str = "OTg4NTE5MzkzMzQzOuwRxxA3/PVswtGkKOousTV8RIGB"
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
 
     # Board

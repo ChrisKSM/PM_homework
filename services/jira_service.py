@@ -205,8 +205,8 @@ async def get_issue_distribution() -> list[dict[str, Any]]:
 
 @cached(ttl=600)
 async def get_velocity() -> list[dict[str, Any]]:
-    """최근 7개 스프린트의 계획 대비 완료 SP."""
-    closed = await jira_client.get_closed_sprints(count=6)
+    """최근 3개 스프린트의 계획 대비 완료 SP."""
+    closed = await jira_client.get_closed_sprints(count=2)
     active = await jira_client.get_active_sprint()
     sprints = closed + ([active] if active else [])
 
@@ -215,15 +215,34 @@ async def get_velocity() -> list[dict[str, Any]]:
         sprint_id = sprint["id"]
         name = sprint.get("name", f"Sprint {sprint_id}")
 
-        # sprint WAS jql로 제거된 이슈 포함
-        jql = f"sprint WAS {sprint_id}"
+        # ✅ WAS 대체: sprint 기간 기반으로 removed 포함 최대한 보정
+        start = sprint.get("startDate", "")[:10]
+        end = sprint.get("endDate", "")[:10]
+
+        if start and end:
+            jql = (
+                f'(sprint = {sprint_id}) OR '
+                f'(updated >= "{start}" AND updated <= "{end}" AND sprint != {sprint_id})'
+            )
+        else:
+            # fallback (active sprint 등 날짜 없을 때)
+            jql = f"sprint = {sprint_id}"
+
+        print("JQL:", jql, flush=True)
+
         data = await jira_client.search(
-            jql, fields=["status", SP_FIELD], max_results=500
+            jql,
+            fields=["status", SP_FIELD],
+            max_results=500
         )
         issues = data.get("issues", [])
 
         planned = sum(_sp(i) for i in issues)
-        completed = sum(_sp(i) for i in issues if _status_category(i) == DONE_CATEGORY)
+        completed = sum(
+            _sp(i) for i in issues
+            if _status_category(i) == DONE_CATEGORY
+        )
+
         result.append({
             "sprintName": name,
             "planned": round(planned, 1),
@@ -239,14 +258,18 @@ async def get_velocity() -> list[dict[str, Any]]:
 async def get_risk_issues() -> list[dict[str, Any]]:
     """Blocked 상태 또는 Critical/Blocker 우선순위 이슈 목록."""
     active = await jira_client.get_active_sprint()
+
+    print("active sprint:", active)
+    
     if not active:
         return []
 
     sprint_id = active["id"]
     jql = (
         f"sprint = {sprint_id} AND "
-        f"(status = Blocked OR priority in (Blocker, Critical, High))"
+        f"(priority in (P0, P1) OR labels = risk)"
     )
+    
     data = await jira_client.search(
         jql,
         fields=["summary", "status", "assignee", "priority"],
