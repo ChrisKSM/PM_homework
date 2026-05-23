@@ -1,16 +1,50 @@
 import axios from 'axios'
 
-// 런타임(Docker 컨테이너): entrypoint.sh가 window.workspace_env 에 환경변수 주입
-// 개발환경: .env 파일의 process.env 사용
-const workspaceEnv = (window as any).workspace_env ?? {}
+/** K8s prod: FE react-audio → BE be-audio-test */
+const PROD_API_BASE_URL = 'https://be-audio-test.apps.hedej.lge.com/api'
 
-const baseURL =
-  workspaceEnv.REACT_APP_API_BASE_URL ||
-  process.env.REACT_APP_API_BASE_URL ||
-  '/api'
+function isProdFeHost(): boolean {
+  return (
+    window.location.hostname.endsWith('.apps.hedej.lge.com') &&
+    !window.location.hostname.includes('be-audio-test')
+  )
+}
+
+function resolveApiBaseUrl(): string {
+  const workspaceEnv = (window as any).workspace_env ?? {}
+
+  // 1) prod FE — BUILD_ARGS / workspace_env / process.env 전부 무시
+  if (
+    window.location.hostname === 'react-audio.apps.hedej.lge.com' ||
+    isProdFeHost()
+  ) {
+    return PROD_API_BASE_URL
+  }
+
+  // 2) workspace dev — entrypoint / build env
+  if (workspaceEnv.REACT_APP_API_BASE_URL) {
+    return workspaceEnv.REACT_APP_API_BASE_URL
+  }
+  if (process.env.REACT_APP_API_BASE_URL) {
+    return process.env.REACT_APP_API_BASE_URL
+  }
+
+  // 3) workspace dev — proxy 경로에서 BE 자동 유도
+  if (window.location.hostname.includes('workspace')) {
+    const match = window.location.pathname.match(
+      /(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/
+    )
+    if (match) {
+      return `${window.location.origin}${match[1]}8000/api`
+    }
+  }
+
+  // 4) 로컬
+  return 'http://localhost:8000/api'
+}
 
 const client = axios.create({
-  baseURL,
+  baseURL: resolveApiBaseUrl(),
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

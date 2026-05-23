@@ -4,8 +4,9 @@ Jira Dashboard Backend — FastAPI 메인 애플리케이션
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from config import settings
 from cache import clear_cache
-from routers import manager, devteam, report
+from routers import manager, devteam, report, planning
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -15,10 +16,10 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS — React 개발 서버 허용
+# CORS — React FE 도메인 허용 (config.CORS_ORIGINS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -28,6 +29,7 @@ app.add_middleware(
 app.include_router(manager.router)
 app.include_router(devteam.router)
 app.include_router(report.router)
+app.include_router(planning.router)
 
 
 @app.get("/health", tags=["system"])

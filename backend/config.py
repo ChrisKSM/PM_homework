@@ -18,9 +18,17 @@ class Settings(BaseSettings):
     release_sprint_field: str = "customfield_18834"
     chip_name_field: str = "customfield_14922"
 
+    # 계획 추적성 — 커스텀 필드 (미설정 시 description 파싱 / 기본 DoD 사용)
+    acceptance_criteria_field: str = "customfield_19604"
+    dod_field: str = "customfield_18874"
+    priority_rationale_field: str = "customfield_13449"
+
     # 완료 상태 카테고리 키 (Jira 표준)
     done_status_category: str = "done"
     inprogress_status_category: str = "indeterminate"
+
+    # CORS (쉼표 구분). prod FE 도메인 포함 필요
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
 
     # Daily report
     report_enabled: bool = True

@@ -133,6 +133,19 @@ class JiraClient:
         sprints = data.get("values", [])
         return sorted(sprints, key=lambda s: s.get("id", 0))
 
+    async def get_all_board_sprints(self, max_results: int = 50) -> list[dict]:
+        """보드의 active / closed / future 스프린트 전체."""
+        sprints: list[dict] = []
+        seen: set[int] = set()
+        for state in ("active", "closed", "future"):
+            data = await self.get_board_sprints(state=state, max_results=max_results)
+            for sprint in data.get("values", []):
+                sid = sprint.get("id")
+                if sid is not None and sid not in seen:
+                    seen.add(sid)
+                    sprints.append(sprint)
+        return sorted(sprints, key=lambda s: s.get("id", 0))
+
 
 # 싱글톤
 jira_client = JiraClient()
