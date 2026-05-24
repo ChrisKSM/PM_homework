@@ -3,8 +3,10 @@ Jira Server REST API 비동기 HTTP 클라이언트.
 PAT Bearer 토큰 인증 사용 (Jira Cloud Basic Auth와 다름).
 REST API v2 + Agile API v1.0 지원.
 """
+import os
 import httpx
 import warnings
+from pathlib import Path
 from typing import Any
 
 from config import settings
@@ -160,6 +162,16 @@ class JiraClient:
                     seen.add(sid)
                     sprints.append(sprint)
         return sorted(sprints, key=lambda s: s.get("id", 0))
+
+    async def get_board_filter_jql(self) -> str | None:
+        """보드 filter JQL — 해당 보드 이슈만 검색할 때 사용."""
+        board = await self.get(f"/rest/agile/1.0/board/{self.board_id}")
+        filter_id = (board.get("filter") or {}).get("id")
+        if not filter_id:
+            return None
+        filt = await self.get(f"/rest/api/2/filter/{filter_id}")
+        jql = (filt.get("jql") or "").strip()
+        return jql or None
 
 # 싱글톤
 jira_client = JiraClient()
