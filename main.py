@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from cache import clear_cache
-from routers import manager, devteam, report, planning, quality
+from routers import manager, devteam, planning, quality
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -31,6 +31,12 @@ app.include_router(manager.router)
 app.include_router(devteam.router)
 app.include_router(planning.router)
 app.include_router(quality.router)              # 추가
+
+try:
+    from routers import report
+    app.include_router(report.router)
+except ImportError:
+    pass
 
 @app.get("/health", tags=["system"])
 async def health_check():
