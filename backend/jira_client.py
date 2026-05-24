@@ -3,8 +3,10 @@ Jira Server REST API 비동기 HTTP 클라이언트.
 PAT Bearer 토큰 인증 사용 (Jira Cloud Basic Auth와 다름).
 REST API v2 + Agile API v1.0 지원.
 """
+import os
 import httpx
 import warnings
+from pathlib import Path
 from typing import Any
 
 from config import settings
@@ -13,14 +15,62 @@ from config import settings
 if not settings.jira_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
+# prod(/usr/app/src) · workspace dev(/workspace/project) .env 경로
+_DOTENV_PATHS = (
+    Path("/usr/app/src/.env"),
+    Path("/workspace/project/.env"),
+    Path(".env"),
+)
+
+
+def _read_token_from_dotenv() -> str:
+    """settings가 빈 token일 때 .env 파일에서 직접 읽기 (K8s 빈 env 우선 문제 회피)."""
+    for path in _DOTENV_PATHS:
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            if key.strip() != "JIRA_API_TOKEN":
+                continue
+            token = val.strip().strip('"').strip("'")
+            if token:
+                return token
+    return ""
+
+
+def _normalize_token(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="ignore").strip()
+    return str(raw).strip()
+
+
+def _resolve_jira_token() -> str:
+    token = _normalize_token(settings.jira_api_token)
+    if token:
+        return token
+    token = _read_token_from_dotenv()
+    if token:
+        return token
+    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+        token = _normalize_token(os.getenv(key))
+        if token:
+            return token
+    raise ValueError(
+        "JIRA_API_TOKEN이 비어 있습니다. /usr/app/src/.env 또는 /workspace/project/.env 확인."
+    )
+
 
 def _bearer_token() -> str:
-    token = (settings.jira_api_token or "").strip()
-    if not token:
-        raise ValueError(
-            "JIRA_API_TOKEN이 비어 있습니다. .env 또는 OpenShift Secret/ConfigMap을 확인하세요."
-        )
-    return f"Bearer {token}"
+    return f"Bearer {_resolve_jira_token()}"
 
 
 def _make_client() -> httpx.AsyncClient:
