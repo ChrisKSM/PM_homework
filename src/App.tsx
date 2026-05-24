@@ -3,6 +3,7 @@ import Layout from './components/layout/Layout'
 import ManagerDashboard from './pages/ManagerDashboard'
 import DevTeamDashboard from './pages/DevTeamDashboard'
 import PlanningTraceabilityPage from './pages/PlanningTraceabilityPage'
+import QualityDashboardPage from './pages/QualityDashboardPage'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route path="manager" element={<ManagerDashboard />} />
           <Route path="devteam" element={<DevTeamDashboard />} />
           <Route path="planning" element={<PlanningTraceabilityPage />} />
+          <Route path="quality" element={<QualityDashboardPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

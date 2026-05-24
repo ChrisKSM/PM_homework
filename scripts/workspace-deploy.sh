@@ -34,7 +34,7 @@ EOF
   npm run build
 
   echo "[FE] 완료. dev: npm start  |  prod build: build/ 폴더"
-  echo "[FE] /planning 페이지 → 사이드바 '계획 추적성'"
+  echo "[FE] /planning → 계획 추적성 | /quality → 품질 이슈"
 }
 
 deploy_be() {
@@ -48,7 +48,10 @@ deploy_be() {
     echo "  → backend/.env 생성됨. JIRA_API_TOKEN 반드시 설정!"
   fi
 
-  echo "[BE] planning API 엔드포인트:"
+  echo "[BE] quality API 엔드포인트:"
+  echo "  GET /api/quality/ping"
+  echo "  GET /api/quality/filters"
+  echo "  GET /api/quality/dashboard?event=DEV&phase=1"
   echo "  GET /api/planning/compliance"
   echo "  GET /api/planning/hierarchy"
   echo "  GET /api/planning/traceability"

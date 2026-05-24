@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     dod_field: str = "customfield_18874"
     priority_rationale_field: str = "customfield_13449"
 
+    # 품질 이슈 — 대응 계획/방안 (미설정 시 null 반환)
+    response_plan_field: str = "customfield_10901"
+    response_action_field: str = ""
+    quality_project_key: str = ""
+
     # 완료 상태 카테고리 키 (Jira 표준)
     done_status_category: str = "done"
     inprogress_status_category: str = "indeterminate"

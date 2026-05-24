@@ -28,11 +28,15 @@ echo "=== Sync BE (flat) from $REF ==="
 
 mkdir -p routers services
 
-# ── 신규: planning ──────────────────────────────────────────────────────────
+# ── 신규: planning + quality ────────────────────────────────────────────────
 show "$PREFIX/routers/planning.py"       > routers/planning.py
 show "$PREFIX/services/planning_service.py" > services/planning_service.py
+show "$PREFIX/routers/quality.py"        > routers/quality.py
+show "$PREFIX/services/quality_service.py" > services/quality_service.py
 echo "  + routers/planning.py"
 echo "  + services/planning_service.py"
+echo "  + routers/quality.py"
+echo "  + services/quality_service.py"
 
 # ── 기존 파일 덮어쓰기 (회사 Dockerfile/.gitlab-ci.yml 은 그대로) ───────────
 for f in \
@@ -59,16 +63,18 @@ fi
 
 echo ""
 echo "=== main.py 수동 확인 (자동 덮어쓰지 않음) ==="
-echo "  from routers import manager, devteam, planning"
+echo "  from routers import manager, devteam, planning, quality"
 echo "  app.include_router(planning.router)"
+echo "  app.include_router(quality.router)"
 echo ""
-echo "현재 main.py planning 등록 여부:"
-grep -n planning main.py 2>/dev/null || echo "  → planning import/router 없음 — main.py 편집 필요"
+echo "현재 main.py planning/quality 등록 여부:"
+grep -nE 'planning|quality' main.py 2>/dev/null || echo "  → import/router 없음 — main.py 편집 필요"
 echo ""
 echo "=== .env 확인 ==="
 echo "  ACCEPTANCE_CRITERIA_FIELD=customfield_19604"
 echo "  DOD_FIELD=customfield_18874"
 echo "  PRIORITY_RATIONALE_FIELD=customfield_13449"
+echo "  RESPONSE_PLAN_FIELD=customfield_10901"
 echo ""
 echo "=== 실행 ==="
 echo "  uv sync   # 또는 pip install -r requirements.txt"

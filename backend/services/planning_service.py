@@ -39,6 +39,16 @@ def _issue_type(issue: dict) -> str:
     return issue.get("fields", {}).get("issuetype", {}).get("name") or "Task"
 
 
+def _is_trackable_issue(issue: dict) -> bool:
+    """Story/Task/Bug — 한글 이슈 타입 포함."""
+    name = _issue_type(issue).strip().lower()
+    if name in ("story", "task", "bug", "sub-task", "subtask"):
+        return True
+    if any(k in name for k in ("story", "스토리", "작업", "버그", "하위")):
+        return True
+    return name not in ("epic", "에픽", "initiative", "release")
+
+
 def _status_category(issue: dict) -> str:
     return (
         issue.get("fields", {})
@@ -170,7 +180,7 @@ async def _collect_story_context() -> tuple[list[dict], list[dict[str, Any]]]:
     for sprint in sprints:
         data = await jira_client.get_sprint_issues(sprint["id"], fields=fetch_fields)
         for issue in data.get("issues", []):
-            if _issue_type(issue) not in ("Story", "Task", "Bug"):
+            if not _is_trackable_issue(issue):
                 continue
             fields = issue.get("fields", {})
             ac_list = _parse_acceptance_criteria(fields)
@@ -251,7 +261,10 @@ async def get_planning_compliance() -> dict[str, Any]:
     sprints, contexts = await _collect_story_context()
     total_stories = len(contexts)
 
-    linked = sum(1 for c in contexts if c["epic_key"] and c["sprint"].get("name") and c["gate"] != "Unassigned Gate")
+    linked = sum(
+        1 for c in contexts
+        if c["epic_key"] and c["sprint"].get("name")
+    )
     ac_ok = sum(1 for c in contexts if len(c["ac_list"]) >= 3)
     sprint_with_goal = sum(1 for s in sprints if (s.get("goal") or "").strip())
 
@@ -279,6 +292,12 @@ async def get_planning_compliance() -> dict[str, Any]:
         "acCompletePct": ac_pct,
         "sprintGoalPct": sprint_goal_pct,
         "checklist": checklist,
+        "meta": {
+            "totalStories": total_stories,
+            "linkedStories": linked,
+            "sprintCount": len(sprints),
+            "dataSource": "jira",
+        },
     }
 
 

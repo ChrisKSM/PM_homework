@@ -9,6 +9,7 @@ import HierarchyTree from '../components/planning/HierarchyTree'
 import TraceabilityMatrix from '../components/planning/TraceabilityMatrix'
 import StoryDetailDrawer from '../components/planning/StoryDetailDrawer'
 import PlanningFilters from '../components/planning/PlanningFilters'
+import PlanningDebugStrip from '../components/planning/PlanningDebugStrip'
 import {
   usePlanningCompliance,
   usePlanningFilters,
@@ -75,6 +76,19 @@ export default function PlanningTraceabilityPage() {
             각 계층마다 목표(Goal)와 완료 기준(Exit Criteria / DoD / AC)을 정의하였다.
           </p>
         </div>
+
+        <PlanningDebugStrip
+          complianceMeta={
+            compliance?.meta
+              ? {
+                  totalStories: compliance.meta.totalStories,
+                  linkedStories: compliance.meta.linkedStories,
+                  sprintCount: compliance.meta.sprintCount,
+                }
+              : undefined
+          }
+          apiError={!!complianceError}
+        />
 
         {complianceError ? (
           <ErrorBlock message="Compliance 데이터를 불러오지 못했습니다. Jira API 연결을 확인하세요." />

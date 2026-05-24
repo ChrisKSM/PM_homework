@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from cache import clear_cache
-from routers import manager, devteam, report, planning
+from routers import manager, devteam, report, planning, quality
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -30,6 +30,7 @@ app.include_router(manager.router)
 app.include_router(devteam.router)
 app.include_router(report.router)
 app.include_router(planning.router)
+app.include_router(quality.router)
 
 
 @app.get("/health", tags=["system"])

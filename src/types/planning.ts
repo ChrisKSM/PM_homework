@@ -13,6 +13,12 @@ export interface PlanningCompliance {
   acCompletePct: number
   sprintGoalPct: number
   checklist: PlanningChecklistItem[]
+  meta?: {
+    totalStories: number
+    linkedStories: number
+    sprintCount: number
+    dataSource: 'jira'
+  }
 }
 
 export interface PlanningHierarchyNode {

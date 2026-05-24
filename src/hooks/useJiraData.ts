@@ -23,10 +23,9 @@ import {
   mockSprintIssues,
 } from '../mocks/mockData'
 
+import { USE_MOCK } from '../config/dataSource'
+
 // REACT_APP_USE_MOCK=false 로 설정하면 실제 백엔드 API 호출로 전환
-const workspaceEnv = (window as any).workspace_env ?? {}
-const USE_MOCK =
-  (workspaceEnv.REACT_APP_USE_MOCK ?? process.env.REACT_APP_USE_MOCK ?? 'true') !== 'false'
 
 // ── 책임자 대시보드 ──────────────────────────────────────────────────────────
 

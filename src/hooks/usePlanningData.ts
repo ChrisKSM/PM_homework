@@ -7,16 +7,13 @@ import type {
   StoryDetail,
   TraceabilityRow,
 } from '../types/planning'
+import { USE_MOCK } from '../config/dataSource'
 import {
   mockHierarchy,
   mockPlanningCompliance,
   mockStoryDetails,
   mockTraceabilityRows,
 } from '../mocks/mockPlanningData'
-
-const workspaceEnv = (window as any).workspace_env ?? {}
-const USE_MOCK =
-  (workspaceEnv.REACT_APP_USE_MOCK ?? process.env.REACT_APP_USE_MOCK ?? 'true') !== 'false'
 
 const MOCK_FILTERS: PlanningFilterOptions = {
   gates: [
@@ -96,4 +93,4 @@ export function useStoryDetail(issueKey: string | null) {
   })
 }
 
-export { USE_MOCK as USE_PLANNING_MOCK }
+export { USE_MOCK as USE_PLANNING_MOCK } from '../config/dataSource'
