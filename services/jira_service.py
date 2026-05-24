@@ -58,6 +58,15 @@ def _status_name(issue: dict) -> str:
     return issue.get("fields", {}).get("status", {}).get("name") or "To Do"
 
 
+def _risk_priority_jql() -> str:
+    """설정된 priority 이름으로 JQL in (...) 절 생성."""
+    names = [p.strip() for p in settings.risk_priorities.split(",") if p.strip()]
+    if not names:
+        names = ["P0", "P1", "P2"]
+    quoted = ", ".join(f'"{p}"' if " " in p else p for p in names)
+    return f"priority in ({quoted})"
+
+
 # ── 1. 책임자 — 프로젝트 전체 KPI ────────────────────────────────────────────
 
 @cached(ttl=300)
@@ -237,16 +246,14 @@ async def get_velocity() -> list[dict[str, Any]]:
 
 @cached(ttl=120)
 async def get_risk_issues() -> list[dict[str, Any]]:
-    """Blocked 상태 또는 Critical/Blocker 우선순위 이슈 목록."""
+    """고우선순위(P0/P1/P2 등) 또는 Blocked 상태 이슈 목록."""
     active = await jira_client.get_active_sprint()
     if not active:
         return []
 
     sprint_id = active["id"]
-    jql = (
-        f"sprint = {sprint_id} AND "
-        f"(status = Blocked OR priority in (Blocker, Critical, High))"
-    )
+    pri = _risk_priority_jql()
+    jql = f"sprint = {sprint_id} AND (status = Blocked OR {pri})"
     data = await jira_client.search(
         jql,
         fields=["summary", "status", "assignee", "priority"],
