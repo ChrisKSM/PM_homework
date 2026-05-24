@@ -5,6 +5,12 @@ from services import planning_service
 router = APIRouter(prefix="/api/planning", tags=["planning"])
 
 
+@router.get("/ping")
+async def planning_ping():
+    """배포 확인용 — Jira 호출 없음."""
+    return {"ok": True, "service": "planning"}
+
+
 @router.get("/filters")
 async def planning_filters():
     """Gate / Sprint 필터 옵션."""
