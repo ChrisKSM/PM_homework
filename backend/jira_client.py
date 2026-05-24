@@ -14,11 +14,20 @@ if not settings.jira_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
 
+def _bearer_token() -> str:
+    token = (settings.jira_api_token or "").strip()
+    if not token:
+        raise ValueError(
+            "JIRA_API_TOKEN이 비어 있습니다. .env 또는 OpenShift Secret/ConfigMap을 확인하세요."
+        )
+    return f"Bearer {token}"
+
+
 def _make_client() -> httpx.AsyncClient:
-    """요청용 httpx 클라이언트 생성."""
+    """요청용 httpx AsyncClient 생성."""
     return httpx.AsyncClient(
         headers={
-            "Authorization": f"Bearer {settings.jira_api_token}",
+            "Authorization": _bearer_token(),
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
