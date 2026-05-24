@@ -33,10 +33,7 @@ export default function QualityIssueTable({ issues, showResponsePlan = false }: 
             <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">담당</th>
             <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">경과</th>
             {showResponsePlan && (
-              <>
-                <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">대응 계획</th>
-                <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">대응 방안</th>
-              </>
+              <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">대응 계획</th>
             )}
             {!showResponsePlan && (
               <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">대응 방안</th>
@@ -54,7 +51,18 @@ export default function QualityIssueTable({ issues, showResponsePlan = false }: 
               )}
             >
               <td className="py-3 px-4">
-                <span className="font-mono text-lg-red text-xs font-bold">{issue.issueKey}</span>
+                {issue.issueUrl ? (
+                  <a
+                    href={issue.issueUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-lg-red text-xs font-bold hover:underline"
+                  >
+                    {issue.issueKey}
+                  </a>
+                ) : (
+                  <span className="font-mono text-lg-red text-xs font-bold">{issue.issueKey}</span>
+                )}
               </td>
               <td className="py-3 px-4">
                 <span
@@ -72,16 +80,11 @@ export default function QualityIssueTable({ issues, showResponsePlan = false }: 
               <td className="py-3 px-4 text-gray-600 font-medium">{issue.assignee}</td>
               <td className="py-3 px-4 text-gray-600 font-medium">{issue.ageDays}일</td>
               {showResponsePlan && (
-                <>
-                  <td className="py-3 px-4 text-gray-700 max-w-[160px]">
-                    {issue.responsePlan ?? (
-                      <span className="text-lg-red text-xs font-semibold">미입력</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-gray-700 max-w-[160px]">
-                    {issue.responseAction ?? '—'}
-                  </td>
-                </>
+                <td className="py-3 px-4 text-gray-700 max-w-[160px]">
+                  {issue.responsePlan ?? (
+                    <span className="text-lg-red text-xs font-semibold">미입력</span>
+                  )}
+                </td>
               )}
               {!showResponsePlan && (
                 <td className="py-3 px-4 text-gray-700 max-w-[180px]">

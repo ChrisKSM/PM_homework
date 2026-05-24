@@ -1,4 +1,4 @@
-import { GitBranch, LayoutDashboard, ShieldCheck, Users, Menu, X } from 'lucide-react'
+import { GitBranch, LayoutDashboard, Package, ShieldCheck, Users, Menu, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
@@ -8,6 +8,7 @@ const NAV_ITEMS = [
   { to: '/devteam', icon: Users, label: '개발팀 대시보드' },
   { to: '/planning', icon: GitBranch, label: '계획 추적성' },
   { to: '/quality', icon: ShieldCheck, label: '품질 이슈' },
+  { to: '/procurement', icon: Package, label: '조달 KPI' },
 ]
 
 export default function Sidebar() {

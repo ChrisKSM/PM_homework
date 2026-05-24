@@ -32,6 +32,8 @@ export const MOCK_QUALITY_FILTERS: QualityFilterOptions = {
   },
 }
 
+const MOCK_ISSUE_BASE = 'https://harmony.lge.com:8443/issue/browse'
+
 const BASE_MOCK: QualityDashboard = {
   meta: {
     event: 'DEV',
@@ -39,6 +41,7 @@ const BASE_MOCK: QualityDashboard = {
     phaseLabel: 'DEV 1차',
     jiraLabel: 'DEV1_BUG',
     jql: 'issuetype = Bug AND labels = "DEV1_BUG"',
+    boardId: 12641,
     categoryFilter: 'all',
   },
   kpi: {
@@ -88,6 +91,7 @@ const BASE_MOCK: QualityDashboard = {
   p1p2OpenIssues: [
     {
       issueKey: 'PROJ-882',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-882`,
       priority: 'P1',
       category: 'Function',
       summary: '결제 콜백 타임아웃',
@@ -100,6 +104,7 @@ const BASE_MOCK: QualityDashboard = {
     },
     {
       issueKey: 'PROJ-901',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-901`,
       priority: 'P1',
       category: 'Bug',
       summary: '로그인 세션 만료 오류',
@@ -112,6 +117,7 @@ const BASE_MOCK: QualityDashboard = {
     },
     {
       issueKey: 'PROJ-915',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-915`,
       priority: 'P2',
       category: 'Bug',
       summary: '설정 화면 레이아웃 깨짐',
@@ -126,6 +132,7 @@ const BASE_MOCK: QualityDashboard = {
   openIssues: [
     {
       issueKey: 'PROJ-882',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-882`,
       priority: 'P1',
       category: 'Function',
       summary: '결제 콜백 타임아웃',
@@ -137,6 +144,7 @@ const BASE_MOCK: QualityDashboard = {
     },
     {
       issueKey: 'PROJ-901',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-901`,
       priority: 'P1',
       category: 'Bug',
       summary: '로그인 세션 만료 오류',
@@ -148,6 +156,7 @@ const BASE_MOCK: QualityDashboard = {
     },
     {
       issueKey: 'PROJ-915',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-915`,
       priority: 'P2',
       category: 'Bug',
       summary: '설정 화면 레이아웃 깨짐',
@@ -159,6 +168,7 @@ const BASE_MOCK: QualityDashboard = {
     },
     {
       issueKey: 'PROJ-920',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-920`,
       priority: 'P3',
       category: 'Bug',
       summary: '툴팁 문구 오타',
@@ -170,6 +180,7 @@ const BASE_MOCK: QualityDashboard = {
     },
     {
       issueKey: 'PROJ-921',
+      issueUrl: `${MOCK_ISSUE_BASE}/PROJ-921`,
       priority: 'P2',
       category: 'Function',
       summary: '음성 안내 지연',

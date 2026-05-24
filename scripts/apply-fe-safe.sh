@@ -25,7 +25,7 @@ echo ""
 
 mkdir -p \
   src/types src/mocks src/api src/hooks src/pages src/config \
-  src/components/planning src/components/quality
+  src/components/planning src/components/quality src/components/procurement
 
 PLANNING_FILES="
   src/types/planning.ts
@@ -55,7 +55,19 @@ QUALITY_FILES="
   src/components/quality/QualityIssueTable.tsx
 "
 
-for f in $PLANNING_FILES $QUALITY_FILES src/config/dataSource.ts; do
+PROCUREMENT_FILES="
+  src/types/procurement.ts
+  src/mocks/mockProcurementData.ts
+  src/api/procurementApi.ts
+  src/hooks/useProcurementData.ts
+  src/pages/ProcurementDashboardPage.tsx
+  src/components/procurement/ProcurementFilters.tsx
+  src/components/procurement/ProcurementKpiGrid.tsx
+  src/components/procurement/ProcurementPipelineChart.tsx
+  src/components/procurement/ProcurementTables.tsx
+"
+
+for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES src/config/dataSource.ts; do
   show "$f" > "$f"
   echo "  + $f"
 done
@@ -106,6 +118,29 @@ def patch_app():
                 t = t.replace(
                     '<Route path="devteam" element={<DevTeamDashboard />} />',
                     '<Route path="devteam" element={<DevTeamDashboard />} />\n          <Route path="quality" element={<QualityDashboardPage />} />',
+                )
+
+    if "ProcurementDashboardPage" not in t:
+        if "QualityDashboardPage" in t and "import ProcurementDashboardPage" not in t:
+            t = t.replace(
+                "import QualityDashboardPage from './pages/QualityDashboardPage'",
+                "import QualityDashboardPage from './pages/QualityDashboardPage'\nimport ProcurementDashboardPage from './pages/ProcurementDashboardPage'",
+            )
+        elif "import ProcurementDashboardPage" not in t:
+            t = t.replace(
+                "import Layout from './components/layout/Layout'",
+                "import Layout from './components/layout/Layout'\nimport ProcurementDashboardPage from './pages/ProcurementDashboardPage'",
+            )
+        if 'path="procurement"' not in t:
+            if 'path="quality"' in t:
+                t = t.replace(
+                    '<Route path="quality" element={<QualityDashboardPage />} />',
+                    '<Route path="quality" element={<QualityDashboardPage />} />\n          <Route path="procurement" element={<ProcurementDashboardPage />} />',
+                )
+            else:
+                t = t.replace(
+                    '<Route path="devteam" element={<DevTeamDashboard />} />',
+                    '<Route path="devteam" element={<DevTeamDashboard />} />\n          <Route path="procurement" element={<ProcurementDashboardPage />} />',
                 )
 
     if t != orig:
@@ -163,6 +198,29 @@ def patch_sidebar():
                 count=1,
             )
 
+    if "/procurement" not in t and "NAV_ITEMS" in t:
+        if "Package" not in t:
+            m = re.search(r"import \{([^}]+)\} from 'lucide-react'", t)
+            if m:
+                items = [x.strip() for x in m.group(1).split(",")]
+                if "Package" not in items:
+                    items.append("Package")
+                t = t[: m.start()] + f"import {{ {', '.join(items)} }} from 'lucide-react'" + t[m.end() :]
+        if "/quality" in t:
+            t = re.sub(
+                r"(\{ to: '/quality',[^}]+\},)\n",
+                r"\1\n  { to: '/procurement', icon: Package, label: '조달 KPI' },\n",
+                t,
+                count=1,
+            )
+        else:
+            t = re.sub(
+                r"(\{ to: '/devteam',[^}]+\},)\n",
+                r"\1\n  { to: '/procurement', icon: Package, label: '조달 KPI' },\n",
+                t,
+                count=1,
+            )
+
     if t != orig:
         p.write_text(t, encoding="utf-8")
         print("  patched Sidebar.tsx")
@@ -177,7 +235,7 @@ PY
 echo ""
 echo "=== 검증 ==="
 ERR=0
-for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "/planning" "/quality" "계획 추적성" "품질 이슈"; do
+for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "ProcurementDashboardPage" "/planning" "/quality" "/procurement" "계획 추적성" "품질 이슈" "조달 KPI"; do
   if grep -rq "$needle" src/App.tsx src/components/layout/Sidebar.tsx 2>/dev/null; then
     echo "  OK $needle"
   else

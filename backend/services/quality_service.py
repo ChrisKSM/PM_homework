@@ -166,6 +166,32 @@ async def _search_all_issues(jql: str, fields: list[str]) -> list[dict]:
     return issues
 
 
+@cached(ttl=600)
+async def _board_jql_clause() -> str:
+    """settings.board_id 보드의 filter JQL."""
+    try:
+        jql = await jira_client.get_board_filter_jql()
+        return jql or ""
+    except Exception:
+        return ""
+
+
+async def _build_quality_jql(jira_label: str) -> str:
+    """보드 filter + Bug + event label."""
+    bug_clause = f'issuetype = Bug AND labels = "{jira_label}"'
+    board_jql = await _board_jql_clause()
+    if board_jql:
+        return f"({board_jql}) AND {bug_clause}"
+    if settings.quality_project_key:
+        return f"project = {settings.quality_project_key} AND {bug_clause}"
+    return bug_clause
+
+
+def _issue_browse_url(issue_key: str) -> str:
+    base = settings.jira_base_url.rstrip("/")
+    return f"{base}/browse/{issue_key}"
+
+
 def get_quality_filters() -> dict[str, Any]:
     return {
         "eventGroups": [
@@ -189,9 +215,7 @@ async def get_quality_dashboard(
         raise ValueError(f"Unknown event/phase: {event}/{phase}")
 
     jira_label = phase_info["jiraLabel"]
-    jql = f'issuetype = Bug AND labels = "{jira_label}"'
-    if settings.quality_project_key:
-        jql = f'project = {settings.quality_project_key} AND {jql}'
+    jql = await _build_quality_jql(jira_label)
 
     search_fields = [
         "summary",
@@ -239,9 +263,11 @@ async def get_quality_dashboard(
         response_plan = _field_text(fields.get(RESPONSE_PLAN_FIELD)) if RESPONSE_PLAN_FIELD else ""
         response_action = _field_text(fields.get(RESPONSE_ACTION_FIELD)) if RESPONSE_ACTION_FIELD else ""
 
+        key = issue.get("key", "")
         parsed.append(
             {
-                "issueKey": issue.get("key", ""),
+                "issueKey": key,
+                "issueUrl": _issue_browse_url(key) if key else "",
                 "priority": pri,
                 "category": cat,
                 "summary": fields.get("summary") or "",
@@ -311,6 +337,7 @@ async def get_quality_dashboard(
     p1p2_rows = [
         {
             "issueKey": p["issueKey"],
+            "issueUrl": p["issueUrl"],
             "priority": p["priority"],
             "category": p["category"],
             "summary": p["summary"],
@@ -319,7 +346,7 @@ async def get_quality_dashboard(
             "ageDays": p["ageDays"],
             "responsePlan": p["responsePlan"],
             "responseAction": p["responseAction"],
-            "missingPlan": not (p["responsePlan"] or p["responseAction"]),
+            "missingPlan": not p["responsePlan"],
         }
         for p in _sort_open(p1p2_open)
     ]
@@ -327,6 +354,7 @@ async def get_quality_dashboard(
     open_rows = [
         {
             "issueKey": p["issueKey"],
+            "issueUrl": p["issueUrl"],
             "priority": p["priority"],
             "category": p["category"],
             "summary": p["summary"],
@@ -349,6 +377,7 @@ async def get_quality_dashboard(
             "phaseLabel": phase_info["label"],
             "jiraLabel": jira_label,
             "jql": jql,
+            "boardId": settings.board_id,
             "categoryFilter": category or "all",
         },
         "kpi": {

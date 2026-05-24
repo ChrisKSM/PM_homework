@@ -52,6 +52,7 @@ export interface QualityAvgResolveRow {
 
 export interface QualityIssueRow {
   issueKey: string
+  issueUrl?: string
   priority: string
   category: string
   summary: string
@@ -69,6 +70,7 @@ export interface QualityDashboardMeta {
   phaseLabel: string
   jiraLabel: string
   jql: string
+  boardId?: number
   categoryFilter: string
 }
 
