@@ -21,9 +21,18 @@ done
 echo "[4] config response_plan_field:"
 grep -n "response_plan_field" config.py 2>/dev/null || echo "  MISSING in config.py — sync config from github"
 
-if ! python3 -c "from routers import quality" 2>/dev/null && ! python -c "from routers import quality" 2>/dev/null; then
+echo "[5] jinja2 (report 모듈 의존성):"
+if python3 -c "import jinja2" 2>/dev/null || python -c "import jinja2" 2>/dev/null; then
+  echo "  OK jinja2 installed"
+else
+  echo "  MISSING jinja2 — installing..."
+  pip install jinja2==3.1.4 -q || pip install -r requirements.txt -q
+  echo "  installed"
+fi
+
+if ! python3 -c "import main" 2>/dev/null && ! python -c "import main" 2>/dev/null; then
   echo ""
-  echo "[5] import FAILED — github에서 quality 파일 복구 시도..."
+  echo "[6] main import FAILED — github에서 quality 파일 복구 시도..."
   if git rev-parse "$REF" >/dev/null 2>&1; then
     mkdir -p routers services
     git show "$REF:backend/routers/quality.py" > routers/quality.py
@@ -37,14 +46,7 @@ if ! python3 -c "from routers import quality" 2>/dev/null && ! python -c "from r
   fi
 fi
 
-python3 -c "
-from routers import quality
-from services import quality_service
-print('OK import quality, prefix=', quality.router.prefix)
-" 2>/dev/null || python -c "
-from routers import quality
-from services import quality_service
-print('OK import quality, prefix=', quality.router.prefix)
-"
+python3 -c "import main; print('OK main.py load')" 2>/dev/null \
+  || python -c "import main; print('OK main.py load')"
 
 echo "=== diagnose OK ==="

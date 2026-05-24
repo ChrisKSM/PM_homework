@@ -58,11 +58,28 @@ if show "$PREFIX/routers/report.py" >/dev/null 2>&1; then
   show "$PREFIX/services/email_service.py" > services/email_service.py
   mkdir -p templates scripts k8s
   show "$PREFIX/templates/daily_report.html" > templates/daily_report.html 2>/dev/null || true
-  echo "  ~ report modules (optional)"
+  echo "  ~ report modules (optional — jinja2 필요)"
+fi
+
+# requirements.txt 동기화 (report 모듈 → jinja2 등)
+if show "$PREFIX/requirements.txt" >/dev/null 2>&1; then
+  show "$PREFIX/requirements.txt" > requirements.txt
+  echo "  ~ requirements.txt"
 fi
 
 echo ""
-echo "=== main.py 수동 확인 (자동 덮어쓰지 않음) ==="
+echo "=== pip install (jinja2 등 report 의존성) ==="
+if [ -f requirements.txt ]; then
+  pip install -r requirements.txt -q
+  echo "  pip install -r requirements.txt 완료"
+else
+  pip install jinja2==3.1.4 -q
+  echo "  pip install jinja2 (requirements.txt 없음)"
+fi
+
+echo ""
+echo "=== main.py — patch-be-main-quality.sh 권장 ==="
+echo "  sh scripts/patch-be-main-quality.sh"
 echo "  from routers import manager, devteam, planning, quality"
 echo "  app.include_router(planning.router)"
 echo "  app.include_router(quality.router)"
