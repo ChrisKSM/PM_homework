@@ -3,14 +3,18 @@ from pathlib import Path
 
 
 def _env_file_paths() -> tuple[str, ...]:
-    """workspace dev pod(/workspace/project) + cwd .env 모두 시도."""
-    candidates = (Path(".env"), Path("/workspace/project/.env"))
+    """prod(/usr/app/src) · workspace dev(/workspace/project) · cwd .env"""
+    candidates = (
+        Path("/usr/app/src/.env"),
+        Path("/workspace/project/.env"),
+        Path(".env"),
+    )
     found = tuple(str(p) for p in candidates if p.is_file())
     return found or (".env",)
 
 
 class Settings(BaseSettings):
-    # Jira Server 연결
+    # Jira Server 연결 — token은 .env / JIRA_API_TOKEN env (소스에 하드코딩 금지)
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
     jira_api_token: str = ""
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
@@ -64,6 +68,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=_env_file_paths(),
         env_file_encoding="utf-8",
+        # OpenShift에 JIRA_API_TOKEN="" 로 잡혀 있으면 .env 값을 쓰도록
+        env_ignore_empty=True,
         extra="ignore",
     )
 
