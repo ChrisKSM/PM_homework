@@ -1,4 +1,12 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+
+def _env_file_paths() -> tuple[str, ...]:
+    """workspace dev pod(/workspace/project) + cwd .env 모두 시도."""
+    candidates = (Path(".env"), Path("/workspace/project/.env"))
+    found = tuple(str(p) for p in candidates if p.is_file())
+    return found or (".env",)
 
 
 class Settings(BaseSettings):
@@ -28,6 +36,9 @@ class Settings(BaseSettings):
     response_action_field: str = ""
     quality_project_key: str = ""
 
+    # 리스크 JQL — 회사 Jira priority 이름 (쉼표 구분). LGE: P0,P1,P2
+    risk_priorities: str = "P0,P1,P2"
+
     # 완료 상태 카테고리 키 (Jira 표준)
     done_status_category: str = "done"
     inprogress_status_category: str = "indeterminate"
@@ -50,7 +61,11 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = SettingsConfigDict(
+        env_file=_env_file_paths(),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
 
 settings = Settings()
