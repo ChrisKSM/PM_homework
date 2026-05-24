@@ -47,6 +47,7 @@ for f in \
   src/components/planning/ComplianceChecklist.tsx \
   src/components/planning/HierarchyTree.tsx \
   src/components/planning/PlanningFilters.tsx \
+  src/components/planning/PlanningDebugStrip.tsx \
   src/components/planning/StoryDetailDrawer.tsx \
   src/components/planning/TraceabilityMatrix.tsx
 do
