@@ -46,6 +46,12 @@ async def health_check():
     return {"status": "ok", "service": "jira-dashboard-backend"}
 
 
+@app.get("/api/health", tags=["system"])
+async def api_health_check():
+    """FE workspace proxy 호환 (/api prefix)."""
+    return {"status": "ok", "service": "jira-dashboard-backend"}
+
+
 @app.post("/api/cache/clear", tags=["system"])
 async def invalidate_cache():
     """캐시 전체 초기화 (Frontend 새로고침 버튼 연동)."""
