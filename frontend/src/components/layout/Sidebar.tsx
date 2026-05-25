@@ -1,11 +1,14 @@
-import { LayoutDashboard, Users, Menu, X, Activity } from 'lucide-react'
+import { GitBranch, LayoutDashboard, ShieldCheck, Users, Menu, X, Activity, Package } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
 
 const NAV_ITEMS = [
-  { to: '/manager', icon: LayoutDashboard, label: '책임자 대시보드' },
+  { to: '/manager', icon: LayoutDashboard, label: '리더 대시보드' },
   { to: '/devteam', icon: Users, label: '개발팀 대시보드' },
+  { to: '/planning', icon: GitBranch, label: '계획 추적성' },
+  { to: '/quality', icon: ShieldCheck, label: '품질 이슈' },
+  { to: '/procurement', icon: Package, label: '조달 KPI' },
 ]
 
 export default function Sidebar() {
@@ -34,7 +37,7 @@ export default function Sidebar() {
           </div>
           {sidebarOpen && (
             <span className="font-semibold text-white text-sm whitespace-nowrap">
-              Jira Dashboard
+              Soundbar Dashboard
             </span>
           )}
           <button
@@ -54,7 +57,7 @@ export default function Sidebar() {
             </p>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800 border border-slate-700">
               <div className="w-2 h-2 rounded-full bg-indigo-400 shrink-0" />
-              <span className="text-sm text-slate-200 truncate">PROJ — Sample Project</span>
+              <span className="text-sm text-slate-200 truncate">S80C Project</span>
             </div>
           </div>
         )}
@@ -75,10 +78,10 @@ export default function Sidebar() {
               to={to}
               className={({ isActive }) =>
                 clsx(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-[3px]',
                   isActive
-                    ? 'bg-indigo-600/20 text-indigo-400'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                    ? 'bg-lg-red-light text-lg-red border-lg-red'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-surface-page border-transparent'
                 )
               }
               title={!sidebarOpen ? label : undefined}
@@ -89,10 +92,9 @@ export default function Sidebar() {
           ))}
         </nav>
 
-        {/* 하단 버전 */}
         {sidebarOpen && (
-          <div className="px-4 py-3 border-t border-slate-800 shrink-0">
-            <p className="text-xs text-slate-600">v1.0.0 — Mock Data Mode</p>
+          <div className="px-4 py-3 border-t border-surface-border shrink-0">
+            <p className="text-xs text-gray-400 font-medium">v1.0.0 — Mock Data Mode</p>
           </div>
         )}
       </aside>
