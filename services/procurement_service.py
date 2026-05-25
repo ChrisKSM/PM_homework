@@ -3,13 +3,14 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cache import cached
 from config import settings
 from jira_client import jira_client
-from services.quality_service import _board_jql_clause, _issue_browse_url
+from services.quality_service import _board_jql_clause, _field_text, _issue_browse_url
 
 PROCUREMENT_LABEL = "PROCUREMENT"
 ISSUE_TYPE = getattr(settings, "procurement_issue_type", "Request")
@@ -49,7 +50,9 @@ VENDOR_LABEL_TO_NAME = {
 }
 
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
+SPRINT_DAYS = 14
 RESPONSE_PLAN_FIELD = getattr(settings, "response_plan_field", "") or "customfield_10901"
+DOD_FIELD = getattr(settings, "dod_field", "") or "customfield_18874"
 RISK_PRIORITIES = getattr(settings, "risk_priorities", "P0,P1,P2")
 DONE_STATUS_CATEGORY = getattr(settings, "done_status_category", "done")
 
@@ -115,6 +118,37 @@ def _parse_jira_date(value: str | None) -> datetime | None:
         return None
 
 
+def _fmt_schedule_month(dt: datetime) -> str:
+    return dt.strftime("%Y.%m")
+
+
+def _schedule_current_label(
+    start: datetime,
+    end: datetime,
+    now: datetime,
+    all_done: bool,
+) -> str:
+    if all_done:
+        return "완료"
+    total_days = max(0, (end.date() - start.date()).days)
+    total_sprints = max(1, (total_days + SPRINT_DAYS - 1) // SPRINT_DAYS)
+    elapsed = (now.date() - start.date()).days
+    if elapsed < 0:
+        current = 1
+    else:
+        current = min(total_sprints, elapsed // SPRINT_DAYS + 1)
+    return f"Sprint {current}/{total_sprints}"
+
+
+def _schedule_row_state(items: list[dict[str, Any]]) -> str:
+    done_n = sum(1 for i in items if i["isDone"])
+    if any(i["health"] == "주의" for i in items):
+        return "주의"
+    if done_n == len(items):
+        return "완료"
+    return "정상"
+
+
 def _labels(fields: dict) -> set[str]:
     return {str(l) for l in (fields.get("labels") or [])}
 
@@ -148,11 +182,43 @@ def _assignee_name(fields: dict) -> str:
     return assignee.get("displayName") or assignee.get("name") or "Unassigned"
 
 
+def _dod_text(fields: dict) -> str:
+    if not DOD_FIELD:
+        return ""
+    return _field_text(fields.get(DOD_FIELD)).strip()
+
+
+def _dod_display(text: str, max_len: int = 120) -> str:
+    if not text:
+        return "—"
+    flat = re.sub(r"[\r\n]+", " · ", text).strip()
+    if len(flat) <= max_len:
+        return flat
+    return flat[: max_len - 1] + "…"
+
+
+def _pick_group_dod(items: list[dict[str, Any]]) -> str:
+    ordered = sorted(
+        items,
+        key=lambda i: (
+            0 if i["health"] == "주의" else 1,
+            0 if i["dodText"] else 1,
+        ),
+    )
+    for item in ordered:
+        if item["dodText"]:
+            return _dod_display(item["dodText"])
+    filled = sum(1 for i in items if i["dodText"])
+    if filled:
+        return f"{filled}/{len(items)}건 DOD 입력"
+    return "—"
+
+
 def _health(label_set: set[str], done: bool, due: datetime | None, now: datetime) -> str:
     if "VERIFIED" in label_set and done:
         return "완료"
-    if due and not done and due.date() < now.date():
-        return "주의"
+    if done:
+        return "완료"
     if "CONTRACT" in label_set and "SIGNED" not in label_set:
         return "주의"
     return "정상"
@@ -250,6 +316,8 @@ async def get_procurement_dashboard(
 ) -> dict[str, Any]:
     jql = await _build_procurement_jql(vendor, phase)
     search_fields = ["summary", "status", "labels", "assignee", "duedate", "created", "resolutiondate"]
+    if DOD_FIELD:
+        search_fields.append(DOD_FIELD)
     try:
         raw_issues = await _search_all_issues(jql, search_fields)
     except Exception as e:
@@ -287,32 +355,21 @@ async def get_procurement_dashboard(
                 "dueDt": due_dt,
                 "resolvedDt": resolved_dt,
                 "createdDt": created_dt,
+                "dodText": _dod_text(fields),
             }
         )
 
     total = len(parsed)
     signed_count = sum(1 for p in parsed if p["hasSigned"])
     verified_count = sum(1 for p in parsed if p["hasVerified"])
-    overdue_count = sum(
-        1
-        for p in parsed
-        if p["dueDt"] and not p["isDone"] and p["dueDt"].date() < now.date()
-    )
+    open_count = sum(1 for p in parsed if not p["isDone"])
 
     contract_targets = total
     contract_met = sum(1 for p in parsed if p["hasContract"])
     contract_pct = round(contract_met / contract_targets * 100) if contract_targets else 0
 
-    with_due = [p for p in parsed if p["dueDt"]]
-    delivery_met = 0
-    for p in with_due:
-        due = p["dueDt"]
-        if p["isDone"] and p["resolvedDt"]:
-            if p["resolvedDt"].date() <= due.date():
-                delivery_met += 1
-        elif not p["isDone"] and due.date() >= now.date():
-            delivery_met += 1
-    delivery_pct = round(delivery_met / len(with_due) * 100) if with_due else 0
+    delivery_met = sum(1 for p in parsed if p["isDone"])
+    delivery_pct = round(delivery_met / total * 100) if total else 0
 
     verify_targets = [p for p in parsed if p["hasSigned"]]
     quality_met = sum(1 for p in verify_targets if p["hasVerified"])
@@ -339,8 +396,8 @@ async def get_procurement_dashboard(
             "targetNum": 95,
             "actualPct": delivery_pct,
             "numerator": delivery_met,
-            "denominator": len(with_due),
-            "formula": "due date 이내 Done 또는 due date 미경과 Open / due date 지정 Request",
+            "denominator": total,
+            "formula": "statusCategory = Done인 Request / 조달 Request 전체 (due date 미사용)",
             "met": delivery_pct >= 95,
         },
         {
@@ -392,7 +449,6 @@ async def get_procurement_dashboard(
         health = "주의" if any(i["health"] == "주의" for i in items) else (
             "완료" if all(i["health"] == "완료" for i in items) else "정상"
         )
-        deliverable = "완료" if all(i["isDone"] for i in items) else "진행"
         risk_note = next((i["summary"] for i in items if i["health"] == "주의"), "—")
         status_items.append(
             {
@@ -401,7 +457,7 @@ async def get_procurement_dashboard(
                 "vendorLabel": vl,
                 "contractLabel": contract_lbl,
                 "progress": health,
-                "deliverable": deliverable,
+                "dod": _pick_group_dod(items),
                 "risk": risk_note if health == "주의" else "—",
             }
         )
@@ -410,23 +466,34 @@ async def get_procurement_dashboard(
     for vl, items in vendor_groups.items():
         if not vl or not items:
             continue
-        dates = [i["createdDt"] for i in items if i["createdDt"]]
         dues = [i["dueDt"] for i in items if i["dueDt"]]
-        start = min(dates).strftime("%Y.%m") if dates else "—"
-        end = max(dues).strftime("%Y.%m") if dues else "—"
-        milestone = min(dues).strftime("%Y.%m") if dues else "—"
         done_n = sum(1 for i in items if i["isDone"])
-        current = f"{done_n}/{len(items)} Done"
-        state = "주의" if any(i["health"] == "주의" for i in items) else (
-            "완료" if done_n == len(items) else "정상"
-        )
+        all_done = done_n == len(items)
+        state = _schedule_row_state(items)
+
+        if not dues:
+            schedule.append(
+                {
+                    "item": f"{VENDOR_LABEL_TO_NAME.get(vl, vl)} 조달",
+                    "start": "—",
+                    "end": "—",
+                    "milestone": "—",
+                    "current": "완료" if all_done else "—",
+                    "status": state,
+                }
+            )
+            continue
+
+        start_dt = min(d - timedelta(days=SPRINT_DAYS) for d in dues)
+        end_dt = max(dues)
+        milestone_dt = min(dues)
         schedule.append(
             {
                 "item": f"{VENDOR_LABEL_TO_NAME.get(vl, vl)} 조달",
-                "start": start,
-                "end": end,
-                "milestone": milestone,
-                "current": current,
+                "start": _fmt_schedule_month(start_dt),
+                "end": _fmt_schedule_month(end_dt),
+                "milestone": _fmt_schedule_month(milestone_dt),
+                "current": _schedule_current_label(start_dt, end_dt, now, all_done),
                 "status": state,
             }
         )
@@ -479,7 +546,8 @@ async def get_procurement_dashboard(
             parsed,
             key=lambda r: (
                 0 if r["health"] == "주의" else 1,
-                r["dueDate"] or "9999",
+                0 if r["isDone"] else 1,
+                r["issueKey"],
             ),
         )
     ]
@@ -496,7 +564,7 @@ async def get_procurement_dashboard(
             "total": total,
             "signed": signed_count,
             "verified": verified_count,
-            "overdue": overdue_count,
+            "open": open_count,
         },
         "kpis": kpis,
         "statusItems": status_items,
