@@ -52,7 +52,8 @@ VENDOR_LABEL_TO_NAME = {
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
 SPRINT_DAYS = 14
 RESPONSE_PLAN_FIELD = getattr(settings, "response_plan_field", "") or "customfield_10901"
-DOD_FIELD = getattr(settings, "dod_field", "") or "customfield_18874"
+# Request(조달) DoD — Story 계획 추적성 dod_field(18874)와 필드 ID가 다름
+PROCUREMENT_DOD_FIELD = getattr(settings, "procurement_dod_field", None) or "customfield_10504"
 RISK_PRIORITIES = getattr(settings, "risk_priorities", "P0,P1,P2")
 DONE_STATUS_CATEGORY = getattr(settings, "done_status_category", "done")
 
@@ -200,24 +201,68 @@ def _adf_to_text(node: Any) -> str:
 
 
 def _procurement_field_text(value: Any) -> str:
-    """planning_service._field_text + ADF/list — DoD 필드 파싱."""
+    """Jira Server/Cloud — string · {value} · ADF · list."""
     if value is None:
         return ""
     if isinstance(value, str):
-        return value
+        return value.strip()
     if isinstance(value, dict):
         if "content" in value:
             return _adf_to_text(value).strip()
-        return value.get("value") or value.get("name") or ""
+        for key in ("value", "name", "displayName", "text"):
+            part = value.get(key)
+            if part:
+                return _procurement_field_text(part)
+        return ""
     if isinstance(value, list):
-        return "\n".join(_procurement_field_text(v) for v in value if v)
-    return str(value)
+        parts = [_procurement_field_text(v) for v in value if v is not None]
+        return "\n".join(p for p in parts if p).strip()
+    return str(value).strip()
 
 
 def _dod_field_text(fields: dict) -> str:
-    if not DOD_FIELD:
+    if not PROCUREMENT_DOD_FIELD:
         return ""
-    return _procurement_field_text(fields.get(DOD_FIELD)).strip()
+    return _procurement_field_text(fields.get(PROCUREMENT_DOD_FIELD)).strip()
+
+
+def _dod_field_debug(fields: dict) -> dict[str, Any]:
+    """DoD 필드 raw / parsed — pod 디버깅용."""
+    raw = fields.get(PROCUREMENT_DOD_FIELD) if PROCUREMENT_DOD_FIELD else None
+    return {
+        "dodField": PROCUREMENT_DOD_FIELD,
+        "rawType": type(raw).__name__ if raw is not None else "null",
+        "raw": raw,
+        "parsed": _dod_field_text(fields),
+    }
+
+
+async def debug_procurement_dod(issue_key: str) -> dict[str, Any]:
+    """Request 이슈 DoD 필드 조회 — customfield 후보 포함."""
+    issue = await jira_client.get_issue(issue_key.strip().upper())
+    fields = issue.get("fields", {})
+    custom: dict[str, Any] = {
+        k: v
+        for k, v in fields.items()
+        if k.startswith("customfield") and v is not None
+    }
+    text_fields: list[dict[str, str]] = []
+    for key, raw in custom.items():
+        text = _procurement_field_text(raw)
+        if text:
+            text_fields.append(
+                {
+                    "field": key,
+                    "text": text if len(text) <= 200 else text[:200] + "…",
+                }
+            )
+    return {
+        "issueKey": issue.get("key", issue_key),
+        "issuetype": (fields.get("issuetype") or {}).get("name"),
+        "labels": fields.get("labels") or [],
+        "dod": _dod_field_debug(fields),
+        "customFieldsWithText": text_fields,
+    }
 
 
 def _pick_group_dod(items: list[dict[str, Any]]) -> str:
@@ -336,8 +381,8 @@ async def get_procurement_dashboard(
 ) -> dict[str, Any]:
     jql = await _build_procurement_jql(vendor, phase)
     search_fields = ["summary", "status", "labels", "assignee", "duedate", "created", "resolutiondate"]
-    if DOD_FIELD:
-        search_fields.append(DOD_FIELD)
+    if PROCUREMENT_DOD_FIELD:
+        search_fields.append(PROCUREMENT_DOD_FIELD)
     try:
         raw_issues = await _search_all_issues(jql, search_fields)
     except Exception as e:
@@ -563,6 +608,8 @@ async def get_procurement_dashboard(
             "dueDate": p["dueDate"],
             "status": p["status"],
             "health": p["health"],
+            "dodStatus": p["dodText"] or "—",
+            "dodDetail": p["dodText"] or "",
             "missingPlan": False,
         }
         for p in sorted(
@@ -582,6 +629,7 @@ async def get_procurement_dashboard(
             "jql": jql,
             "boardId": settings.board_id,
             "asOf": now.strftime("%Y-%m-%d"),
+            "dodField": PROCUREMENT_DOD_FIELD,
         },
         "summary": {
             "total": total,
