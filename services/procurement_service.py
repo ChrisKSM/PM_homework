@@ -10,7 +10,7 @@ from typing import Any
 from cache import cached
 from config import settings
 from jira_client import jira_client
-from services.quality_service import _board_jql_clause, _field_text, _issue_browse_url
+from services.quality_service import _board_jql_clause, _issue_browse_url
 
 PROCUREMENT_LABEL = "PROCUREMENT"
 ISSUE_TYPE = getattr(settings, "procurement_issue_type", "Request")
@@ -55,6 +55,16 @@ RESPONSE_PLAN_FIELD = getattr(settings, "response_plan_field", "") or "customfie
 DOD_FIELD = getattr(settings, "dod_field", "") or "customfield_18874"
 RISK_PRIORITIES = getattr(settings, "risk_priorities", "P0,P1,P2")
 DONE_STATUS_CATEGORY = getattr(settings, "done_status_category", "done")
+INPROGRESS_STATUS_CATEGORY = getattr(settings, "inprogress_status_category", "indeterminate")
+
+DEFAULT_DOD_LABELS = [
+    "코드 리뷰 완료",
+    "단위 테스트 통과",
+    "QA 완료",
+    "문서 갱신",
+    "보안 스캔",
+    "배포 승인",
+]
 
 # 인도 검수 계획 — 품목별 정적 기준 (검수 Task 건수는 Request 집계로 보강)
 ACCEPTANCE_TEMPLATE: list[dict[str, str]] = [
@@ -182,36 +192,95 @@ def _assignee_name(fields: dict) -> str:
     return assignee.get("displayName") or assignee.get("name") or "Unassigned"
 
 
-def _dod_text(fields: dict) -> str:
-    if not DOD_FIELD:
+def _adf_to_text(node: Any) -> str:
+    if node is None:
         return ""
-    return _field_text(fields.get(DOD_FIELD)).strip()
+    if isinstance(node, str):
+        return node
+    if isinstance(node, list):
+        return "\n".join(filter(None, (_adf_to_text(n) for n in node)))
+    if isinstance(node, dict):
+        if node.get("type") == "text":
+            return node.get("text") or ""
+        if node.get("type") == "hardBreak":
+            return "\n"
+        parts = [_adf_to_text(node.get("text")), _adf_to_text(node.get("content"))]
+        return "".join(p for p in parts if p)
+    return ""
 
 
-def _dod_display(text: str, max_len: int = 120) -> str:
-    if not text:
-        return "—"
-    flat = re.sub(r"[\r\n]+", " · ", text).strip()
-    if len(flat) <= max_len:
-        return flat
-    return flat[: max_len - 1] + "…"
+def _procurement_field_text(value: Any) -> str:
+    """planning_service._field_text + ADF/list — DoD 필드 파싱."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, dict):
+        if "content" in value:
+            return _adf_to_text(value).strip()
+        return value.get("value") or value.get("name") or ""
+    if isinstance(value, list):
+        return "\n".join(_procurement_field_text(v) for v in value if v)
+    return str(value)
 
 
-def _pick_group_dod(items: list[dict[str, Any]]) -> str:
-    ordered = sorted(
-        items,
-        key=lambda i: (
-            0 if i["health"] == "주의" else 1,
-            0 if i["dodText"] else 1,
-        ),
+def _status_category(issue: dict) -> str:
+    return (
+        issue.get("fields", {})
+        .get("status", {})
+        .get("statusCategory", {})
+        .get("key", "new")
     )
-    for item in ordered:
-        if item["dodText"]:
-            return _dod_display(item["dodText"])
-    filled = sum(1 for i in items if i["dodText"])
-    if filled:
-        return f"{filled}/{len(items)}건 DOD 입력"
-    return "—"
+
+
+def _dod_done_count(items: list[dict[str, Any]]) -> int:
+    return sum(1 for item in items if item.get("done"))
+
+
+def _dod_items(fields: dict, issue: dict) -> list[dict[str, Any]]:
+    """계획 추적성과 동일 — DoD 필드 텍스트 줄 단위 파싱, 없으면 DEFAULT_DOD_LABELS."""
+    issue_done = _status_category(issue) == DONE_STATUS_CATEGORY
+    in_progress = _status_category(issue) == INPROGRESS_STATUS_CATEGORY
+
+    if DOD_FIELD:
+        raw = _procurement_field_text(fields.get(DOD_FIELD))
+        if raw.strip():
+            lines = [ln.strip() for ln in re.split(r"[\r\n]+", raw) if ln.strip()]
+            has_checkbox = any(re.search(r"\[(x|X| )\]", ln) for ln in lines)
+            items: list[dict[str, Any]] = []
+            for ln in lines:
+                checkbox = re.match(r"^[-*]?\s*\[(x|X| )\]\s*(.*)$", ln, re.I)
+                if checkbox:
+                    label = checkbox.group(2).strip() or ln.lstrip("*- ").strip()
+                    done = checkbox.group(1).strip().lower() == "x"
+                else:
+                    label = ln.lstrip("*- ").strip()
+                    done = issue_done if not has_checkbox else False
+                items.append({"label": label, "done": done})
+            return items
+
+    items = []
+    for i, label in enumerate(DEFAULT_DOD_LABELS):
+        item_done = issue_done or (in_progress and i < 3)
+        items.append({"label": label, "done": item_done})
+    return items
+
+
+def _dod_status_label(fields: dict, issue: dict) -> tuple[str, str, int, int]:
+    items = _dod_items(fields, issue)
+    total = len(items) or len(DEFAULT_DOD_LABELS)
+    done = _dod_done_count(items)
+    detail = " · ".join(item["label"] for item in items)
+    return f"{done}/{total}", detail, done, total
+
+
+def _group_dod_status(items: list[dict[str, Any]]) -> tuple[str, str]:
+    done = sum(i.get("dodDone", 0) for i in items)
+    total = sum(i.get("dodTotal", 0) for i in items)
+    if total == 0:
+        return "—", ""
+    detail = next((i["dodDetail"] for i in items if i.get("dodDetail")), "")
+    return f"{done}/{total}", detail
 
 
 def _health(label_set: set[str], done: bool, due: datetime | None, now: datetime) -> str:
@@ -334,6 +403,7 @@ async def get_procurement_dashboard(
         resolved_dt = _parse_jira_date(fields.get("resolutiondate"))
         done = _is_done(fields)
         key = issue.get("key", "")
+        dod_status, dod_detail, dod_done, dod_total = _dod_status_label(fields, issue)
 
         parsed.append(
             {
@@ -355,7 +425,10 @@ async def get_procurement_dashboard(
                 "dueDt": due_dt,
                 "resolvedDt": resolved_dt,
                 "createdDt": created_dt,
-                "dodText": _dod_text(fields),
+                "dodStatus": dod_status,
+                "dodDetail": dod_detail,
+                "dodDone": dod_done,
+                "dodTotal": dod_total,
             }
         )
 
@@ -450,6 +523,7 @@ async def get_procurement_dashboard(
             "완료" if all(i["health"] == "완료" for i in items) else "정상"
         )
         risk_note = next((i["summary"] for i in items if i["health"] == "주의"), "—")
+        group_dod_status, group_dod_detail = _group_dod_status(items)
         status_items.append(
             {
                 "item": sample["summary"][:40] if len(items) == 1 else f"{sample['vendor']} ({len(items)}건)",
@@ -457,7 +531,8 @@ async def get_procurement_dashboard(
                 "vendorLabel": vl,
                 "contractLabel": contract_lbl,
                 "progress": health,
-                "dod": _pick_group_dod(items),
+                "dodStatus": group_dod_status,
+                "dodDetail": group_dod_detail,
                 "risk": risk_note if health == "주의" else "—",
             }
         )
