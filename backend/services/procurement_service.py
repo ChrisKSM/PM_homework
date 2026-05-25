@@ -12,7 +12,7 @@ from jira_client import jira_client
 from services.quality_service import _board_jql_clause, _issue_browse_url
 
 PROCUREMENT_LABEL = "PROCUREMENT"
-ISSUE_TYPE = "Request"
+ISSUE_TYPE = getattr(settings, "procurement_issue_type", "Request")
 
 VENDOR_OPTIONS: list[dict[str, str]] = [
     {"id": "all", "label": "전체", "jiraLabel": ""},
@@ -49,7 +49,9 @@ VENDOR_LABEL_TO_NAME = {
 }
 
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
-RESPONSE_PLAN_FIELD = settings.response_plan_field
+RESPONSE_PLAN_FIELD = getattr(settings, "response_plan_field", "") or "customfield_10901"
+RISK_PRIORITIES = getattr(settings, "risk_priorities", "P0,P1,P2")
+DONE_STATUS_CATEGORY = getattr(settings, "done_status_category", "done")
 
 # 인도 검수 계획 — 품목별 정적 기준 (검수 Task 건수는 Request 집계로 보강)
 ACCEPTANCE_TEMPLATE: list[dict[str, str]] = [
@@ -136,7 +138,7 @@ def _highest_phase(label_set: set[str]) -> str:
 
 def _is_done(fields: dict) -> bool:
     cat = fields.get("status", {}).get("statusCategory", {}).get("key", "")
-    return cat == settings.done_status_category
+    return cat == DONE_STATUS_CATEGORY
 
 
 def _assignee_name(fields: dict) -> str:
@@ -177,7 +179,10 @@ async def _search_all_issues(jql: str, fields: list[str]) -> list[dict]:
 
 
 async def _build_procurement_jql(vendor_id: str, phase_id: str) -> str:
-    clauses = [f'issuetype = {ISSUE_TYPE}', f'labels = "{PROCUREMENT_LABEL}"']
+    clauses = [
+        f'issuetype = "{ISSUE_TYPE}"',
+        f'labels = "{PROCUREMENT_LABEL}"',
+    ]
 
     vendor = next((v for v in VENDOR_OPTIONS if v["id"] == vendor_id), VENDOR_OPTIONS[0])
     if vendor["jiraLabel"]:
@@ -191,7 +196,7 @@ async def _build_procurement_jql(vendor_id: str, phase_id: str) -> str:
     board_jql = await _board_jql_clause()
     if board_jql:
         return f"({board_jql}) AND {core}"
-    if settings.quality_project_key:
+    if getattr(settings, "quality_project_key", ""):
         return f"project = {settings.quality_project_key} AND {core}"
     return core
 
@@ -205,7 +210,7 @@ def get_procurement_filters() -> dict[str, Any]:
 
 async def _compute_risk_kpi() -> dict[str, Any]:
     """P1/P2 Bug — 대응계획 입력률 (품질 대시보드 연계)."""
-    prios = [p.strip() for p in settings.risk_priorities.split(",") if p.strip()]
+    prios = [p.strip() for p in RISK_PRIORITIES.split(",") if p.strip()]
     if not prios:
         return {"actualPct": 0, "numerator": 0, "denominator": 0}
 
@@ -245,7 +250,10 @@ async def get_procurement_dashboard(
 ) -> dict[str, Any]:
     jql = await _build_procurement_jql(vendor, phase)
     search_fields = ["summary", "status", "labels", "assignee", "duedate", "created", "resolutiondate"]
-    raw_issues = await _search_all_issues(jql, search_fields)
+    try:
+        raw_issues = await _search_all_issues(jql, search_fields)
+    except Exception as e:
+        raise RuntimeError(f"{e} | jql={jql}") from e
     now = datetime.now(timezone.utc)
 
     parsed: list[dict[str, Any]] = []
