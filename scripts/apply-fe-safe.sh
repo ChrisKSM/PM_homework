@@ -25,7 +25,12 @@ echo ""
 
 mkdir -p \
   src/types src/mocks src/api src/hooks src/pages src/config \
-  src/components/planning src/components/quality src/components/procurement
+  src/components/planning src/components/quality src/components/procurement \
+  src/components/layout
+
+LAYOUT_FILES="
+  src/components/layout/Sidebar.tsx
+"
 
 PLANNING_FILES="
   src/types/planning.ts
@@ -67,13 +72,13 @@ PROCUREMENT_FILES="
   src/components/procurement/ProcurementTables.tsx
 "
 
-for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES src/config/dataSource.ts; do
+for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $LAYOUT_FILES src/config/dataSource.ts; do
   show "$f" > "$f"
   echo "  + $f"
 done
 
 echo ""
-echo "=== App.tsx / Sidebar.tsx 패치 ==="
+echo "=== App.tsx 패치 (Sidebar.tsx는 $REF 에서 그대로 복사) ==="
 python3 - <<'PY' 2>/dev/null || python - <<'PY'
 import re
 from pathlib import Path
@@ -150,86 +155,7 @@ def patch_app():
         print("  App.tsx OK")
 
 
-def patch_sidebar():
-    p = Path("src/components/layout/Sidebar.tsx")
-    if not p.exists():
-        print("  WARN: Sidebar.tsx 없음")
-        return
-    t = p.read_text(encoding="utf-8")
-    orig = t
-
-    if "ShieldCheck" not in t:
-        m = re.search(r"import \{([^}]+)\} from 'lucide-react'", t)
-        if m:
-            items = [x.strip() for x in m.group(1).split(",")]
-            if "ShieldCheck" not in items:
-                items.append("ShieldCheck")
-            t = t[: m.start()] + f"import {{ {', '.join(items)} }} from 'lucide-react'" + t[m.end() :]
-
-    if "GitBranch" not in t and "/planning" not in t:
-        m = re.search(r"import \{([^}]+)\} from 'lucide-react'", t)
-        if m:
-            items = [x.strip() for x in m.group(1).split(",")]
-            if "GitBranch" not in items:
-                items.append("GitBranch")
-            t = t[: m.start()] + f"import {{ {', '.join(items)} }} from 'lucide-react'" + t[m.end() :]
-
-    if "/planning" not in t and "NAV_ITEMS" in t:
-        t = re.sub(
-            r"(\{ to: '/devteam',[^}]+\},)\n",
-            r"\1\n  { to: '/planning', icon: GitBranch, label: '계획 추적성' },\n",
-            t,
-            count=1,
-        )
-
-    if "/quality" not in t and "NAV_ITEMS" in t:
-        if "/planning" in t:
-            t = re.sub(
-                r"(\{ to: '/planning',[^}]+\},)\n",
-                r"\1\n  { to: '/quality', icon: ShieldCheck, label: '품질 이슈' },\n",
-                t,
-                count=1,
-            )
-        else:
-            t = re.sub(
-                r"(\{ to: '/devteam',[^}]+\},)\n",
-                r"\1\n  { to: '/quality', icon: ShieldCheck, label: '품질 이슈' },\n",
-                t,
-                count=1,
-            )
-
-    if "/procurement" not in t and "NAV_ITEMS" in t:
-        if "Package" not in t:
-            m = re.search(r"import \{([^}]+)\} from 'lucide-react'", t)
-            if m:
-                items = [x.strip() for x in m.group(1).split(",")]
-                if "Package" not in items:
-                    items.append("Package")
-                t = t[: m.start()] + f"import {{ {', '.join(items)} }} from 'lucide-react'" + t[m.end() :]
-        if "/quality" in t:
-            t = re.sub(
-                r"(\{ to: '/quality',[^}]+\},)\n",
-                r"\1\n  { to: '/procurement', icon: Package, label: '조달 KPI' },\n",
-                t,
-                count=1,
-            )
-        else:
-            t = re.sub(
-                r"(\{ to: '/devteam',[^}]+\},)\n",
-                r"\1\n  { to: '/procurement', icon: Package, label: '조달 KPI' },\n",
-                t,
-                count=1,
-            )
-
-    if t != orig:
-        p.write_text(t, encoding="utf-8")
-        print("  patched Sidebar.tsx")
-    else:
-        print("  Sidebar.tsx OK")
-
-
 patch_app()
-patch_sidebar()
 PY
 
 echo ""
