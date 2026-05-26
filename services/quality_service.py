@@ -61,6 +61,11 @@ FEATURE_CATEGORY_LABELS = [
 ]
 FEATURE_CATEGORY_OTHER = "기타"
 
+# Agile board API 불가 pod — board_id → project scope fallback (LGE audio)
+BOARD_PROJECT_BY_ID: dict[int, str] = {
+    12641: "MLCSIXZERO",
+}
+
 
 def _resolve_phase(event: str, phase: str) -> dict[str, str] | None:
     phases = EVENT_PHASES.get(event.upper())
@@ -189,6 +194,31 @@ async def _search_all_issues(jql: str, fields: list[str]) -> list[dict]:
 
 
 @cached(ttl=600)
+async def _project_key_from_board_api(board_id: int) -> str:
+    """Agile board/project API에서 projectKey 추출."""
+    for path in (
+        f"/rest/agile/1.0/board/{board_id}",
+        f"/rest/agile/1.0/board/{board_id}/project",
+    ):
+        try:
+            data = await jira_client.get(path)
+        except Exception:
+            continue
+        location = data.get("location") or {}
+        if location.get("projectKey"):
+            return str(location["projectKey"])
+        if data.get("projectKey"):
+            return str(data["projectKey"])
+        project = data.get("project") or {}
+        if isinstance(project, dict) and project.get("key"):
+            return str(project["key"])
+        for item in data.get("values") or []:
+            if isinstance(item, dict) and item.get("key"):
+                return str(item["key"])
+    return ""
+
+
+@cached(ttl=600)
 async def _board_jql_clause() -> str:
     """settings.board_id 보드 filter JQL — 타 프로젝트 동일 label 혼입 방지."""
     board_id = settings.board_id
@@ -203,7 +233,6 @@ async def _board_jql_clause() -> str:
     except Exception:
         pass
 
-    board_info: dict | None = None
     try:
         board_info = await jira_client.get(f"/rest/agile/1.0/board/{board_id}")
         filter_id = (board_info.get("filter") or {}).get("id")
@@ -219,18 +248,21 @@ async def _board_jql_clause() -> str:
     except Exception:
         pass
 
-    if board_info:
-        project_key = (board_info.get("location") or {}).get("projectKey")
-        if project_key:
-            return f"project = {project_key}"
-
-    project_key = (settings.quality_project_key or "").strip()
+    project_key = await _project_key_from_board_api(board_id)
     if project_key:
         return f"project = {project_key}"
 
+    project_key = (getattr(settings, "quality_project_key", "") or "").strip()
+    if project_key:
+        return f"project = {project_key}"
+
+    known_project = BOARD_PROJECT_BY_ID.get(board_id)
+    if known_project:
+        return f"project = {known_project}"
+
     raise RuntimeError(
         f"board_id={board_id} 보드 filter JQL을 가져올 수 없습니다. "
-        "BOARD_ID(12641) · Jira API 권한 · Agile board/filter 접근을 확인하세요."
+        "pod .env에 QUALITY_PROJECT_KEY=MLCSIXZERO 추가 또는 Agile board/filter 권한 확인."
     )
 
 
