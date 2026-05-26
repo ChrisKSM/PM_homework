@@ -173,5 +173,18 @@ class JiraClient:
         jql = (filt.get("jql") or "").strip()
         return jql or None
 
+    async def get_board_filter_jql(self, board_id: int | None = None) -> str | None:
+        """보드 filter JQL — board_id 보드 이슈만 검색할 때 사용."""
+        bid = board_id if board_id is not None else self.board_id
+        board = await self.get(f"/rest/agile/1.0/board/{bid}")
+        filter_id = (board.get("filter") or {}).get("id")
+        if not filter_id:
+            return None
+        filt = await self.get(f"/rest/api/2/filter/{filter_id}")
+        jql = (filt.get("jql") or "").strip()
+        if jql:
+            return jql
+        return f"filter = {filter_id}"
+
 # 싱글톤
 jira_client = JiraClient()

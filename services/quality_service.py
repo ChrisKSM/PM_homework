@@ -33,16 +33,33 @@ EVENT_PHASES: dict[str, list[dict[str, str]]] = {
         {"phase": "4", "label": "PV 4차", "jiraLabel": "PV4"},
     ],
     "AUTO": [
-        {"phase": "1", "label": "자동화 1차", "jiraLabel": "자동화"},
+        {"phase": "1", "label": "자동화 1차", "jiraLabel": "Auto1"},
         {"phase": "2", "label": "자동화 2차", "jiraLabel": "Auto2"},
     ],
 }
 
 AGING_BUCKET_LABELS = ["0–1일", "2–3일", "4–7일", "8–14일", "15일+"]
 PRIORITY_ORDER = ["P0", "P1", "P2", "P3"]
+HIGH_PRIORITY_OPEN = ("P0", "P1", "P2")
 
-FUNCTION_LABEL_HINTS = ("function", "功能")
-AUTO_LABEL_HINTS = ("자동화", "auto1", "auto2")
+# board 12641 Bug — Jira label 기준 기능 분류 (대소문자 무시)
+FEATURE_CATEGORY_LABELS = [
+    "VFD",
+    "BT",
+    "Wireless",
+    "Audio",
+    "APP",
+    "ARC",
+    "Demo",
+    "EQ",
+    "System",
+    "APD",
+    "Key",
+    "USB",
+    "eARC",
+    "Hidden Key",
+]
+FEATURE_CATEGORY_OTHER = "기타"
 
 
 def _resolve_phase(event: str, phase: str) -> dict[str, str] | None:
@@ -106,13 +123,18 @@ def _issue_labels(fields: dict) -> list[str]:
     return [str(l) for l in (fields.get("labels") or [])]
 
 
-def _issue_category(labels: list[str]) -> str:
-    lower = {l.lower() for l in labels}
-    if any(h in l.lower() for l in labels for h in FUNCTION_LABEL_HINTS):
-        return "Function"
-    if lower & {h.lower() for h in AUTO_LABEL_HINTS}:
-        return "Auto"
-    return "Bug"
+def _normalize_label_token(label: str) -> str:
+    return label.strip().lower().replace("_", " ")
+
+
+def _feature_category(labels: list[str]) -> str:
+    """이슈 labels 중 FEATURE_CATEGORY_LABELS 와 일치하는 첫 항목."""
+    normalized = {_normalize_label_token(l): l for l in labels}
+    for cat in FEATURE_CATEGORY_LABELS:
+        key = _normalize_label_token(cat)
+        if key in normalized:
+            return cat
+    return FEATURE_CATEGORY_OTHER
 
 
 def _field_text(value: Any) -> str:
@@ -168,24 +190,53 @@ async def _search_all_issues(jql: str, fields: list[str]) -> list[dict]:
 
 @cached(ttl=600)
 async def _board_jql_clause() -> str:
-    """settings.board_id 보드의 filter JQL."""
+    """settings.board_id 보드 filter JQL — 타 프로젝트 동일 label 혼입 방지."""
+    board_id = settings.board_id
     try:
-        jql = await jira_client.get_board_filter_jql()
-        return jql or ""
+        if hasattr(jira_client, "get_board_filter_jql"):
+            jql = await jira_client.get_board_filter_jql(board_id=board_id)
+            if jql:
+                return jql
     except Exception:
-        return ""
+        pass
+
+    try:
+        board = await jira_client.get(f"/rest/agile/1.0/board/{board_id}")
+        filter_id = (board.get("filter") or {}).get("id")
+        if filter_id:
+            try:
+                filt = await jira_client.get(f"/rest/api/2/filter/{filter_id}")
+                jql = (filt.get("jql") or "").strip()
+                if jql:
+                    return jql
+            except Exception:
+                pass
+            return f"filter = {filter_id}"
+    except Exception:
+        pass
+
+    project_key = (settings.quality_project_key or "").strip()
+    if project_key:
+        return f"project = {project_key}"
+
+    raise RuntimeError(
+        f"board_id={board_id} 보드 filter JQL을 가져올 수 없습니다. "
+        "BOARD_ID(12641) · Jira API 권한 · Agile board/filter 접근을 확인하세요."
+    )
+
+
 async def _build_quality_jql(jira_label: str) -> str:
-    """보드 filter + Bug + event label."""
-    bug_clause = f'issuetype = Bug AND labels = "{jira_label}"'
+    """보드 filter(12641) + Bug + event label — label 단독 검색 금지."""
     board_jql = await _board_jql_clause()
-    if board_jql:
-        return f"({board_jql}) AND {bug_clause}"
-    if settings.quality_project_key:
-        return f"project = {settings.quality_project_key} AND {bug_clause}"
-    return bug_clause
+    bug_clause = f'issuetype = Bug AND labels = "{jira_label}"'
+    return f"({board_jql}) AND {bug_clause}"
+
+
 def _issue_browse_url(issue_key: str) -> str:
     base = settings.jira_base_url.rstrip("/")
     return f"{base}/browse/{issue_key}"
+
+
 def get_quality_filters() -> dict[str, Any]:
     return {
         "eventGroups": [
@@ -195,6 +246,11 @@ def get_quality_filters() -> dict[str, Any]:
             {"value": "AUTO", "label": "자동화"},
         ],
         "phases": EVENT_PHASES,
+        "featureCategories": [
+            {"value": "all", "label": "전체"},
+            *[{"value": cat, "label": cat} for cat in FEATURE_CATEGORY_LABELS],
+            {"value": FEATURE_CATEGORY_OTHER, "label": FEATURE_CATEGORY_OTHER},
+        ],
     }
 
 
@@ -232,7 +288,7 @@ async def get_quality_dashboard(
     for issue in raw_issues:
         fields = issue.get("fields", {})
         labels = _issue_labels(fields)
-        cat = _issue_category(labels)
+        cat = _feature_category(labels)
         if category and category.lower() != "all":
             if cat.lower() != category.lower():
                 continue
@@ -279,7 +335,7 @@ async def get_quality_dashboard(
     open_items = [p for p in parsed if not p["isDone"]]
     resolved = len(resolved_items)
     open_count = len(open_items)
-    p1p2_open = [p for p in open_items if p["priority"] in ("P1", "P2")]
+    p0p1p2_open = [p for p in open_items if p["priority"] in HIGH_PRIORITY_OPEN]
 
     by_priority_map: dict[str, dict[str, int]] = {
         p: {"discovered": 0, "resolved": 0, "open": 0} for p in PRIORITY_ORDER
@@ -292,7 +348,8 @@ async def get_quality_dashboard(
         else:
             slot["open"] += 1
 
-    by_category_map: dict[str, int] = {"Bug": 0, "Function": 0, "Auto": 0}
+    by_category_map: dict[str, int] = {cat: 0 for cat in FEATURE_CATEGORY_LABELS}
+    by_category_map[FEATURE_CATEGORY_OTHER] = 0
     for p in parsed:
         by_category_map[p["category"]] = by_category_map.get(p["category"], 0) + 1
 
@@ -300,13 +357,13 @@ async def get_quality_dashboard(
     open_aging: dict[str, int] = {label: 0 for label in AGING_BUCKET_LABELS}
     resolve_days_list: list[float] = []
     open_days_list: list[float] = []
-    p1p2_resolve_days: list[float] = []
+    p0p1p2_resolve_days: list[float] = []
 
     for p in resolved_items:
         _increment_bucket(resolve_aging, p["ageDays"])
         resolve_days_list.append(p["ageDays"])
-        if p["priority"] in ("P1", "P2"):
-            p1p2_resolve_days.append(p["ageDays"])
+        if p["priority"] in HIGH_PRIORITY_OPEN:
+            p0p1p2_resolve_days.append(p["ageDays"])
 
     for p in open_items:
         _increment_bucket(open_aging, p["ageDays"])
@@ -315,7 +372,7 @@ async def get_quality_dashboard(
     avg_resolve = round(statistics.mean(resolve_days_list), 1) if resolve_days_list else 0.0
     median_resolve = round(statistics.median(resolve_days_list), 1) if resolve_days_list else 0.0
     avg_open = round(statistics.mean(open_days_list), 1) if open_days_list else 0.0
-    p1p2_avg = round(statistics.mean(p1p2_resolve_days), 1) if p1p2_resolve_days else 0.0
+    p0p1p2_avg = round(statistics.mean(p0p1p2_resolve_days), 1) if p0p1p2_resolve_days else 0.0
 
     avg_by_pri: list[dict[str, Any]] = []
     for pri in PRIORITY_ORDER:
@@ -328,7 +385,7 @@ async def get_quality_dashboard(
         order = {"P0": 0, "P1": 1, "P2": 2, "P3": 3}
         return sorted(rows, key=lambda r: (order.get(r["priority"], 9), -r["ageDays"]))
 
-    p1p2_rows = [
+    p0p1p2_rows = [
         {
             "issueKey": p["issueKey"],
             "issueUrl": p["issueUrl"],
@@ -342,7 +399,7 @@ async def get_quality_dashboard(
             "responseAction": p["responseAction"],
             "missingPlan": not p["responsePlan"],
         }
-        for p in _sort_open(p1p2_open)
+        for p in _sort_open(p0p1p2_open)
     ]
 
     open_rows = [
@@ -373,26 +430,31 @@ async def get_quality_dashboard(
             "jql": jql,
             "boardId": settings.board_id,
             "categoryFilter": category or "all",
+            "responsePlanField": RESPONSE_PLAN_FIELD or None,
+            "responseActionField": RESPONSE_ACTION_FIELD or None,
         },
         "kpi": {
             "discovered": discovered,
             "resolved": resolved,
             "open": open_count,
-            "p1p2Open": len(p1p2_open),
+            "p0p1p2Open": len(p0p1p2_open),
+            "p1p2Open": len(p0p1p2_open),
             "resolveRatePct": resolve_rate,
         },
         "agingKpi": {
             "avgResolveDays": avg_resolve,
             "medianResolveDays": median_resolve,
             "avgOpenAgeDays": avg_open,
-            "p1p2AvgResolveDays": p1p2_avg,
+            "p0p1p2AvgResolveDays": p0p1p2_avg,
+            "p1p2AvgResolveDays": p0p1p2_avg,
         },
         "byPriority": [
             {"priority": pri, **by_priority_map[pri]} for pri in PRIORITY_ORDER
         ],
         "byCategory": [
             {"category": cat, "count": by_category_map.get(cat, 0)}
-            for cat in ("Bug", "Function", "Auto")
+            for cat in [*FEATURE_CATEGORY_LABELS, FEATURE_CATEGORY_OTHER]
+            if by_category_map.get(cat, 0) > 0
         ],
         "resolveAgingBuckets": [
             {"label": label, "count": resolve_aging.get(label, 0)} for label in AGING_BUCKET_LABELS
@@ -401,6 +463,7 @@ async def get_quality_dashboard(
             {"label": label, "count": open_aging.get(label, 0)} for label in AGING_BUCKET_LABELS
         ],
         "avgResolveByPriority": avg_by_pri,
-        "p1p2OpenIssues": p1p2_rows,
+        "p0p1p2OpenIssues": p0p1p2_rows,
+        "p1p2OpenIssues": p0p1p2_rows,
         "openIssues": open_rows,
     }

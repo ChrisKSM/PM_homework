@@ -20,8 +20,6 @@ VENDOR_OPTIONS: list[dict[str, str]] = [
     {"id": "mcs", "label": "MCS", "jiraLabel": "Vendor_MCS"},
     {"id": "tonly", "label": "Tonly", "jiraLabel": "Vendor_Tonly"},
     {"id": "ite", "label": "ITE", "jiraLabel": "Vendor_ITE"},
-    {"id": "BES", "label": "BES", "jiraLabel": "Vendor_BT"},
-    {"id": "C-chip", "label": "C-Chip", "jiraLabel": "Vendor_Beken"},
     {"id": "actions", "label": "Actions", "jiraLabel": "Vendor_Actions"},
 ]
 
@@ -48,9 +46,7 @@ VENDOR_LABEL_TO_NAME = {
     "Vendor_MCS": "MCS",
     "Vendor_Tonly": "Tonly",
     "Vendor_ITE": "ITE",
-    "Vendor_BT": "BES",
     "Vendor_Actions": "Actions",
-    "Vendor_Beken": "C-Chip",
 }
 
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
@@ -67,58 +63,44 @@ ACCEPTANCE_TEMPLATE: list[dict[str, str]] = [
         "item": "Main SoC FW",
         "criteria": "기능 동작 · 성능 ±5%",
         "method": "품질 TC · 기능 테스트",
-        "targetDate": "2026.05 · LG요구시 Release",
+        "targetDate": "2026.03",
         "vendorHint": "Vendor_MCS",
     },
     {
-        "item": "BT FW",
-        "criteria": "BT TC",
-        "method": "품질 TC · 성능 지표",
-        "targetDate": "2026.05 · LG요구시 Release",
-        "vendorHint": "Vendor_BT",
-    },
-    {
-        "item": "Wireless FW",
-        "criteria": "Wireless TC",
-        "method": "품질 TC",
-        "targetDate": "2026.05 · LG요구시 Release",
-        "vendorHint": "Vendor_Beken",
+        "item": "BT/Wireless FW",
+        "criteria": "Spec v2.1",
+        "method": "사양 검토 · 성능 지표",
+        "targetDate": "2026.03",
+        "vendorHint": "Vendor_Tonly",
     },
     {
         "item": "HDMI FW",
         "criteria": "기능 동작 · 성능 ±5%",
         "method": "품질 TC · 성능 지표",
-        "targetDate": "2026.05 · LG요구시 Release",
+        "targetDate": "2026.03",
         "vendorHint": "Vendor_ITE",
     },
     {
-        "item": "품질 검증 수행/ All FW 배포",
-        "criteria": "품질 검증수행, 릴리즈노트",
-        "method": "품질 TC · 문서 검증",
-        "targetDate": "2026.05",
-        "vendorHint": "Vendor_Tonly",
-    },
-    {
-        "item": "HW Scematic 제공",
-        "criteria": "HW Scematic 배포",
-        "method": "배포 Target date",
-        "targetDate": "2026.05",
+        "item": "시험 리포트",
+        "criteria": "시험 완료 · 기준 충족",
+        "method": "리뷰",
+        "targetDate": "2024.27",
         "vendorHint": "Vendor_Actions",
     },
 ]
 
 MONITORING_TEMPLATE: list[dict[str, str]] = [
     {
-        "date": "2026.03.10",
+        "date": "2026.02.10",
         "category": "일정",
         "verdict": "일부 지연",
-        "note": "Dolby Atmos 인증 일정 3월말로 조정\n Plan : 모니터링 (전체 일정 Buffer 내 수용가능)",
-        "vendor": "Vendor_Actions",
+        "note": "Dolby Atmos 인증 일정 3월로 조정",
+        "vendor": "Vendor_Tonly",
     },
     {
         "date": "2026.04.02",
         "category": "품질",
-        "verdict": "일부 품질 미충족\n Plan : SP11 (Fail Case category 재검증 진행)",
+        "verdict": "충족",
         "note": "품질 충족률 100% 유지",
         "vendor": "전체",
     },
@@ -343,11 +325,7 @@ async def _build_procurement_jql(vendor_id: str, phase_id: str) -> str:
 
     core = " AND ".join(clauses)
     board_jql = await _board_jql_clause()
-    if board_jql:
-        return f"({board_jql}) AND {core}"
-    if getattr(settings, "quality_project_key", ""):
-        return f"project = {settings.quality_project_key} AND {core}"
-    return core
+    return f"({board_jql}) AND {core}"
 
 
 def get_procurement_filters() -> dict[str, Any]:
@@ -366,7 +344,7 @@ async def _compute_risk_kpi() -> dict[str, Any]:
     pri_jql = ", ".join(f'"{p}"' for p in prios)
     bug_clause = f'issuetype = Bug AND priority in ({pri_jql}) AND statusCategory != Done'
     board_jql = await _board_jql_clause()
-    jql = f"({board_jql}) AND {bug_clause}" if board_jql else bug_clause
+    jql = f"({board_jql}) AND {bug_clause}"
 
     fields = ["priority"]
     if RESPONSE_PLAN_FIELD:
