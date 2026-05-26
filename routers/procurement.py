@@ -19,7 +19,7 @@ async def procurement_filters():
 
 @router.get("/dashboard")
 async def procurement_dashboard(
-    vendor: str = Query("all", description="all | mcs | tonly | ite | actions"),
+    vendor: str = Query("all", description="all | mcs | tonly | ite | Beken"),
     phase: str = Query("all", description="all | plan | contract | signed | execute | verified | close"),
 ):
     """조달 KPI · 현황 · Request 목록."""
