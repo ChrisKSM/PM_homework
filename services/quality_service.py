@@ -194,15 +194,19 @@ async def _board_jql_clause() -> str:
     board_id = settings.board_id
     try:
         if hasattr(jira_client, "get_board_filter_jql"):
-            jql = await jira_client.get_board_filter_jql(board_id=board_id)
+            try:
+                jql = await jira_client.get_board_filter_jql(board_id=board_id)
+            except TypeError:
+                jql = await jira_client.get_board_filter_jql()
             if jql:
                 return jql
     except Exception:
         pass
 
+    board_info: dict | None = None
     try:
-        board = await jira_client.get(f"/rest/agile/1.0/board/{board_id}")
-        filter_id = (board.get("filter") or {}).get("id")
+        board_info = await jira_client.get(f"/rest/agile/1.0/board/{board_id}")
+        filter_id = (board_info.get("filter") or {}).get("id")
         if filter_id:
             try:
                 filt = await jira_client.get(f"/rest/api/2/filter/{filter_id}")
@@ -214,6 +218,11 @@ async def _board_jql_clause() -> str:
             return f"filter = {filter_id}"
     except Exception:
         pass
+
+    if board_info:
+        project_key = (board_info.get("location") or {}).get("projectKey")
+        if project_key:
+            return f"project = {project_key}"
 
     project_key = (settings.quality_project_key or "").strip()
     if project_key:
@@ -228,8 +237,30 @@ async def _board_jql_clause() -> str:
 async def _build_quality_jql(jira_label: str) -> str:
     """보드 filter(12641) + Bug + event label — label 단독 검색 금지."""
     board_jql = await _board_jql_clause()
-    bug_clause = f'issuetype = Bug AND labels = "{jira_label}"'
+    bug_clause = f'issuetype = "Bug" AND labels = "{jira_label}"'
     return f"({board_jql}) AND {bug_clause}"
+
+
+async def _search_quality_issues(jql: str, search_fields: list[str]) -> list[dict]:
+    base_fields = [
+        "summary",
+        "status",
+        "priority",
+        "labels",
+        "assignee",
+        "created",
+        "resolutiondate",
+    ]
+    try:
+        return await _search_all_issues(jql, search_fields)
+    except Exception as e:
+        extra = [f for f in search_fields if f not in base_fields]
+        if extra:
+            try:
+                return await _search_all_issues(jql, base_fields)
+            except Exception as e2:
+                raise RuntimeError(f"{e2} | jql={jql}") from e2
+        raise RuntimeError(f"{e} | jql={jql}") from e
 
 
 def _issue_browse_url(issue_key: str) -> str:
@@ -265,6 +296,7 @@ async def get_quality_dashboard(
         raise ValueError(f"Unknown event/phase: {event}/{phase}")
 
     jira_label = phase_info["jiraLabel"]
+    board_jql = await _board_jql_clause()
     jql = await _build_quality_jql(jira_label)
 
     search_fields = [
@@ -281,7 +313,7 @@ async def get_quality_dashboard(
     if RESPONSE_ACTION_FIELD:
         search_fields.append(RESPONSE_ACTION_FIELD)
 
-    raw_issues = await _search_all_issues(jql, search_fields)
+    raw_issues = await _search_quality_issues(jql, search_fields)
     now = datetime.now(timezone.utc)
 
     parsed: list[dict[str, Any]] = []
@@ -429,6 +461,7 @@ async def get_quality_dashboard(
             "jiraLabel": jira_label,
             "jql": jql,
             "boardId": settings.board_id,
+            "boardScope": board_jql,
             "categoryFilter": category or "all",
             "responsePlanField": RESPONSE_PLAN_FIELD or None,
             "responseActionField": RESPONSE_ACTION_FIELD or None,
