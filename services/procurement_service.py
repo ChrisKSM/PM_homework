@@ -50,7 +50,7 @@ VENDOR_LABEL_TO_NAME = {
     "Vendor_ITE": "ITE",
     "Vendor_Actions": "Actions",
     "Vendor_Beken": "C-chip",
-    "Vendor_Bes": "BES",
+    "Vendor_BT": "BES",
 }
 
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
