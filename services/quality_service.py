@@ -33,7 +33,7 @@ EVENT_PHASES: dict[str, list[dict[str, str]]] = {
         {"phase": "4", "label": "PV 4차", "jiraLabel": "PV4"},
     ],
     "AUTO": [
-        {"phase": "1", "label": "자동화 1차", "jiraLabel": "Auto1"},
+        {"phase": "1", "label": "자동화 1차", "jiraLabel": "자동화"},
         {"phase": "2", "label": "자동화 2차", "jiraLabel": "Auto2"},
     ],
 }

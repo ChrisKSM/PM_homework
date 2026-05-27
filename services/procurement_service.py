@@ -105,13 +105,6 @@ ACCEPTANCE_TEMPLATE: list[dict[str, str]] = [
         "targetDate": "2026.05",
         "vendorHint": "Vendor_ITE",
     },
-    {
-        "item": "시험 리포트",
-        "criteria": "시험 완료 · 기준 충족",
-        "method": "리뷰",
-        "targetDate": "2024.27 · 요청시 수시 릴리즈",
-        "vendorHint": "Vendor_Tonly",
-    },
 ]
 
 MONITORING_TEMPLATE: list[dict[str, str]] = [
