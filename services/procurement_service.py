@@ -96,7 +96,7 @@ ACCEPTANCE_TEMPLATE: list[dict[str, str]] = [
         "criteria": "PCB/ 기판/총조 일정 Meet",
         "method": "Target Schedule",
         "targetDate": "Proto PCB Assey(2026.04)",
-        "vendorHint": "Vendor_actions",
+        "vendorHint": "Vendor_Actions",
     },
     {
         "item": "시험 리포트",
