@@ -21,6 +21,8 @@ VENDOR_OPTIONS: list[dict[str, str]] = [
     {"id": "tonly", "label": "Tonly", "jiraLabel": "Vendor_Tonly"},
     {"id": "ite", "label": "ITE", "jiraLabel": "Vendor_ITE"},
     {"id": "actions", "label": "Actions", "jiraLabel": "Vendor_Actions"},
+    {"id": "bes", "label": "BES", "jiraLabel": "Vendor_BT"},
+    {"id": "cchip", "label": "C-chip", "jiraLabel": "Vendor_Beken"}
 ]
 
 PHASE_OPTIONS: list[dict[str, str]] = [
@@ -47,6 +49,8 @@ VENDOR_LABEL_TO_NAME = {
     "Vendor_Tonly": "Tonly",
     "Vendor_ITE": "ITE",
     "Vendor_Actions": "Actions",
+    "Vendor_Beken": "C-chip",
+    "Vendor_Bes": "BES",
 }
 
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
@@ -63,29 +67,50 @@ ACCEPTANCE_TEMPLATE: list[dict[str, str]] = [
         "item": "Main SoC FW",
         "criteria": "기능 동작 · 성능 ±5%",
         "method": "품질 TC · 기능 테스트",
-        "targetDate": "2026.03",
+        "targetDate": "2026.06 · 요청시 수시 릴리즈",
         "vendorHint": "Vendor_MCS",
     },
     {
-        "item": "BT/Wireless FW",
-        "criteria": "Spec v2.1",
-        "method": "사양 검토 · 성능 지표",
-        "targetDate": "2026.03",
-        "vendorHint": "Vendor_Tonly",
+        "item": "BT FW",
+        "criteria": "기능 동작",
+        "method": "품질 TC · 성능 지표",
+        "targetDate": "2026.06 · 요청시 수시 릴리즈",
+        "vendorHint": "Vendor_Bes",
+    },
+        {
+        "item": "Wireless FW",
+        "criteria": "기능 동작",
+        "method": "품질 TC",
+        "targetDate": "2026.06 · 요청시 수시 릴리즈",
+        "vendorHint": "Vendor_Beken",
+    },
+        {
+        "item": "Hdmi FW",
+        "criteria": "기능 동작",
+        "method": "품질 TC · 성능 지표",
+        "targetDate": "2026.06 · 요청시 수시 릴리즈",
+        "vendorHint": "Vendor_ITE",
+    },
+        {
+        "item": "HW Scematic 제공",
+        "criteria": "PCB/ 기판/총조 일정 Meet",
+        "method": "Target Schedule",
+        "targetDate": "Proto PCB Assey(2026.04)",
+        "vendorHint": "Vendor_actions",
     },
     {
-        "item": "HDMI FW",
-        "criteria": "기능 동작 · 성능 ±5%",
-        "method": "품질 TC · 성능 지표",
-        "targetDate": "2026.03",
+        "item": "시험 리포트",
+        "criteria": "시험 리포트, FW 통합 릴리즈, 릴리즈노트",
+        "method": "리뷰",
+        "targetDate": "2026.05",
         "vendorHint": "Vendor_ITE",
     },
     {
         "item": "시험 리포트",
         "criteria": "시험 완료 · 기준 충족",
         "method": "리뷰",
-        "targetDate": "2024.27",
-        "vendorHint": "Vendor_Actions",
+        "targetDate": "2024.27 · 요청시 수시 릴리즈",
+        "vendorHint": "Vendor_Tonly",
     },
 ]
 
@@ -94,14 +119,21 @@ MONITORING_TEMPLATE: list[dict[str, str]] = [
         "date": "2026.02.10",
         "category": "일정",
         "verdict": "일부 지연",
-        "note": "Dolby Atmos 인증 일정 3월로 조정",
-        "vendor": "Vendor_Tonly",
+        "note": "Dolby Atmos 인증 일정 3월로 조정 · 대응계획 : 전체 일정 영향 없음/수시 모니터링",
+        "vendor": "Vendor_Actions",
     },
     {
         "date": "2026.04.02",
         "category": "품질",
         "verdict": "충족",
         "note": "품질 충족률 100% 유지",
+        "vendor": "전체",
+    },
+        {
+        "date": "2026.05.14",
+        "category": "품질",
+        "verdict": "충족",
+        "note": "품질 충족률 80% · 대응계획 : Bug fix 후 DEV2 진행 *(6/3)",
         "vendor": "전체",
     },
 ]
