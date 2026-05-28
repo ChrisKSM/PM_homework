@@ -134,9 +134,12 @@ export const mockHierarchy: PlanningHierarchyNode[] = [
   },
 ]
 
+const MOCK_BROWSE = 'https://harmony.lge.com:8443/issue/browse'
+
 export const mockTraceabilityRows: TraceabilityRow[] = [
   {
     issueKey: 'PROJ-101',
+    issueUrl: `${MOCK_BROWSE}/PROJ-101`,
     summary: '로그인 API',
     gate: 'Gate 1',
     sprint: 'Sprint 1',
@@ -148,6 +151,7 @@ export const mockTraceabilityRows: TraceabilityRow[] = [
   },
   {
     issueKey: 'PROJ-102',
+    issueUrl: `${MOCK_BROWSE}/PROJ-102`,
     summary: '회원가입 UI',
     gate: 'Gate 1',
     sprint: 'Sprint 1',
@@ -159,6 +163,7 @@ export const mockTraceabilityRows: TraceabilityRow[] = [
   },
   {
     issueKey: 'PROJ-201',
+    issueUrl: `${MOCK_BROWSE}/PROJ-201`,
     summary: '결제 연동 Story',
     gate: 'Gate 1',
     sprint: 'Sprint 2',

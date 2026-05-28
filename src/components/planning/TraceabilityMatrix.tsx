@@ -7,6 +7,12 @@ interface Props {
   onSelect: (key: string) => void
 }
 
+function storyBrowseUrl(row: TraceabilityRow): string | undefined {
+  if (row.issueUrl) return row.issueUrl
+  if (!row.issueKey) return undefined
+  return `https://harmony.lge.com:8443/issue/browse/${row.issueKey}`
+}
+
 const STATUS_DOT: Record<ComplianceStatus, string> = {
   ok: 'bg-emerald-500',
   warn: 'bg-amber-500',
@@ -31,7 +37,9 @@ export default function TraceabilityMatrix({ rows, selectedKey, onSelect }: Prop
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {rows.map((row) => {
+            const url = storyBrowseUrl(row)
+            return (
             <tr
               key={row.issueKey}
               onClick={() => onSelect(row.issueKey)}
@@ -41,7 +49,19 @@ export default function TraceabilityMatrix({ rows, selectedKey, onSelect }: Prop
               )}
             >
               <td className="py-3 px-3">
-                <span className="font-mono text-xs text-lg-red font-bold block">{row.issueKey}</span>
+                {url ? (
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-mono text-xs text-lg-red font-bold block hover:underline"
+                  >
+                    {row.issueKey}
+                  </a>
+                ) : (
+                  <span className="font-mono text-xs text-lg-red font-bold block">{row.issueKey}</span>
+                )}
                 <span className="text-xs text-gray-600">{row.summary}</span>
               </td>
               <td className="py-3 px-3 text-xs text-gray-700">{row.gate}</td>
@@ -56,7 +76,8 @@ export default function TraceabilityMatrix({ rows, selectedKey, onSelect }: Prop
                 <div className={clsx('w-2 h-2 rounded-full', STATUS_DOT[row.status])} />
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
     </div>

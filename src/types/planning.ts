@@ -38,6 +38,7 @@ export interface PlanningHierarchyNode {
 
 export interface TraceabilityRow {
   issueKey: string
+  issueUrl?: string
   summary: string
   gate: string
   sprint: string
