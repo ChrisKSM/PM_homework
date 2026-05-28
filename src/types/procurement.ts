@@ -36,7 +36,7 @@ export interface ProcurementSummary {
   total: number
   signed: number
   verified: number
-  overdue: number
+  open: number
 }
 
 export interface ProcurementStatusRow {
@@ -45,7 +45,8 @@ export interface ProcurementStatusRow {
   vendorLabel: string
   contractLabel: string
   progress: string
-  deliverable: string
+  dodStatus: string
+  dodDetail?: string
   risk: string
 }
 
@@ -92,6 +93,8 @@ export interface ProcurementRequestRow {
   dueDate: string | null
   status: string
   health: string
+  dodStatus?: string
+  dodDetail?: string
 }
 
 export interface ProcurementDashboardMeta {
@@ -100,6 +103,7 @@ export interface ProcurementDashboardMeta {
   jql: string
   boardId: number
   asOf: string
+  dodField?: string
 }
 
 export interface ProcurementDashboard {

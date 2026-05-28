@@ -35,11 +35,24 @@ done
 sh scripts/patch-be-main-procurement.sh
 
 echo ""
+echo "=== import 사전 검사 ==="
+python3 - <<'PY' 2>/dev/null || python - <<'PY'
+try:
+    from services.quality_service import _board_jql_clause
+    print("  OK quality_service._board_jql_clause")
+except ImportError as e:
+    print("  FAIL:", e)
+    print("  → quality BE 먼저 배포: sh scripts/add-quality-be-only.sh github/webpack-migration")
+    raise SystemExit(1)
+from routers import procurement
+print("  OK routers.procurement prefix:", procurement.router.prefix)
+PY
+
+echo ""
 echo "=== 전제 조건 ==="
 echo "  quality_service.py (_board_jql_clause) 이미 있어야 함"
 echo "  jira_client.get_board_filter_jql() — quality와 동일"
 echo ""
-echo "=== 확인 ==="
-echo "  curl -s http://127.0.0.1:8000/api/procurement/ping"
-echo "  curl -s 'http://127.0.0.1:8000/api/procurement/dashboard?vendor=all'"
+echo "=== 확인 (파일 배포 후 uvicorn/pod 재시작 필수) ==="
+echo "  sh scripts/verify-procurement-be.sh http://127.0.0.1:8000"
 echo "=== Done ==="

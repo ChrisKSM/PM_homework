@@ -12,11 +12,23 @@ interface Props {
   onCategoryChange: (category: QualityCategory) => void
 }
 
-const CATEGORY_OPTIONS: { value: QualityCategory; label: string }[] = [
+const DEFAULT_CATEGORY_OPTIONS: { value: QualityCategory; label: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 'bug', label: 'Bug' },
-  { value: 'function', label: 'Function' },
-  { value: 'auto', label: 'Auto (자동화)' },
+  { value: 'VFD', label: 'VFD' },
+  { value: 'BT', label: 'BT' },
+  { value: 'Wireless', label: 'Wireless' },
+  { value: 'Audio', label: 'Audio' },
+  { value: 'APP', label: 'APP' },
+  { value: 'ARC', label: 'ARC' },
+  { value: 'Demo', label: 'Demo' },
+  { value: 'EQ', label: 'EQ' },
+  { value: 'System', label: 'System' },
+  { value: 'APD', label: 'APD' },
+  { value: 'Key', label: 'Key' },
+  { value: 'USB', label: 'USB' },
+  { value: 'eARC', label: 'eARC' },
+  { value: 'Hidden Key', label: 'Hidden Key' },
+  { value: '기타', label: '기타' },
 ]
 
 export default function QualityFilters({
@@ -29,12 +41,18 @@ export default function QualityFilters({
   onPhaseChange,
   onCategoryChange,
 }: Props) {
-  const phases = filterOptions.phases[eventGroup] ?? []
+  const phases = filterOptions.phases?.[eventGroup] ?? []
+  const eventGroups = filterOptions.eventGroups ?? []
+  const categoryOptions =
+    filterOptions.featureCategories?.map((c) => ({
+      value: c.value as QualityCategory,
+      label: c.label,
+    })) ?? DEFAULT_CATEGORY_OPTIONS
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        {filterOptions.eventGroups.map((g) => (
+        {eventGroups.map((g) => (
           <button
             key={g.value}
             type="button"
@@ -80,7 +98,7 @@ export default function QualityFilters({
           onChange={(e) => onCategoryChange(e.target.value as QualityCategory)}
           className="text-sm border border-surface-border rounded-lg px-3 py-1.5 bg-white text-gray-700 font-medium"
         >
-          {CATEGORY_OPTIONS.map((opt) => (
+          {categoryOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
             </option>

@@ -205,15 +205,18 @@ class JiraClient:
                     sprints.append(sprint)
         return sorted(sprints, key=lambda s: s.get("id", 0))
 
-    async def get_board_filter_jql(self) -> str | None:
-        """보드 filter JQL — 해당 보드 이슈만 검색할 때 사용."""
-        board = await self.get(f"/rest/agile/1.0/board/{self.board_id}")
+    async def get_board_filter_jql(self, board_id: int | None = None) -> str | None:
+        """보드 filter JQL — board_id 보드 이슈만 검색할 때 사용."""
+        bid = board_id if board_id is not None else self.board_id
+        board = await self.get(f"/rest/agile/1.0/board/{bid}")
         filter_id = (board.get("filter") or {}).get("id")
         if not filter_id:
             return None
         filt = await self.get(f"/rest/api/2/filter/{filter_id}")
         jql = (filt.get("jql") or "").strip()
-        return jql or None
+        if jql:
+            return jql
+        return f"filter = {filter_id}"
 
 
 # 싱글톤

@@ -30,6 +30,24 @@ export const MOCK_QUALITY_FILTERS: QualityFilterOptions = {
       { phase: '2', label: '자동화 2차', jiraLabel: 'Auto2' },
     ],
   },
+  featureCategories: [
+    { value: 'all', label: '전체' },
+    { value: 'VFD', label: 'VFD' },
+    { value: 'BT', label: 'BT' },
+    { value: 'Wireless', label: 'Wireless' },
+    { value: 'Audio', label: 'Audio' },
+    { value: 'APP', label: 'APP' },
+    { value: 'ARC', label: 'ARC' },
+    { value: 'Demo', label: 'Demo' },
+    { value: 'EQ', label: 'EQ' },
+    { value: 'System', label: 'System' },
+    { value: 'APD', label: 'APD' },
+    { value: 'Key', label: 'Key' },
+    { value: 'USB', label: 'USB' },
+    { value: 'eARC', label: 'eARC' },
+    { value: 'Hidden Key', label: 'Hidden Key' },
+    { value: '기타', label: '기타' },
+  ],
 }
 
 const MOCK_ISSUE_BASE = 'https://harmony.lge.com:8443/issue/browse'
@@ -49,6 +67,7 @@ const BASE_MOCK: QualityDashboard = {
     resolved: 38,
     open: 9,
     p1p2Open: 3,
+    p0p1p2Open: 3,
     resolveRatePct: 81,
   },
   agingKpi: {
@@ -64,9 +83,13 @@ const BASE_MOCK: QualityDashboard = {
     { priority: 'P3', discovered: 22, resolved: 18, open: 4 },
   ],
   byCategory: [
-    { category: 'Bug', count: 31 },
-    { category: 'Function', count: 12 },
-    { category: 'Auto', count: 4 },
+    { category: 'Audio', count: 12 },
+    { category: 'BT', count: 8 },
+    { category: 'Wireless', count: 7 },
+    { category: 'System', count: 6 },
+    { category: 'APP', count: 5 },
+    { category: 'USB', count: 4 },
+    { category: '기타', count: 5 },
   ],
   resolveAgingBuckets: [
     { label: '0–1일', count: 9 },
@@ -93,7 +116,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-882',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-882`,
       priority: 'P1',
-      category: 'Function',
+      category: 'Audio',
       summary: '결제 콜백 타임아웃',
       status: 'In Progress',
       assignee: 'kim.lg',
@@ -106,7 +129,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-901',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-901`,
       priority: 'P1',
-      category: 'Bug',
+      category: 'BT',
       summary: '로그인 세션 만료 오류',
       status: 'Open',
       assignee: 'lee.lg',
@@ -119,7 +142,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-915',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-915`,
       priority: 'P2',
-      category: 'Bug',
+      category: 'BT',
       summary: '설정 화면 레이아웃 깨짐',
       status: 'Open',
       assignee: 'park.lg',
@@ -134,7 +157,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-882',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-882`,
       priority: 'P1',
-      category: 'Function',
+      category: 'Audio',
       summary: '결제 콜백 타임아웃',
       status: 'In Progress',
       assignee: 'kim.lg',
@@ -146,7 +169,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-901',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-901`,
       priority: 'P1',
-      category: 'Bug',
+      category: 'BT',
       summary: '로그인 세션 만료 오류',
       status: 'Open',
       assignee: 'lee.lg',
@@ -158,7 +181,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-915',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-915`,
       priority: 'P2',
-      category: 'Bug',
+      category: 'BT',
       summary: '설정 화면 레이아웃 깨짐',
       status: 'Open',
       assignee: 'park.lg',
@@ -170,7 +193,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-920',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-920`,
       priority: 'P3',
-      category: 'Bug',
+      category: 'BT',
       summary: '툴팁 문구 오타',
       status: 'Open',
       assignee: 'kim.lg',
@@ -182,7 +205,7 @@ const BASE_MOCK: QualityDashboard = {
       issueKey: 'PROJ-921',
       issueUrl: `${MOCK_ISSUE_BASE}/PROJ-921`,
       priority: 'P2',
-      category: 'Function',
+      category: 'Audio',
       summary: '음성 안내 지연',
       status: 'In Progress',
       assignee: 'lee.lg',
@@ -215,19 +238,11 @@ export function getMockQualityDashboard(
   }
 
   if (category !== 'all') {
-    const catMap: Record<string, string> = {
-      bug: 'Bug',
-      function: 'Function',
-      auto: 'Auto',
-    }
-    const target = catMap[category]
     data = {
       ...data,
-      byCategory: data.byCategory.map((row) =>
-        row.category === target ? row : { ...row, count: 0 }
-      ),
-      p1p2OpenIssues: data.p1p2OpenIssues.filter((r) => r.category === target),
-      openIssues: data.openIssues.filter((r) => r.category === target),
+      byCategory: data.byCategory.filter((row) => row.category === category),
+      p1p2OpenIssues: data.p1p2OpenIssues.filter((r) => r.category === category),
+      openIssues: data.openIssues.filter((r) => r.category === category),
     }
   }
 

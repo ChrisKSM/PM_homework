@@ -3,7 +3,8 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import re
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from cache import cached
@@ -49,7 +50,10 @@ VENDOR_LABEL_TO_NAME = {
 }
 
 CONTRACT_LABELS = frozenset({"CONTRACT", "SIGNED"})
+SPRINT_DAYS = 14
 RESPONSE_PLAN_FIELD = getattr(settings, "response_plan_field", "") or "customfield_10901"
+# Request(조달) DoD — Story 계획 추적성 dod_field(18874)와 필드 ID가 다름
+PROCUREMENT_DOD_FIELD = getattr(settings, "procurement_dod_field", None) or "customfield_10504"
 RISK_PRIORITIES = getattr(settings, "risk_priorities", "P0,P1,P2")
 DONE_STATUS_CATEGORY = getattr(settings, "done_status_category", "done")
 
@@ -115,6 +119,37 @@ def _parse_jira_date(value: str | None) -> datetime | None:
         return None
 
 
+def _fmt_schedule_month(dt: datetime) -> str:
+    return dt.strftime("%Y.%m")
+
+
+def _schedule_current_label(
+    start: datetime,
+    end: datetime,
+    now: datetime,
+    all_done: bool,
+) -> str:
+    if all_done:
+        return "완료"
+    total_days = max(0, (end.date() - start.date()).days)
+    total_sprints = max(1, (total_days + SPRINT_DAYS - 1) // SPRINT_DAYS)
+    elapsed = (now.date() - start.date()).days
+    if elapsed < 0:
+        current = 1
+    else:
+        current = min(total_sprints, elapsed // SPRINT_DAYS + 1)
+    return f"Sprint {current}/{total_sprints}"
+
+
+def _schedule_row_state(items: list[dict[str, Any]]) -> str:
+    done_n = sum(1 for i in items if i["isDone"])
+    if any(i["health"] == "주의" for i in items):
+        return "주의"
+    if done_n == len(items):
+        return "완료"
+    return "정상"
+
+
 def _labels(fields: dict) -> set[str]:
     return {str(l) for l in (fields.get("labels") or [])}
 
@@ -148,11 +183,107 @@ def _assignee_name(fields: dict) -> str:
     return assignee.get("displayName") or assignee.get("name") or "Unassigned"
 
 
+def _adf_to_text(node: Any) -> str:
+    if node is None:
+        return ""
+    if isinstance(node, str):
+        return node
+    if isinstance(node, list):
+        return "\n".join(filter(None, (_adf_to_text(n) for n in node)))
+    if isinstance(node, dict):
+        if node.get("type") == "text":
+            return node.get("text") or ""
+        if node.get("type") == "hardBreak":
+            return "\n"
+        parts = [_adf_to_text(node.get("text")), _adf_to_text(node.get("content"))]
+        return "".join(p for p in parts if p)
+    return ""
+
+
+def _procurement_field_text(value: Any) -> str:
+    """Jira Server/Cloud — string · {value} · ADF · list."""
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        if "content" in value:
+            return _adf_to_text(value).strip()
+        for key in ("value", "name", "displayName", "text"):
+            part = value.get(key)
+            if part:
+                return _procurement_field_text(part)
+        return ""
+    if isinstance(value, list):
+        parts = [_procurement_field_text(v) for v in value if v is not None]
+        return "\n".join(p for p in parts if p).strip()
+    return str(value).strip()
+
+
+def _dod_field_text(fields: dict) -> str:
+    if not PROCUREMENT_DOD_FIELD:
+        return ""
+    return _procurement_field_text(fields.get(PROCUREMENT_DOD_FIELD)).strip()
+
+
+def _dod_field_debug(fields: dict) -> dict[str, Any]:
+    """DoD 필드 raw / parsed — pod 디버깅용."""
+    raw = fields.get(PROCUREMENT_DOD_FIELD) if PROCUREMENT_DOD_FIELD else None
+    return {
+        "dodField": PROCUREMENT_DOD_FIELD,
+        "rawType": type(raw).__name__ if raw is not None else "null",
+        "raw": raw,
+        "parsed": _dod_field_text(fields),
+    }
+
+
+async def debug_procurement_dod(issue_key: str) -> dict[str, Any]:
+    """Request 이슈 DoD 필드 조회 — customfield 후보 포함."""
+    issue = await jira_client.get_issue(issue_key.strip().upper())
+    fields = issue.get("fields", {})
+    custom: dict[str, Any] = {
+        k: v
+        for k, v in fields.items()
+        if k.startswith("customfield") and v is not None
+    }
+    text_fields: list[dict[str, str]] = []
+    for key, raw in custom.items():
+        text = _procurement_field_text(raw)
+        if text:
+            text_fields.append(
+                {
+                    "field": key,
+                    "text": text if len(text) <= 200 else text[:200] + "…",
+                }
+            )
+    return {
+        "issueKey": issue.get("key", issue_key),
+        "issuetype": (fields.get("issuetype") or {}).get("name"),
+        "labels": fields.get("labels") or [],
+        "dod": _dod_field_debug(fields),
+        "customFieldsWithText": text_fields,
+    }
+
+
+def _pick_group_dod(items: list[dict[str, Any]]) -> str:
+    ordered = sorted(
+        items,
+        key=lambda i: (
+            0 if i["health"] == "주의" else 1,
+            0 if i.get("dodText") else 1,
+        ),
+    )
+    for item in ordered:
+        if item.get("dodText"):
+            return item["dodText"]
+    return "—"
+
+
 def _health(label_set: set[str], done: bool, due: datetime | None, now: datetime) -> str:
     if "VERIFIED" in label_set and done:
         return "완료"
-    if due and not done and due.date() < now.date():
-        return "주의"
+    if done:
+        return "완료"
     if "CONTRACT" in label_set and "SIGNED" not in label_set:
         return "주의"
     return "정상"
@@ -194,11 +325,7 @@ async def _build_procurement_jql(vendor_id: str, phase_id: str) -> str:
 
     core = " AND ".join(clauses)
     board_jql = await _board_jql_clause()
-    if board_jql:
-        return f"({board_jql}) AND {core}"
-    if getattr(settings, "quality_project_key", ""):
-        return f"project = {settings.quality_project_key} AND {core}"
-    return core
+    return f"({board_jql}) AND {core}"
 
 
 def get_procurement_filters() -> dict[str, Any]:
@@ -217,7 +344,7 @@ async def _compute_risk_kpi() -> dict[str, Any]:
     pri_jql = ", ".join(f'"{p}"' for p in prios)
     bug_clause = f'issuetype = Bug AND priority in ({pri_jql}) AND statusCategory != Done'
     board_jql = await _board_jql_clause()
-    jql = f"({board_jql}) AND {bug_clause}" if board_jql else bug_clause
+    jql = f"({board_jql}) AND {bug_clause}"
 
     fields = ["priority"]
     if RESPONSE_PLAN_FIELD:
@@ -250,6 +377,8 @@ async def get_procurement_dashboard(
 ) -> dict[str, Any]:
     jql = await _build_procurement_jql(vendor, phase)
     search_fields = ["summary", "status", "labels", "assignee", "duedate", "created", "resolutiondate"]
+    if PROCUREMENT_DOD_FIELD:
+        search_fields.append(PROCUREMENT_DOD_FIELD)
     try:
         raw_issues = await _search_all_issues(jql, search_fields)
     except Exception as e:
@@ -266,6 +395,7 @@ async def get_procurement_dashboard(
         resolved_dt = _parse_jira_date(fields.get("resolutiondate"))
         done = _is_done(fields)
         key = issue.get("key", "")
+        dod_text = _dod_field_text(fields)
 
         parsed.append(
             {
@@ -287,32 +417,21 @@ async def get_procurement_dashboard(
                 "dueDt": due_dt,
                 "resolvedDt": resolved_dt,
                 "createdDt": created_dt,
+                "dodText": dod_text,
             }
         )
 
     total = len(parsed)
     signed_count = sum(1 for p in parsed if p["hasSigned"])
     verified_count = sum(1 for p in parsed if p["hasVerified"])
-    overdue_count = sum(
-        1
-        for p in parsed
-        if p["dueDt"] and not p["isDone"] and p["dueDt"].date() < now.date()
-    )
+    open_count = sum(1 for p in parsed if not p["isDone"])
 
     contract_targets = total
     contract_met = sum(1 for p in parsed if p["hasContract"])
     contract_pct = round(contract_met / contract_targets * 100) if contract_targets else 0
 
-    with_due = [p for p in parsed if p["dueDt"]]
-    delivery_met = 0
-    for p in with_due:
-        due = p["dueDt"]
-        if p["isDone"] and p["resolvedDt"]:
-            if p["resolvedDt"].date() <= due.date():
-                delivery_met += 1
-        elif not p["isDone"] and due.date() >= now.date():
-            delivery_met += 1
-    delivery_pct = round(delivery_met / len(with_due) * 100) if with_due else 0
+    delivery_met = sum(1 for p in parsed if p["isDone"])
+    delivery_pct = round(delivery_met / total * 100) if total else 0
 
     verify_targets = [p for p in parsed if p["hasSigned"]]
     quality_met = sum(1 for p in verify_targets if p["hasVerified"])
@@ -339,8 +458,8 @@ async def get_procurement_dashboard(
             "targetNum": 95,
             "actualPct": delivery_pct,
             "numerator": delivery_met,
-            "denominator": len(with_due),
-            "formula": "due date 이내 Done 또는 due date 미경과 Open / due date 지정 Request",
+            "denominator": total,
+            "formula": "statusCategory = Done인 Request / 조달 Request 전체 (due date 미사용)",
             "met": delivery_pct >= 95,
         },
         {
@@ -392,8 +511,8 @@ async def get_procurement_dashboard(
         health = "주의" if any(i["health"] == "주의" for i in items) else (
             "완료" if all(i["health"] == "완료" for i in items) else "정상"
         )
-        deliverable = "완료" if all(i["isDone"] for i in items) else "진행"
         risk_note = next((i["summary"] for i in items if i["health"] == "주의"), "—")
+        dod_text = _pick_group_dod(items)
         status_items.append(
             {
                 "item": sample["summary"][:40] if len(items) == 1 else f"{sample['vendor']} ({len(items)}건)",
@@ -401,7 +520,8 @@ async def get_procurement_dashboard(
                 "vendorLabel": vl,
                 "contractLabel": contract_lbl,
                 "progress": health,
-                "deliverable": deliverable,
+                "dodStatus": dod_text,
+                "dodDetail": dod_text if dod_text != "—" else "",
                 "risk": risk_note if health == "주의" else "—",
             }
         )
@@ -410,23 +530,34 @@ async def get_procurement_dashboard(
     for vl, items in vendor_groups.items():
         if not vl or not items:
             continue
-        dates = [i["createdDt"] for i in items if i["createdDt"]]
         dues = [i["dueDt"] for i in items if i["dueDt"]]
-        start = min(dates).strftime("%Y.%m") if dates else "—"
-        end = max(dues).strftime("%Y.%m") if dues else "—"
-        milestone = min(dues).strftime("%Y.%m") if dues else "—"
         done_n = sum(1 for i in items if i["isDone"])
-        current = f"{done_n}/{len(items)} Done"
-        state = "주의" if any(i["health"] == "주의" for i in items) else (
-            "완료" if done_n == len(items) else "정상"
-        )
+        all_done = done_n == len(items)
+        state = _schedule_row_state(items)
+
+        if not dues:
+            schedule.append(
+                {
+                    "item": f"{VENDOR_LABEL_TO_NAME.get(vl, vl)} 조달",
+                    "start": "—",
+                    "end": "—",
+                    "milestone": "—",
+                    "current": "완료" if all_done else "—",
+                    "status": state,
+                }
+            )
+            continue
+
+        start_dt = min(d - timedelta(days=SPRINT_DAYS) for d in dues)
+        end_dt = max(dues)
+        milestone_dt = min(dues)
         schedule.append(
             {
                 "item": f"{VENDOR_LABEL_TO_NAME.get(vl, vl)} 조달",
-                "start": start,
-                "end": end,
-                "milestone": milestone,
-                "current": current,
+                "start": _fmt_schedule_month(start_dt),
+                "end": _fmt_schedule_month(end_dt),
+                "milestone": _fmt_schedule_month(milestone_dt),
+                "current": _schedule_current_label(start_dt, end_dt, now, all_done),
                 "status": state,
             }
         )
@@ -473,13 +604,16 @@ async def get_procurement_dashboard(
             "dueDate": p["dueDate"],
             "status": p["status"],
             "health": p["health"],
+            "dodStatus": p["dodText"] or "—",
+            "dodDetail": p["dodText"] or "",
             "missingPlan": False,
         }
         for p in sorted(
             parsed,
             key=lambda r: (
                 0 if r["health"] == "주의" else 1,
-                r["dueDate"] or "9999",
+                0 if r["isDone"] else 1,
+                r["issueKey"],
             ),
         )
     ]
@@ -491,12 +625,13 @@ async def get_procurement_dashboard(
             "jql": jql,
             "boardId": settings.board_id,
             "asOf": now.strftime("%Y-%m-%d"),
+            "dodField": PROCUREMENT_DOD_FIELD,
         },
         "summary": {
             "total": total,
             "signed": signed_count,
             "verified": verified_count,
-            "overdue": overdue_count,
+            "open": open_count,
         },
         "kpis": kpis,
         "statusItems": status_items,

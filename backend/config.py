@@ -30,7 +30,10 @@ class Settings(BaseSettings):
     release_sprint_field: str = "customfield_18834"
     chip_name_field: str = "customfield_14922"
 
-    # 계획 추적성 — 커스텀 필드 (미설정 시 description 파싱 / 기본 DoD 사용)
+    # 조달 Request DoD (Story DoD customfield_18874 와 별도)
+    procurement_dod_field: str = "customfield_10504"
+
+    # 계획 추적성 — Story DoD
     acceptance_criteria_field: str = "customfield_19604"
     dod_field: str = "customfield_18874"
     priority_rationale_field: str = "customfield_13449"

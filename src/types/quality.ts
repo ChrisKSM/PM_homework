@@ -1,6 +1,6 @@
 export type QualityEventGroup = 'DEV' | 'FC' | 'PV' | 'AUTO'
 
-export type QualityCategory = 'all' | 'bug' | 'function' | 'auto'
+export type QualityCategory = 'all' | string
 
 export interface QualityPhaseOption {
   phase: string
@@ -11,12 +11,14 @@ export interface QualityPhaseOption {
 export interface QualityFilterOptions {
   eventGroups: { value: QualityEventGroup; label: string }[]
   phases: Record<QualityEventGroup, QualityPhaseOption[]>
+  featureCategories?: { value: string; label: string }[]
 }
 
 export interface QualityKpi {
   discovered: number
   resolved: number
   open: number
+  p0p1p2Open?: number
   p1p2Open: number
   resolveRatePct: number
 }
@@ -25,6 +27,7 @@ export interface QualityAgingKpi {
   avgResolveDays: number
   medianResolveDays: number
   avgOpenAgeDays: number
+  p0p1p2AvgResolveDays?: number
   p1p2AvgResolveDays: number
 }
 
@@ -72,6 +75,8 @@ export interface QualityDashboardMeta {
   jql: string
   boardId?: number
   categoryFilter: string
+  responsePlanField?: string | null
+  responseActionField?: string | null
 }
 
 export interface QualityDashboard {
@@ -83,6 +88,7 @@ export interface QualityDashboard {
   resolveAgingBuckets: QualityAgingBucket[]
   openAgingBuckets: QualityAgingBucket[]
   avgResolveByPriority: QualityAvgResolveRow[]
+  p0p1p2OpenIssues?: QualityIssueRow[]
   p1p2OpenIssues: QualityIssueRow[]
   openIssues: QualityIssueRow[]
 }

@@ -100,9 +100,9 @@ export default function ProcurementDashboardPage() {
                 tone="success"
               />
               <KpiCard
-                label="due date 지연"
-                value={data.summary.overdue}
-                tone={data.summary.overdue > 0 ? 'warning' : 'success'}
+                label="미완료"
+                value={data.summary.open}
+                tone={data.summary.open > 0 ? 'warning' : 'success'}
                 icon={<Truck size={16} />}
               />
             </div>
@@ -114,7 +114,7 @@ export default function ProcurementDashboardPage() {
               <ProcurementKpiGrid kpis={data.kpis} />
             </SectionCard>
 
-            <SectionCard title="4.1 조달 현황" subtitle="공급자 · 계약 label · 진행 · 산출물">
+            <SectionCard title="4.1 조달 현황" subtitle="공급자 · 계약 label · 진행 · DoD (Jira 필드 텍스트)">
               <ProcurementStatusTable rows={data.statusItems} />
             </SectionCard>
 
@@ -123,7 +123,7 @@ export default function ProcurementDashboardPage() {
                 <ProcurementPipelineChart data={data.pipeline} />
               </SectionCard>
 
-              <SectionCard title="3.2 조달 수행 일정" subtitle="계획 vs 마일스톤 vs 현재">
+              <SectionCard title="3.2 조달 수행 일정" subtitle="due date 기준 · 시작=due−2주 · 마일스톤=목표 due · 현재=2주 Sprint">
                 <ProcurementScheduleTable rows={data.schedule} />
               </SectionCard>
             </div>
@@ -138,7 +138,7 @@ export default function ProcurementDashboardPage() {
 
             <SectionCard
               title="조달 Request Task 목록"
-              subtitle="due date 지연 · CONTRACT 미체결 건 행 강조 · Key 클릭 시 Jira 새 탭"
+              subtitle="CONTRACT 미체결 · 미완료 건 행 강조 · Key 클릭 시 Jira 새 탭 · Due date 참고용( KPI 미사용)"
             >
               <ProcurementRequestTable rows={data.requests} />
             </SectionCard>

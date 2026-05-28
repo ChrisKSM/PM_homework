@@ -17,6 +17,17 @@ async def procurement_filters():
     return procurement_service.get_procurement_filters()
 
 
+@router.get("/debug/dod")
+async def procurement_debug_dod(
+    issue_key: str = Query(..., description="예: MLCSIXZERO-123"),
+):
+    """DoD 필드 raw/parsed — API에서 값이 오는지 확인."""
+    try:
+        return await procurement_service.debug_procurement_dod(issue_key=issue_key)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+
+
 @router.get("/dashboard")
 async def procurement_dashboard(
     vendor: str = Query("all", description="all | mcs | tonly | ite | actions"),

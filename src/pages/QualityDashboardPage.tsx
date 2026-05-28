@@ -27,6 +27,14 @@ function LoadingBlock() {
   )
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const detail = (error as { response?: { data?: { detail?: string } } }).response?.data?.detail
+    if (detail) return detail
+  }
+  return String((error as Error).message || '데이터를 불러오지 못했습니다.')
+}
+
 function ErrorBlock({ message }: { message: string }) {
   return (
     <div className="flex items-center gap-2 text-sm text-lg-red bg-lg-red-light border border-red-200 rounded-lg px-4 py-3">
@@ -96,7 +104,7 @@ export default function QualityDashboardPage() {
 
       <div className="pt-16 p-6 space-y-6">
         <SectionCard title="이벤트 · 차수 · 분류 필터">
-          {filterOptions ? (
+          {filterOptions?.phases && filterOptions?.eventGroups ? (
             <QualityFilters
               filterOptions={filterOptions}
               eventGroup={eventGroup}
@@ -113,7 +121,7 @@ export default function QualityDashboardPage() {
         </SectionCard>
 
         {error ? (
-          <ErrorBlock message={String((error as Error).message || '데이터를 불러오지 못했습니다.')} />
+          <ErrorBlock message={getErrorMessage(error)} />
         ) : isLoading || !data ? (
           <LoadingBlock />
         ) : (
@@ -128,8 +136,8 @@ export default function QualityDashboardPage() {
               />
               <KpiCard label="미결" value={data.kpi.open} tone="warning" />
               <KpiCard
-                label="P1/P2 미결"
-                value={data.kpi.p1p2Open}
+                label="P0/P1/P2 미결"
+                value={data.kpi.p0p1p2Open ?? data.kpi.p1p2Open}
                 tone="danger"
                 icon={<ShieldAlert size={16} />}
               />
@@ -149,7 +157,7 @@ export default function QualityDashboardPage() {
                 <QualityPriorityChart data={data.byPriority} />
               </SectionCard>
 
-              <SectionCard title="분류별 건수" subtitle="Bug / Function / Auto">
+              <SectionCard title="분류별 건수" subtitle="Jira label · VFD / BT / Wireless / Audio …">
                 <QualityCategoryChart data={data.byCategory} />
               </SectionCard>
             </div>
@@ -171,8 +179,8 @@ export default function QualityDashboardPage() {
                   tone="warning"
                 />
                 <KpiCard
-                  label="P1/P2 평균 처리"
-                  value={`${data.agingKpi.p1p2AvgResolveDays}일`}
+                  label="P0/P1/P2 평균 처리"
+                  value={`${data.agingKpi.p0p1p2AvgResolveDays ?? data.agingKpi.p1p2AvgResolveDays}일`}
                   tone="success"
                 />
               </div>
@@ -205,14 +213,14 @@ export default function QualityDashboardPage() {
             </SectionCard>
 
             <SectionCard
-              title="P1/P2 미결 — 대응 계획"
+              title="P0/P1/P2 미결 — 대응 계획"
               subtitle={
-                data.kpi.p1p2Open > 0
-                  ? `${data.kpi.p1p2Open}건 · 계획 미입력 시 행 강조`
-                  : 'P1/P2 미결 없음'
+                (data.kpi.p0p1p2Open ?? data.kpi.p1p2Open) > 0
+                  ? `${data.kpi.p0p1p2Open ?? data.kpi.p1p2Open}건 · customfield_10901(대응 계획) · 미입력 시 행 강조`
+                  : 'P0/P1/P2 미결 없음'
               }
             >
-              <QualityIssueTable issues={data.p1p2OpenIssues} showResponsePlan />
+              <QualityIssueTable issues={data.p0p1p2OpenIssues ?? data.p1p2OpenIssues} showResponsePlan />
             </SectionCard>
 
             <SectionCard title="미결 전체 목록" subtitle="P3 포함 · 경과일 순">

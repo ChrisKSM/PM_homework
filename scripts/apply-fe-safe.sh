@@ -26,6 +26,7 @@ echo ""
 mkdir -p \
   src/types src/mocks src/api src/hooks src/pages src/config \
   src/components/planning src/components/quality src/components/procurement \
+  src/components/risk \
   src/components/layout
 
 LAYOUT_FILES="
@@ -72,7 +73,19 @@ PROCUREMENT_FILES="
   src/components/procurement/ProcurementTables.tsx
 "
 
-for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $LAYOUT_FILES src/config/dataSource.ts; do
+RISK_FILES="
+  src/types/risk.ts
+  src/mocks/mockRiskData.ts
+  src/api/riskApi.ts
+  src/hooks/useRiskData.ts
+  src/pages/RiskDashboardPage.tsx
+  src/components/risk/RiskFilters.tsx
+  src/components/risk/RiskCategoryChart.tsx
+  src/components/risk/RiskEmvChart.tsx
+  src/components/risk/RiskIssueTable.tsx
+"
+
+for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES $LAYOUT_FILES src/config/dataSource.ts; do
   show "$f" > "$f"
   echo "  + $f"
 done
@@ -148,6 +161,29 @@ def patch_app():
                     '<Route path="devteam" element={<DevTeamDashboard />} />\n          <Route path="procurement" element={<ProcurementDashboardPage />} />',
                 )
 
+    if "RiskDashboardPage" not in t:
+        if "ProcurementDashboardPage" in t and "import RiskDashboardPage" not in t:
+            t = t.replace(
+                "import ProcurementDashboardPage from './pages/ProcurementDashboardPage'",
+                "import ProcurementDashboardPage from './pages/ProcurementDashboardPage'\nimport RiskDashboardPage from './pages/RiskDashboardPage'",
+            )
+        elif "import RiskDashboardPage" not in t:
+            t = t.replace(
+                "import Layout from './components/layout/Layout'",
+                "import Layout from './components/layout/Layout'\nimport RiskDashboardPage from './pages/RiskDashboardPage'",
+            )
+        if 'path="risk"' not in t:
+            if 'path="procurement"' in t:
+                t = t.replace(
+                    '<Route path="procurement" element={<ProcurementDashboardPage />} />',
+                    '<Route path="procurement" element={<ProcurementDashboardPage />} />\n          <Route path="risk" element={<RiskDashboardPage />} />',
+                )
+            elif 'path="quality"' in t:
+                t = t.replace(
+                    '<Route path="quality" element={<QualityDashboardPage />} />',
+                    '<Route path="quality" element={<QualityDashboardPage />} />\n          <Route path="risk" element={<RiskDashboardPage />} />',
+                )
+
     if t != orig:
         p.write_text(t, encoding="utf-8")
         print("  patched App.tsx")
@@ -161,7 +197,7 @@ PY
 echo ""
 echo "=== 검증 ==="
 ERR=0
-for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "ProcurementDashboardPage" "/planning" "/quality" "/procurement" "계획 추적성" "품질 이슈" "조달 KPI"; do
+for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "ProcurementDashboardPage" "RiskDashboardPage" "/planning" "/quality" "/procurement" "/risk" "계획 추적성" "품질 이슈" "조달 KPI" "리스크 관리"; do
   if grep -rq "$needle" src/App.tsx src/components/layout/Sidebar.tsx 2>/dev/null; then
     echo "  OK $needle"
   else
@@ -174,6 +210,13 @@ if [ -f src/components/planning/PlanningDebugStrip.tsx ]; then
   echo "  OK PlanningDebugStrip.tsx"
 else
   echo "  MISSING PlanningDebugStrip.tsx (planning 빌드 실패 원인)"
+  ERR=1
+fi
+
+if [ -f src/components/risk/RiskFilters.tsx ]; then
+  echo "  OK RiskFilters.tsx"
+else
+  echo "  MISSING src/components/risk/* (risk 빌드 실패 원인)"
   ERR=1
 fi
 

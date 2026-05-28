@@ -28,7 +28,7 @@ export function ProcurementStatusTable({ rows }: { rows: ProcurementStatusRow[] 
             <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">Vendor label</th>
             <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">계약 label</th>
             <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">진행</th>
-            <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">산출물</th>
+            <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">DoD</th>
             <th className="text-left py-3 px-4 text-gray-900 font-bold text-xs uppercase tracking-wider">리스크</th>
           </tr>
         </thead>
@@ -51,7 +51,12 @@ export function ProcurementStatusTable({ rows }: { rows: ProcurementStatusRow[] 
                   {row.progress}
                 </span>
               </td>
-              <td className="py-3 px-4 text-gray-600">{row.deliverable}</td>
+              <td
+                className="py-3 px-4 text-gray-600 max-w-[240px] truncate whitespace-pre-line"
+                title={row.dodDetail || undefined}
+              >
+                {row.dodStatus}
+              </td>
               <td className="py-3 px-4 text-gray-600 max-w-[140px] truncate">{row.risk}</td>
             </tr>
           ))}
