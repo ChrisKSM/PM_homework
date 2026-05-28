@@ -30,6 +30,7 @@ mkdir -p \
   src/components/layout
 
 LAYOUT_FILES="
+  src/App.tsx
   src/components/layout/Sidebar.tsx
 "
 
@@ -85,15 +86,20 @@ RISK_FILES="
   src/components/risk/RiskIssueTable.tsx
 "
 
-for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES $LAYOUT_FILES src/config/dataSource.ts; do
+for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES src/config/dataSource.ts; do
+  show "$f" > "$f"
+  echo "  + $f"
+done
+
+# Sidebar · App 은 git ref에서 복사 (메뉴/라우트 누락 방지)
+for f in $LAYOUT_FILES; do
   show "$f" > "$f"
   echo "  + $f"
 done
 
 echo ""
-echo "=== App.tsx 패치 (Sidebar.tsx는 $REF 에서 그대로 복사) ==="
+echo "=== App.tsx · Sidebar.tsx — $REF 복사 + risk 누락 시 패치 ==="
 python3 - <<'PY' 2>/dev/null || python - <<'PY'
-import re
 from pathlib import Path
 
 def patch_app():
@@ -191,7 +197,35 @@ def patch_app():
         print("  App.tsx OK")
 
 
+def patch_sidebar():
+    p = Path("src/components/layout/Sidebar.tsx")
+    if not p.exists():
+        print("  WARN: Sidebar.tsx 없음")
+        return
+    t = p.read_text(encoding="utf-8")
+    orig = t
+
+    if "ShieldAlert" not in t:
+        t = t.replace(
+            "ShieldCheck, Users",
+            "ShieldAlert, ShieldCheck, Users",
+        )
+
+    if "/risk" not in t:
+        t = t.replace(
+            "{ to: '/procurement', icon: Package, label: '조달 KPI' },",
+            "{ to: '/procurement', icon: Package, label: '조달 KPI' },\n  { to: '/risk', icon: ShieldAlert, label: '리스크 관리' },",
+        )
+
+    if t != orig:
+        p.write_text(t, encoding="utf-8")
+        print("  patched Sidebar.tsx (리스크 관리 메뉴 추가)")
+    else:
+        print("  Sidebar.tsx OK")
+
+
 patch_app()
+patch_sidebar()
 PY
 
 echo ""

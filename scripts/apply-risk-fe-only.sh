@@ -49,6 +49,11 @@ for f in $RISK_FILES src/config/dataSource.ts; do
   echo "  + $f"
 done
 
+for f in src/App.tsx src/components/layout/Sidebar.tsx; do
+  show "$f" > "$f"
+  echo "  + $f"
+done
+
 echo ""
 echo "=== App.tsx / Sidebar.tsx 패치 ==="
 python3 - <<'PY' 2>/dev/null || python - <<'PY'
@@ -142,7 +147,9 @@ for f in \
   src/components/risk/RiskCategoryChart.tsx \
   src/components/risk/RiskEmvChart.tsx \
   src/components/risk/RiskIssueTable.tsx \
-  src/pages/RiskDashboardPage.tsx
+  src/pages/RiskDashboardPage.tsx \
+  src/App.tsx \
+  src/components/layout/Sidebar.tsx
 do
   if [ -f "$f" ]; then
     echo "  OK $f"
@@ -154,6 +161,17 @@ done
 
 if [ "$ERR" -ne 0 ]; then
   echo "=== 파일 누락 — github/webpack-migration 에 risk FE 커밋 후 다시 실행 ==="
+  exit 1
+fi
+
+if grep -q "리스크 관리" src/components/layout/Sidebar.tsx 2>/dev/null; then
+  echo "  OK Sidebar 리스크 관리 메뉴"
+else
+  echo "  MISSING Sidebar 리스크 관리 — patch_sidebar 재실행 필요"
+  ERR=1
+fi
+
+if [ "$ERR" -ne 0 ]; then
   exit 1
 fi
 
