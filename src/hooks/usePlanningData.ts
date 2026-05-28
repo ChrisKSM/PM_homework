@@ -4,6 +4,7 @@ import type {
   PlanningCompliance,
   PlanningFilterOptions,
   PlanningHierarchyNode,
+  PlanningTraceabilityResponse,
   StoryDetail,
   TraceabilityRow,
 } from '../types/planning'
@@ -25,6 +26,12 @@ const MOCK_FILTERS: PlanningFilterOptions = {
     { value: 'Sprint 2', label: 'Sprint 2' },
     { value: 'Sprint 3', label: 'Sprint 3' },
   ],
+  meta: {
+    boardId: 12641,
+    boardScope: 'project = MLCSIXZERO',
+    jql: '(project = MLCSIXZERO) AND issuetype = Story',
+    storyTypeJql: 'issuetype = Story',
+  },
 }
 
 function filterMockRows(params?: PlanningQueryParams): TraceabilityRow[] {
@@ -67,10 +74,14 @@ export function usePlanningHierarchy(params?: PlanningQueryParams) {
 }
 
 export function usePlanningTraceability(params?: PlanningQueryParams) {
-  return useQuery<TraceabilityRow[]>({
+  return useQuery<PlanningTraceabilityResponse>({
     queryKey: ['planningTraceability', params?.gate, params?.sprint, params?.status],
     queryFn: USE_MOCK
-      ? () => Promise.resolve(filterMockRows(params))
+      ? () =>
+          Promise.resolve({
+            meta: MOCK_FILTERS.meta ?? {},
+            rows: filterMockRows(params),
+          })
       : () => planningApi.getTraceability(params),
     staleTime: 5 * 60 * 1000,
   })

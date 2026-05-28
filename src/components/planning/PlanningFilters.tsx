@@ -4,6 +4,7 @@ interface Props {
   status: string
   gates: { value: string; label: string }[]
   sprints: { value: string; label: string }[]
+  jql?: string
   loading?: boolean
   useMock?: boolean
   onGateChange: (v: string) => void
@@ -17,6 +18,7 @@ export default function PlanningFilters({
   status,
   gates,
   sprints,
+  jql,
   loading,
   useMock,
   onGateChange,
@@ -60,8 +62,13 @@ export default function PlanningFilters({
         </select>
       </div>
       <p className="text-xs text-gray-400 font-medium pt-2 border-t border-surface-muted">
-        {useMock ? 'Mock 데이터 모드' : 'Jira API 연동'} · 필터는 매트릭스/트리에 적용
+        {useMock ? 'Mock 데이터 모드' : 'Jira API 연동'} · board scope + issuetype = Story
       </p>
+      {jql && (
+        <code className="block text-xs bg-surface-page border border-surface-border rounded-lg px-3 py-1.5 text-gray-600 font-mono break-all">
+          {jql}
+        </code>
+      )}
     </div>
   )
 }

@@ -18,6 +18,9 @@ export interface PlanningCompliance {
     linkedStories: number
     sprintCount: number
     dataSource: 'jira'
+    boardId?: number
+    boardScope?: string
+    jql?: string
   }
 }
 
@@ -62,7 +65,21 @@ export interface PlanningFilterOption {
   label: string
 }
 
+export interface PlanningMeta {
+  boardId?: number
+  boardScope?: string
+  jql?: string
+  storyTypeJql?: string
+}
+
 export interface PlanningFilterOptions {
   gates: PlanningFilterOption[]
   sprints: PlanningFilterOption[]
+  sprintGoals?: Record<string, string>
+  meta?: PlanningMeta
+}
+
+export interface PlanningTraceabilityResponse {
+  meta: PlanningMeta
+  rows: TraceabilityRow[]
 }

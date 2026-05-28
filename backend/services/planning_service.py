@@ -9,6 +9,9 @@ from typing import Any
 from cache import cached
 from config import settings
 from jira_client import jira_client
+from services.quality_service import _board_jql_clause, _search_all_issues
+
+STORY_TYPE_JQL = 'issuetype = Story'
 
 RELEASE_FIELD = settings.release_sprint_field
 EPIC_LINK_FIELD = settings.epic_link_field
@@ -39,14 +42,42 @@ def _issue_type(issue: dict) -> str:
     return issue.get("fields", {}).get("issuetype", {}).get("name") or "Task"
 
 
-def _is_trackable_issue(issue: dict) -> bool:
-    """Story/Task/Bug — 한글 이슈 타입 포함."""
+def _is_story_issue(issue: dict) -> bool:
+    """Story만 포함 — Task/Bug/Sub-task 제외."""
     name = _issue_type(issue).strip().lower()
-    if name in ("story", "task", "bug", "sub-task", "subtask"):
+    if name == "story":
         return True
-    if any(k in name for k in ("story", "스토리", "작업", "버그", "하위")):
+    if "스토리" in name and "sub" not in name and "하위" not in name:
         return True
-    return name not in ("epic", "에픽", "initiative", "release")
+    return False
+
+
+async def _planning_meta(extra_clause: str = "") -> dict[str, Any]:
+    board_jql = await _board_jql_clause()
+    jql = f"({board_jql}) AND {STORY_TYPE_JQL}"
+    if extra_clause:
+        jql = f"{jql} AND {extra_clause}"
+    return {
+        "boardId": settings.board_id,
+        "boardScope": board_jql,
+        "jql": jql,
+        "storyTypeJql": STORY_TYPE_JQL,
+    }
+
+
+async def _build_sprint_story_jql(sprint_id: int) -> str:
+    board_jql = await _board_jql_clause()
+    return f"({board_jql}) AND sprint = {sprint_id} AND {STORY_TYPE_JQL}"
+
+
+async def _fetch_sprint_stories(sprint_id: int, fetch_fields: list[str]) -> list[dict]:
+    """board scope + issuetype = Story JQL 검색. 실패 시 Agile API fallback."""
+    jql = await _build_sprint_story_jql(sprint_id)
+    try:
+        return await _search_all_issues(jql, fetch_fields)
+    except Exception:
+        data = await jira_client.get_sprint_issues(sprint_id, fields=fetch_fields)
+        return [i for i in data.get("issues", []) if _is_story_issue(i)]
 
 
 def _status_category(issue: dict) -> str:
@@ -156,9 +187,10 @@ def _ac_status_label(ac_count: int, required: int = 3) -> str:
     return f"{min(ac_count, required)}/{required}" if ac_count < required else f"{ac_count}/{required}"
 
 
-async def _collect_story_context() -> tuple[list[dict], list[dict[str, Any]]]:
-    """보드 스프린트별 Story 수집. 반환: (sprints, story_contexts)."""
+async def _collect_story_context() -> tuple[list[dict], list[dict[str, Any]], dict[str, Any]]:
+    """board_id 보드 스프린트별 Story 수집. 반환: (sprints, story_contexts, meta)."""
     sprints = await jira_client.get_all_board_sprints()
+    meta = await _planning_meta()
     contexts: list[dict[str, Any]] = []
     fetch_fields = [
         "summary",
@@ -178,9 +210,10 @@ async def _collect_story_context() -> tuple[list[dict], list[dict[str, Any]]]:
         fetch_fields.append(PRIORITY_RATIONALE_FIELD)
 
     for sprint in sprints:
-        data = await jira_client.get_sprint_issues(sprint["id"], fields=fetch_fields)
-        for issue in data.get("issues", []):
-            if not _is_trackable_issue(issue):
+        sid = sprint["id"]
+        issues = await _fetch_sprint_stories(sid, fetch_fields)
+        for issue in issues:
+            if not _is_story_issue(issue):
                 continue
             fields = issue.get("fields", {})
             ac_list = _parse_acceptance_criteria(fields)
@@ -199,7 +232,7 @@ async def _collect_story_context() -> tuple[list[dict], list[dict[str, Any]]]:
                 }
             )
 
-    return sprints, contexts
+    return sprints, contexts, meta
 
 
 def _apply_filters(
@@ -246,19 +279,20 @@ def _node_status_from_children(children: list[dict]) -> str:
 
 @cached(ttl=300)
 async def get_planning_filters() -> dict[str, Any]:
-    sprints, contexts = await _collect_story_context()
+    sprints, contexts, meta = await _collect_story_context()
     gates = sorted({c["gate"] for c in contexts})
     sprint_names = sorted({c["sprint"].get("name", "") for c in contexts if c["sprint"].get("name")})
     return {
         "gates": [{"value": g, "label": g} for g in gates],
         "sprints": [{"value": n, "label": n} for n in sprint_names],
         "sprintGoals": {s.get("name", ""): (s.get("goal") or "").strip() for s in sprints},
+        "meta": meta,
     }
 
 
 @cached(ttl=300)
 async def get_planning_compliance() -> dict[str, Any]:
-    sprints, contexts = await _collect_story_context()
+    sprints, contexts, meta = await _collect_story_context()
     total_stories = len(contexts)
 
     linked = sum(
@@ -297,6 +331,9 @@ async def get_planning_compliance() -> dict[str, Any]:
             "linkedStories": linked,
             "sprintCount": len(sprints),
             "dataSource": "jira",
+            "boardId": meta.get("boardId"),
+            "boardScope": meta.get("boardScope"),
+            "jql": meta.get("jql"),
         },
     }
 
@@ -307,7 +344,7 @@ async def get_planning_hierarchy(
     sprint: str | None = None,
     status: str | None = None,
 ) -> list[dict[str, Any]]:
-    _, contexts = await _collect_story_context()
+    _, contexts, _ = await _collect_story_context()
     filtered = _apply_filters(contexts, gate, sprint, status)
     epic_cache: dict[str, str] = {}
 
@@ -402,11 +439,17 @@ async def get_planning_traceability(
     gate: str | None = None,
     sprint: str | None = None,
     status: str | None = None,
-) -> list[dict[str, Any]]:
-    _, contexts = await _collect_story_context()
+) -> dict[str, Any]:
+    """Story × Gate · Sprint · Epic · AC · DoD — issuetype = Story + board scope."""
+    _, contexts, meta = await _collect_story_context()
     filtered = _apply_filters(contexts, gate, sprint, status)
     epic_cache: dict[str, str] = {}
     rows: list[dict[str, Any]] = []
+
+    trace_meta = dict(meta)
+    if sprint and sprint != "all":
+        safe = sprint.replace('"', '\\"')
+        trace_meta["jql"] = f"{meta['jql']} AND Sprint = \"{safe}\""
 
     for ctx in filtered:
         issue = ctx["issue"]
@@ -432,7 +475,10 @@ async def get_planning_traceability(
             }
         )
 
-    return sorted(rows, key=lambda r: r["issueKey"])
+    return {
+        "meta": trace_meta,
+        "rows": sorted(rows, key=lambda r: r["issueKey"]),
+    }
 
 
 @cached(ttl=120)
@@ -462,15 +508,19 @@ async def get_story_detail(issue_key: str) -> dict[str, Any]:
 
     sprint_name = "—"
     sprint_goal = ""
+    board_jql = await _board_jql_clause()
     sprints = await jira_client.get_all_board_sprints()
     for sprint in sprints:
-        data = await jira_client.get_sprint_issues(
-            sprint["id"], fields=["summary"], max_results=1000
-        )
-        if any(i["key"] == issue_key for i in data.get("issues", [])):
-            sprint_name = sprint.get("name", "")
-            sprint_goal = (sprint.get("goal") or "").strip()
-            break
+        sid = sprint["id"]
+        jql = f"({board_jql}) AND sprint = {sid} AND key = {issue_key} AND {STORY_TYPE_JQL}"
+        try:
+            data = await jira_client.search(jql, fields=["summary"], max_results=1)
+            if data.get("issues"):
+                sprint_name = sprint.get("name", "")
+                sprint_goal = (sprint.get("goal") or "").strip()
+                break
+        except Exception:
+            continue
 
     ac_list = _parse_acceptance_criteria(fields)
     dod_items = _dod_items(fields, issue)

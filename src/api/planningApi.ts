@@ -3,8 +3,8 @@ import type {
   PlanningCompliance,
   PlanningFilterOptions,
   PlanningHierarchyNode,
+  PlanningTraceabilityResponse,
   StoryDetail,
-  TraceabilityRow,
 } from '../types/planning'
 
 export interface PlanningQueryParams {
@@ -36,7 +36,7 @@ export const planningApi = {
 
   getTraceability: (params?: PlanningQueryParams) =>
     client
-      .get<TraceabilityRow[]>('/planning/traceability', { params: buildParams(params) })
+      .get<PlanningTraceabilityResponse>('/planning/traceability', { params: buildParams(params) })
       .then((r) => r.data),
 
   getStoryDetail: (issueKey: string) =>

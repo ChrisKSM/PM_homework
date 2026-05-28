@@ -50,7 +50,7 @@ export default function PlanningTraceabilityPage() {
   const { data: filterOptions, isLoading: loadingFilters } = usePlanningFilters()
   const { data: compliance, isLoading: loadingCompliance, error: complianceError } = usePlanningCompliance()
   const { data: hierarchy, isLoading: loadingHierarchy, error: hierarchyError } = usePlanningHierarchy(filterParams)
-  const { data: traceabilityRows, isLoading: loadingTraceability, error: traceabilityError } =
+  const { data: traceabilityData, isLoading: loadingTraceability, error: traceabilityError } =
     usePlanningTraceability(filterParams)
   const { data: storyDetail, isLoading: loadingStory } = useStoryDetail(selectedKey)
 
@@ -140,6 +140,7 @@ export default function PlanningTraceabilityPage() {
                 status={statusFilter}
                 gates={gates}
                 sprints={sprints}
+                jql={traceabilityData?.meta?.jql ?? filterOptions?.meta?.jql}
                 loading={loadingFilters}
                 useMock={USE_PLANNING_MOCK}
                 onGateChange={setGateFilter}
@@ -170,7 +171,11 @@ export default function PlanningTraceabilityPage() {
 
         <SectionCard
           title="추적성 매트릭스"
-          subtitle="Story × Gate · Sprint · Epic · AC · DoD · 우선순위 근거"
+          subtitle={
+            traceabilityData?.meta?.jql
+              ? `Story only · ${traceabilityData.meta.jql}`
+              : 'Story × Gate · Sprint · Epic · AC · DoD · 우선순위 근거'
+          }
         >
           {traceabilityError ? (
             <ErrorBlock message="추적성 매트릭스를 불러오지 못했습니다." />
@@ -178,7 +183,7 @@ export default function PlanningTraceabilityPage() {
             <LoadingBlock />
           ) : (
             <TraceabilityMatrix
-              rows={traceabilityRows ?? []}
+              rows={traceabilityData?.rows ?? []}
               selectedKey={selectedKey}
               onSelect={setSelectedKey}
             />
