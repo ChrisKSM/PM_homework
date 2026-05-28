@@ -1,4 +1,4 @@
-import { GitBranch, LayoutDashboard, Package, ShieldAlert, ShieldCheck, Users, Menu, X } from 'lucide-react'
+import { Activity, GitBranch, LayoutDashboard, Package, ShieldAlert, ShieldCheck, Users, Menu, X } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { useDashboardStore } from '../../store/dashboardStore'
 import clsx from 'clsx'
@@ -31,8 +31,8 @@ export default function Sidebar() {
         )}
       >
         <div className="flex items-center gap-3 px-4 h-16 border-b border-surface-border shrink-0">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-lg-red shrink-0">
-            <span className="text-white text-xs font-black tracking-tight">LG</span>
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-indigo-600 shrink-0">
+            <Activity size={16} className="text-white" />
           </div>
           {sidebarOpen && (
             <div className="min-w-0">
