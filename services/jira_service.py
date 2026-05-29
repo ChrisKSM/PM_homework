@@ -58,6 +58,31 @@ def _status_name(issue: dict) -> str:
     return issue.get("fields", {}).get("status", {}).get("name") or "To Do"
 
 
+def _risk_priority_jql() -> str:
+    """설정된 priority 이름으로 JQL in (...) 절 생성."""
+    names = [p.strip() for p in settings.risk_priorities.split(",") if p.strip()]
+    if not names:
+        names = ["P0", "P1", "P2"]
+    quoted = ", ".join(f'"{p}"' if " " in p else p for p in names)
+    return f"priority in ({quoted})"
+
+
+def _blocker_jql(sprint_id: int) -> str:
+    """블로커 기준: 미완료(Closed 제외) P0 Story."""
+    return (
+        f"sprint = {sprint_id} AND issuetype = Story "
+        f"AND priority = P0 AND status != Closed"
+    )
+
+
+def _issue_browse_url(issue_key: str) -> str:
+    """Jira 이슈 브라우저 링크."""
+    if not issue_key:
+        return ""
+    base = settings.jira_base_url.rstrip("/")
+    return f"{base}/browse/{issue_key}"
+
+
 # ── 1. 책임자 — 프로젝트 전체 KPI ────────────────────────────────────────────
 
 @cached(ttl=300)
@@ -90,9 +115,10 @@ async def get_project_summary() -> dict[str, Any]:
     done_sp = sum(_sp(i) for i in issues if _status_category(i) == DONE_CATEGORY)
     progress = round((done_sp / total_sp * 100) if total_sp else 0)
 
-    # 블로커 이슈 수 (Blocked 상태)
-    blocker_jql = f"sprint = {sprint_id} AND status = Blocked"
-    blocker_data = await jira_client.search(blocker_jql, fields=["summary"], max_results=50)
+    # 블로커 이슈 수 (미완료 P0 Story)
+    blocker_data = await jira_client.search(
+        _blocker_jql(sprint_id), fields=["summary"], max_results=50
+    )
     blocker_count = blocker_data.get("total", 0)
 
     return {
@@ -205,8 +231,8 @@ async def get_issue_distribution() -> list[dict[str, Any]]:
 
 @cached(ttl=600)
 async def get_velocity() -> list[dict[str, Any]]:
-    """최근 3개 스프린트의 계획 대비 완료 SP."""
-    closed = await jira_client.get_closed_sprints(count=2)
+    """최근 7개 스프린트의 계획 대비 완료 SP."""
+    closed = await jira_client.get_closed_sprints(count=6)
     active = await jira_client.get_active_sprint()
     sprints = closed + ([active] if active else [])
 
@@ -215,34 +241,15 @@ async def get_velocity() -> list[dict[str, Any]]:
         sprint_id = sprint["id"]
         name = sprint.get("name", f"Sprint {sprint_id}")
 
-        # ✅ WAS 대체: sprint 기간 기반으로 removed 포함 최대한 보정
-        start = sprint.get("startDate", "")[:10]
-        end = sprint.get("endDate", "")[:10]
-
-        if start and end:
-            jql = (
-                f'(sprint = {sprint_id}) OR '
-                f'(updated >= "{start}" AND updated <= "{end}" AND sprint != {sprint_id})'
-            )
-        else:
-            # fallback (active sprint 등 날짜 없을 때)
-            jql = f"sprint = {sprint_id}"
-
-        print("JQL:", jql, flush=True)
-
+        # sprint WAS jql로 제거된 이슈 포함
+        jql = f"sprint WAS {sprint_id}"
         data = await jira_client.search(
-            jql,
-            fields=["status", SP_FIELD],
-            max_results=500
+            jql, fields=["status", SP_FIELD], max_results=500
         )
         issues = data.get("issues", [])
 
         planned = sum(_sp(i) for i in issues)
-        completed = sum(
-            _sp(i) for i in issues
-            if _status_category(i) == DONE_CATEGORY
-        )
-
+        completed = sum(_sp(i) for i in issues if _status_category(i) == DONE_CATEGORY)
         result.append({
             "sprintName": name,
             "planned": round(planned, 1),
@@ -256,29 +263,23 @@ async def get_velocity() -> list[dict[str, Any]]:
 
 @cached(ttl=120)
 async def get_risk_issues() -> list[dict[str, Any]]:
-    """Blocked 상태 또는 Critical/Blocker 우선순위 이슈 목록."""
+    """주요 리스크 및 블로커 — 미완료(Closed 제외) P0 Story 목록."""
     active = await jira_client.get_active_sprint()
-
-    print("active sprint:", active)
-    
     if not active:
         return []
 
     sprint_id = active["id"]
-    jql = (
-        f"sprint = {sprint_id} AND "
-        f"(priority in (P0, P1) OR labels = risk)"
-    )
-    
+    jql = _blocker_jql(sprint_id)
     data = await jira_client.search(
         jql,
         fields=["summary", "status", "assignee", "priority"],
-        max_results=30,
+        max_results=50,
     )
     issues = data.get("issues", [])
     return [
         {
             "issueKey": i["key"],
+            "issueUrl": _issue_browse_url(i["key"]),
             "summary": i["fields"].get("summary") or "",
             "assignee": _assignee_name(i),
             "status": _status_name(i),
@@ -326,7 +327,7 @@ async def get_sprint_summary() -> dict[str, Any]:
     completion_rate = round((done_sp / total_sp * 100) if total_sp else 0)
 
     blocker_data = await jira_client.search(
-        f"sprint = {sprint_id} AND status = Blocked",
+        _blocker_jql(sprint_id),
         fields=["summary"],
         max_results=50,
     )
@@ -374,17 +375,22 @@ async def get_burndown(sprint_id: int | None = None) -> dict[str, Any]:
     # changelog 포함 조회
     data = await jira_client.get_sprint_issues(
         sid,
-        fields=["summary", "status", SP_FIELD],
+        fields=["summary", "status", "issuetype", SP_FIELD],
         expand="changelog",
     )
-    issues = data.get("issues", [])
+    # SP는 Story에만 입력되므로 번다운은 Story 이슈만 대상으로 계산
+    issues = [i for i in data.get("issues", []) if _issue_type(i) == "Story"]
 
     total_sp = sum(_sp(i) for i in issues)
     if total_sp == 0:
         return {"sprintName": sprint_name, "totalPoints": 0, "points": []}
 
-    # 이슈별 Done 전환 일자 파악
+    # 완료 status 이름을 데이터에서 동적 수집 (SoC Closed·Closed 등 커스텀 상태 대응)
     DONE_NAMES = {"Done", "Closed", "Resolved", "Complete", "완료"}
+    for issue in issues:
+        if _status_category(issue) == DONE_CATEGORY:
+            DONE_NAMES.add(_status_name(issue))
+
     completion_map: dict[str, tuple[datetime, float]] = {}
 
     for issue in issues:
@@ -405,8 +411,10 @@ async def get_burndown(sprint_id: int | None = None) -> dict[str, Any]:
                         )
                     except ValueError:
                         pass
-        if done_at:
-            completion_map[issue["key"]] = (done_at, sp)
+        # changelog에 전환 기록이 없으면(이미 완료 상태로 생성 등) 스프린트 시작일로 간주
+        if not done_at:
+            done_at = start_dt
+        completion_map[issue["key"]] = (done_at, sp)
 
     # 일자별 번다운 계산
     days: list[datetime] = []
@@ -487,6 +495,7 @@ async def get_current_sprint_issues() -> list[dict[str, Any]]:
     return [
         {
             "issueKey": i["key"],
+            "issueUrl": _issue_browse_url(i["key"]),
             "issueType": _issue_type(i),
             "summary": i["fields"].get("summary") or "",
             "assignee": _assignee_name(i),
