@@ -9,7 +9,7 @@ from typing import Any
 from cache import cached
 from config import settings
 from jira_client import jira_client
-from services.quality_service import _board_jql_clause, _search_all_issues
+from services.quality_service import _board_jql_clause, _issue_browse_url, _search_all_issues
 
 STORY_TYPE_JQL = 'issuetype = Story'
 
@@ -461,9 +461,11 @@ async def get_planning_traceability(
             epic_display = "—"
 
         dod_items = ctx["dod_items"]
+        key = issue.get("key", "")
         rows.append(
             {
-                "issueKey": issue["key"],
+                "issueKey": key,
+                "issueUrl": _issue_browse_url(key) if key else "",
                 "summary": fields.get("summary") or "",
                 "gate": ctx["gate"],
                 "sprint": ctx["sprint"].get("name", ""),
