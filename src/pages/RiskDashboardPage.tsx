@@ -6,6 +6,7 @@ import SectionCard from '../components/cards/SectionCard'
 import RiskFilters from '../components/risk/RiskFilters'
 import RiskCategoryChart from '../components/risk/RiskCategoryChart'
 import RiskEmvChart from '../components/risk/RiskEmvChart'
+import RiskEmvTrendChart from '../components/risk/RiskEmvTrendChart'
 import RiskIssueTable from '../components/risk/RiskIssueTable'
 import { useRiskDashboard, useRiskFilters, USE_RISK_MOCK } from '../hooks/useRiskData'
 import type { RiskCategory } from '../types/risk'
@@ -32,6 +33,44 @@ function ErrorBlock({ message }: { message: string }) {
     <div className="flex items-center gap-2 text-sm text-lg-red bg-lg-red-light border border-red-200 rounded-lg px-4 py-3">
       <AlertCircle size={16} className="shrink-0" />
       <span>{message}</span>
+    </div>
+  )
+}
+
+function ReserveUsageBar({
+  emvDays,
+  reserveDays,
+  reservePct,
+}: {
+  emvDays: number
+  reserveDays: number
+  reservePct: number
+}) {
+  const usedPct = Math.min(100, (emvDays / reserveDays) * 100)
+  const bufferPct = Math.max(0, 100 - usedPct)
+
+  return (
+    <div className="bg-white border border-surface-border rounded-xl p-5">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-sm font-semibold text-gray-700">일정 Reserve 대비 EMV_일정</p>
+        <p className="text-xs text-gray-500 font-medium">
+          {emvDays.toFixed(1)} / {reserveDays}일 · {reservePct}%
+        </p>
+      </div>
+      <div className="flex h-3 rounded-full overflow-hidden bg-surface-muted">
+        <div className="bg-amber-400 transition-all" style={{ width: `${usedPct}%` }} title="EMV 노출" />
+        <div className="bg-emerald-500 transition-all" style={{ width: `${bufferPct}%` }} title="버퍼" />
+      </div>
+      <div className="flex gap-4 mt-2 text-xs text-gray-500 font-medium">
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          EMV {emvDays.toFixed(1)}일
+        </span>
+        <span className="flex items-center gap-1">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          버퍼 {Math.max(0, reserveDays - emvDays).toFixed(1)}일
+        </span>
+      </div>
     </div>
   )
 }
@@ -75,6 +114,7 @@ export default function RiskDashboardPage() {
 
   const hasQuant = (data?.quantAnalysis?.length ?? 0) > 0
   const reserveDays = data?.meta.scheduleReserveDays ?? 45
+  const totalEmvSchedule = data?.kpi.totalEmvSchedule ?? 0
 
   return (
     <>
@@ -82,8 +122,8 @@ export default function RiskDashboardPage() {
         title="리스크 관리"
         subtitle={
           USE_RISK_MOCK
-            ? 'labels=risk · Components 범주 · Description 대응 계획 — Mock'
-            : 'labels=risk · Components 범주 · Description 대응 계획 — Jira API'
+            ? 'labels=risk · Components · Description · Environment(EMV) — Mock'
+            : 'labels=risk · Components · Description · Environment(EMV) — Jira API'
         }
       />
 
@@ -121,7 +161,7 @@ export default function RiskDashboardPage() {
             </div>
 
             {data.kpi.totalEmvSchedule != null && (
-              <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                 <KpiCard
                   label="Σ EMV_일정"
                   value={`${data.kpi.totalEmvSchedule.toFixed(1)}일`}
@@ -138,7 +178,26 @@ export default function RiskDashboardPage() {
                   value={`${data.kpi.reservePct ?? '—'}%`}
                   tone={(data.kpi.reservePct ?? 0) >= 80 ? 'danger' : 'warning'}
                 />
+                <KpiCard
+                  label="High exposure"
+                  value={data.kpi.highExposure ?? 0}
+                  tone="warning"
+                  sub="EMV_일정 ≥ 5일"
+                />
+                <KpiCard
+                  label="대응 완료·완화"
+                  value={`${data.kpi.mitigationDone ?? 0}/${data.quantAnalysis?.length ?? 7}`}
+                  tone="success"
+                />
               </div>
+            )}
+
+            {hasQuant && data.kpi.totalEmvSchedule != null && (
+              <ReserveUsageBar
+                emvDays={totalEmvSchedule}
+                reserveDays={reserveDays}
+                reservePct={data.kpi.reservePct ?? 0}
+              />
             )}
 
             <PlanFilledBar
@@ -147,13 +206,52 @@ export default function RiskDashboardPage() {
               rate={data.kpi.planFilledPct}
             />
 
+            {data.statusChanges && data.statusChanges.length > 0 && (
+              <SectionCard
+                title="3.1 리스크 상태 변경 내역"
+                subtitle="P/I 변경 · Δ EMV_일정 (모니터링 갱신)"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b-2 border-surface-border bg-surface-page">
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">R-ID</th>
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">범주</th>
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">Key</th>
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">변경 전 P/I</th>
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">변경 후 P/I</th>
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">Δ EMV_일정</th>
+                        <th className="text-left py-3 px-4 text-xs font-bold uppercase">비고</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.statusChanges.map((row, i) => (
+                        <tr
+                          key={`${row.riskId}-${i}`}
+                          className={`border-b border-surface-muted ${i % 2 === 1 ? 'bg-surface-page/50' : ''}`}
+                        >
+                          <td className="py-3 px-4 font-semibold">{row.riskId}</td>
+                          <td className="py-3 px-4">{row.category}</td>
+                          <td className="py-3 px-4 font-mono text-xs text-lg-red">{row.issueKey}</td>
+                          <td className="py-3 px-4">{row.beforePI}</td>
+                          <td className="py-3 px-4">{row.afterPI}</td>
+                          <td className="py-3 px-4 font-semibold text-emerald-700">{row.deltaEmvSchedule}</td>
+                          <td className="py-3 px-4">{row.note}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+            )}
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <SectionCard title="범주별 리스크 (Components)" subtitle="건수 · 미결">
                 <RiskCategoryChart data={data.byCategory} />
               </SectionCard>
 
               {hasQuant && data.quantAnalysis && (
-                <SectionCard title="EMV_일정 (기대 지연)" subtitle="정량 분석 mock · P(%) × I(일)">
+                <SectionCard title="EMV_일정 (기대 지연)" subtitle="P(%) × I(일) · R-ID별">
                   <RiskEmvChart
                     data={data.quantAnalysis}
                     dataKey="emvSchedule"
@@ -163,6 +261,27 @@ export default function RiskDashboardPage() {
                 </SectionCard>
               )}
             </div>
+
+            {hasQuant && data.quantAnalysis && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <SectionCard title="EMV_공수 (기대 투입)" subtitle="P(%) × I(MD) · R-ID별">
+                  <RiskEmvChart
+                    data={data.quantAnalysis}
+                    dataKey="emvEffort"
+                    suffix=" MD"
+                    color={CHART.colors.info}
+                  />
+                </SectionCard>
+                {data.emvTrend && (
+                  <SectionCard
+                    title="Sprint별 총 EMV_일정 추이"
+                    subtitle="SP11 종료 · R-02 갱신(−2.0, −0.8일) 반영"
+                  >
+                    <RiskEmvTrendChart data={data.emvTrend} />
+                  </SectionCard>
+                )}
+              </div>
+            )}
 
             {hasQuant && data.quantAnalysis && (
               <SectionCard title="4.2 리스크 정량 분석" subtitle="EMV_일정 · EMV_공수 · 우선순위">

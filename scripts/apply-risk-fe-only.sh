@@ -41,6 +41,7 @@ RISK_FILES="
   src/components/risk/RiskFilters.tsx
   src/components/risk/RiskCategoryChart.tsx
   src/components/risk/RiskEmvChart.tsx
+  src/components/risk/RiskEmvTrendChart.tsx
   src/components/risk/RiskIssueTable.tsx
 "
 
@@ -145,7 +146,8 @@ ERR=0
 for f in \
   src/components/risk/RiskFilters.tsx \
   src/components/risk/RiskCategoryChart.tsx \
-  src/components/risk/RiskEmvChart.tsx \
+  src/components/risk/RiskEmvChart.tsx
+  src/components/risk/RiskEmvTrendChart.tsx \
   src/components/risk/RiskIssueTable.tsx \
   src/pages/RiskDashboardPage.tsx \
   src/App.tsx \

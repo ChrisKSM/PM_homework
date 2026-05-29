@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     response_action_field: str = ""
     quality_project_key: str = ""
 
-    # 리스크 JQL — 회사 Jira priority 이름 (쉼표 구분). LGE: P0,P1,P2
+    # 리스크 — EMV 정량 (Jira 표준 Environment 필드 텍스트 파싱)
+    risk_environment_field: str = "environment"
+    risk_schedule_reserve_days: int = 45
     risk_priorities: str = "P0,P1,P2"
 
     # 완료 상태 카테고리 키 (Jira 표준)

@@ -19,6 +19,7 @@ export interface RiskFilterOptions {
   riskLabel: string
   categoryField: string
   responsePlanField: string
+  emvField?: string
 }
 
 export interface RiskKpi {
@@ -31,6 +32,7 @@ export interface RiskKpi {
   totalEmvEffort?: number
   reservePct?: number
   highExposure?: number
+  mitigationDone?: number
 }
 
 export interface RiskCategoryRow {
@@ -43,14 +45,34 @@ export interface RiskQuantRow {
   riskId: string
   category: string
   issueKey: string
+  title?: string
   pPct: number
   iSchedule: number
   iEffort: number
   emvSchedule: number
   emvEffort: number
+  qualScore?: number
   level: string
   priority: number
+  strategy?: string
+  owner?: string
   status: string
+}
+
+export interface RiskStatusChangeRow {
+  riskId: string
+  category: string
+  issueKey: string
+  beforePI: string
+  afterPI: string
+  deltaEmvSchedule: string
+  note: string
+}
+
+export interface RiskEmvTrend {
+  categories: string[]
+  total: number[]
+  mitigated: number[]
 }
 
 export interface RiskIssueRow {
@@ -89,6 +111,7 @@ export interface RiskDashboardMeta {
   riskLabel: string
   categoryField: string
   responsePlanField: string
+  emvField?: string
   scheduleReserveDays?: number
   asOf?: string
 }
@@ -98,6 +121,8 @@ export interface RiskDashboard {
   kpi: RiskKpi
   byCategory: RiskCategoryRow[]
   quantAnalysis?: RiskQuantRow[]
+  statusChanges?: RiskStatusChangeRow[]
+  emvTrend?: RiskEmvTrend
   mitigations?: RiskMitigationRow[]
   issues: RiskIssueRow[]
   openIssues: RiskIssueRow[]
