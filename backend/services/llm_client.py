@@ -1,16 +1,13 @@
 """
 사내 LLM 호출 클라이언트 — dej 플랫폼 SDK(dej_sdk) 사용.
 
-  from dej_sdk import llm
-  llm.initialize(system_prompt=..., model_name=...)
-  llm.ask(history, q, user_id, None, stream)
-
 dej_sdk 미설치·미설정·호출 실패 시 sprint_report_service 가 규칙기반으로 폴백.
 diagnostics() / GET /api/llm/diagnostics 로 원인 확인.
 """
 from __future__ import annotations
 
 import asyncio
+import os
 import traceback
 from typing import Any
 
@@ -29,12 +26,35 @@ class LLMNotConfigured(RuntimeError):
     """LLM 비활성 / dej_sdk 미설치 / user_id 미설정."""
 
 
+def _setting(name: str, default: Any = "") -> Any:
+    """config 필드 또는 환경변수 — pod config.py 구버전에서도 안전."""
+    val = getattr(settings, name, None)
+    if val is not None and val != "":
+        return val
+    env_key = name.upper()
+    env_val = os.getenv(env_key, "")
+    if env_val.strip():
+        return env_val.strip()
+    return default
+
+
+def _llm_enabled() -> bool:
+    raw = _setting("llm_enabled", False)
+    if isinstance(raw, bool):
+        return raw
+    return str(raw).lower() in ("1", "true", "yes", "on")
+
+
 def _user_id() -> str:
-    return (settings.llm_user_id or "").strip()
+    return str(_setting("llm_user_id", "") or "").strip()
+
+
+def _llm_model() -> str:
+    return str(_setting("llm_model", "dej/gpt-5-nano") or "dej/gpt-5-nano")
 
 
 def is_enabled() -> bool:
-    return bool(settings.llm_enabled and _dej_llm is not None and _user_id())
+    return bool(_llm_enabled() and _dej_llm is not None and _user_id())
 
 
 def diagnostics() -> dict[str, Any]:
@@ -45,10 +65,10 @@ def diagnostics() -> dict[str, Any]:
     checks.append({
         "id": "config_fields",
         "ok": has_field,
-        "detail": "config.py에 llm_enabled 필드 있음" if has_field else "config.py에 LLM 필드 없음 → add-sprint-report-be-only.sh 재실행",
+        "detail": "config.py에 llm_enabled 필드 있음" if has_field else "config.py에 LLM 필드 없음 (env만 사용 중)",
     })
 
-    enabled = bool(getattr(settings, "llm_enabled", False))
+    enabled = _llm_enabled()
     checks.append({
         "id": "llm_enabled",
         "ok": enabled,
@@ -59,7 +79,7 @@ def diagnostics() -> dict[str, Any]:
     checks.append({
         "id": "llm_user_id",
         "ok": bool(uid),
-        "detail": f"LLM_USER_ID={'(set)' if uid else '(empty)'}",
+        "detail": f"LLM_USER_ID={uid or '(empty)'}",
     })
 
     sdk_ok = _dej_llm is not None
@@ -69,20 +89,20 @@ def diagnostics() -> dict[str, Any]:
         "detail": "dej_sdk import OK" if sdk_ok else (_DEJ_IMPORT_ERROR or "import failed"),
     })
 
-    model = getattr(settings, "llm_model", "")
+    model = _llm_model()
     checks.append({
         "id": "llm_model",
         "ok": bool(model),
-        "detail": f"LLM_MODEL={model or '(empty)'}",
+        "detail": f"LLM_MODEL={model}",
     })
 
     return {
         "enabled": is_enabled(),
         "checks": checks,
         "hint": (
-            "모든 check OK → '요약 생성' 후 llmDebug 확인. "
-            "dej_sdk 실패 → dej workspace Python 환경 확인. "
-            "config_fields 실패 → sh scripts/add-sprint-report-be-only.sh"
+            "enabled=false → ✗ 항목 수정 후 uvicorn 재시작. "
+            "dej_sdk ✗ → dej workspace Python에 dej_sdk 필요. "
+            "config_fields ✗ → sh scripts/add-sprint-report-be-only.sh"
         ),
     }
 
@@ -90,7 +110,8 @@ def diagnostics() -> dict[str, Any]:
 def _ask_sync(system: str, user: str) -> str:
     """dej_sdk 동기 호출. stream=False 우선, 실패 시 stream=True 로 재시도."""
     uid = _user_id()
-    _dej_llm.initialize(system_prompt=system, model_name=settings.llm_model)
+    model = _llm_model()
+    _dej_llm.initialize(system_prompt=system, model_name=model)
 
     for stream in (False, True):
         try:
