@@ -193,19 +193,37 @@ async def _generate_report() -> dict[str, Any]:
 
     source = "rule"
     content = _rule_based(metrics)
+    llm_debug: dict[str, Any] | None = None
 
-    if llm_client.is_enabled():
+    diag = llm_client.diagnostics()
+    if not diag["enabled"]:
+        failed = [c for c in diag["checks"] if not c["ok"]]
+        llm_debug = {
+            "phase": "not_enabled",
+            "reason": "; ".join(f"{c['id']}: {c['detail']}" for c in failed),
+            "checks": diag["checks"],
+        }
+    else:
         try:
             raw = await llm_client.chat(_SYSTEM_PROMPT, _build_user_prompt(metrics))
             parsed = _parse_llm_json(raw)
             if parsed:
                 content = parsed
                 source = "llm"
-        except Exception:
-            # LLM 실패 시 규칙기반 유지
-            source = "rule"
+            else:
+                llm_debug = {
+                    "phase": "parse_failed",
+                    "reason": "LLM 응답 JSON 파싱 실패 (summary/risks/recommendations 형식 필요)",
+                    "rawPreview": (raw or "")[:500],
+                }
+        except Exception as exc:
+            llm_debug = {
+                "phase": "call_failed",
+                "reason": f"{type(exc).__name__}: {exc}",
+                "trace": llm_client.format_trace(exc),
+            }
 
-    return {
+    result: dict[str, Any] = {
         "sprintName": metrics["sprintName"],
         "generatedAt": datetime.now(timezone.utc).isoformat(),
         "source": source,
@@ -222,3 +240,6 @@ async def _generate_report() -> dict[str, Any]:
             "velocityTrend": metrics["velocityTrend"],
         },
     }
+    if llm_debug:
+        result["llmDebug"] = llm_debug
+    return result

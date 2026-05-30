@@ -56,3 +56,20 @@ async def sprint_report(refresh: bool = False):
         return await sprint_report_service.get_sprint_report(refresh=refresh)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"요약 생성 오류: {e}")
+
+
+@router.get("/llm/diagnostics")
+async def llm_diagnostics():
+    """LLM 연결 진단 — dej_sdk / .env / config 확인."""
+    try:
+        from services import llm_client
+        return llm_client.diagnostics()
+    except Exception as e:
+        import traceback
+        return {
+            "enabled": False,
+            "error": f"{type(e).__name__}: {e}",
+            "trace": traceback.format_exc()[-800:],
+            "checks": [],
+            "hint": "diagnostics() 자체 예외 — llm_client.py 최신본 반영 후 uvicorn 재시작",
+        }
