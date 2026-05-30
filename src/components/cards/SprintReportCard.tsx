@@ -129,11 +129,29 @@ export default function SprintReportCard({ report, isFetching, isError, onGenera
           </div>
 
           {/* 푸터: 출처 + 생성 시각 */}
-          <div className="flex items-center justify-between pt-1 text-[11px] text-gray-400 font-medium">
-            <span>
-              {report.source === 'llm' ? 'AI 생성 (LLM)' : '규칙기반 요약 (LLM 미연결)'}
-            </span>
-            <span>생성 {fmtTime(report.generatedAt)}</span>
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between text-[11px] text-gray-400 font-medium">
+              <span>
+                {report.source === 'llm' ? 'AI 생성 (LLM)' : '규칙기반 요약 (LLM 미연결)'}
+              </span>
+              <span>생성 {fmtTime(report.generatedAt)}</span>
+            </div>
+            {report.llmDebug && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2 text-[11px] text-amber-900">
+                <p className="font-bold mb-1">LLM 디버그 ({report.llmDebug.phase})</p>
+                <p className="font-medium break-all">{report.llmDebug.reason}</p>
+                {report.llmDebug.checks?.map((c) => (
+                  <p key={c.id} className="mt-1">
+                    {c.ok ? '✓' : '✗'} {c.id}: {c.detail}
+                  </p>
+                ))}
+                {report.llmDebug.rawPreview && (
+                  <pre className="mt-1 whitespace-pre-wrap text-[10px] opacity-80 max-h-24 overflow-auto">
+                    {report.llmDebug.rawPreview}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

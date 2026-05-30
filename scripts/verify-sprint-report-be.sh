@@ -43,4 +43,9 @@ elif [ "$CODE" = "502" ] || [ "$CODE" = "500" ]; then
 fi
 
 echo ""
+echo -n "  /api/llm/diagnostics → "
+curl -s http://127.0.0.1:8000/api/llm/diagnostics 2>/dev/null | head -c 600
+echo ""
+
+echo ""
 echo "=== Done ==="

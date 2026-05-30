@@ -120,6 +120,14 @@ export interface SprintReport {
   risks: string[];
   recommendations: string[];
   metrics: SprintReportMetrics;
+  /** source=rule 일 때 LLM 미연결/실패 원인 */
+  llmDebug?: {
+    phase: 'not_enabled' | 'call_failed' | 'parse_failed';
+    reason: string;
+    rawPreview?: string;
+    trace?: string;
+    checks?: Array<{ id: string; ok: boolean; detail: string }>;
+  };
 }
 
 // ── API 응답 래퍼 ─────────────────────────────────────────────────────────────

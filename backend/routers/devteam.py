@@ -56,3 +56,10 @@ async def sprint_report(refresh: bool = False):
         return await sprint_report_service.get_sprint_report(refresh=refresh)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"요약 생성 오류: {e}")
+
+
+@router.get("/llm/diagnostics")
+async def llm_diagnostics():
+    """LLM 연결 진단 — dej_sdk / .env / config 확인."""
+    from services import llm_client
+    return llm_client.diagnostics()
