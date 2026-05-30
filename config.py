@@ -50,6 +50,16 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
 
+    # LLM — 주간 스프린트 요약(사내 게이트웨이, OpenAI 호환 chat/completions 가정)
+    llm_enabled: bool = False
+    llm_base_url: str = ""          # 예: https://llm-gw.lge.com/v1 (끝에 /chat/completions 자동 부가)
+    llm_api_key: str = ""
+    llm_model: str = "gpt-4o-mini"
+    llm_timeout: float = 30.0
+    llm_verify_ssl: bool = False
+    llm_temperature: float = 0.3
+
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
