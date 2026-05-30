@@ -187,10 +187,29 @@ class JiraClient:
         return sprints[0] if sprints else None
 
     async def get_closed_sprints(self, count: int = 7) -> list[dict]:
-        """최근 완료된 스프린트 목록 (최신순)."""
-        data = await self.get_board_sprints(state="closed", max_results=count)
-        sprints = data.get("values", [])
-        return sorted(sprints, key=lambda s: s.get("id", 0))
+        """
+        최근 완료된 스프린트 count개 반환 (오래된→최신 정렬).
+
+        Agile API는 startAt=0에서 '오래된' 스프린트부터 주므로, max_results를 작게
+        주면 가장 오래된 것만 잡힌다. 전체를 페이지네이션으로 모은 뒤 최신 count개를 고른다.
+        """
+        all_closed: list[dict] = []
+        start = 0
+        page = 50
+        while True:
+            data = await self.get_board_sprints(
+                state="closed", max_results=page, start_at=start
+            )
+            values = data.get("values", [])
+            all_closed.extend(values)
+            # isLast가 없을 수 있으므로 페이지 크기 미만이면 마지막으로 간주
+            if data.get("isLast", False) or len(values) < page or not values:
+                break
+            start += len(values)
+
+        # 시작일(없으면 id) 기준 정렬 후 최신 count개
+        all_closed.sort(key=lambda s: (s.get("startDate") or "", s.get("id", 0)))
+        return all_closed[-count:] if count and count > 0 else all_closed
 
     async def get_all_board_sprints(self, max_results: int = 50) -> list[dict]:
         """보드의 active / closed / future 스프린트 전체."""

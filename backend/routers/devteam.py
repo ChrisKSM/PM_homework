@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from services import jira_service
+from services import jira_service, sprint_report_service
 
 router = APIRouter(prefix="/api", tags=["devteam"])
 
@@ -47,3 +47,12 @@ async def current_sprint_issues():
         return await jira_service.get_current_sprint_issues()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+
+
+@router.get("/sprints/current/report")
+async def sprint_report(refresh: bool = False):
+    """이번 주차 스프린트 LLM 요약 보고 (지표 기반 요약·리스크·권고)."""
+    try:
+        return await sprint_report_service.get_sprint_report(refresh=refresh)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"요약 생성 오류: {e}")

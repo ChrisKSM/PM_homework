@@ -27,6 +27,7 @@ mkdir -p \
   src/types src/mocks src/api src/hooks src/pages src/config \
   src/components/planning src/components/quality src/components/procurement \
   src/components/risk \
+  src/components/charts src/components/cards \
   src/components/layout
 
 LAYOUT_FILES="
@@ -87,7 +88,27 @@ RISK_FILES="
   src/components/risk/RiskIssueTable.tsx
 "
 
-for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES src/config/dataSource.ts; do
+# 책임자 · 개발팀(core) 대시보드 — 이슈 상태 색상/Velocity/번다운/요약 카드 등
+CORE_FILES="
+  src/types/jira.ts
+  src/mocks/mockData.ts
+  src/api/jiraApi.ts
+  src/hooks/useJiraData.ts
+  src/pages/ManagerDashboard.tsx
+  src/pages/DevTeamDashboard.tsx
+  src/components/cards/KpiCard.tsx
+  src/components/cards/SectionCard.tsx
+  src/components/cards/RiskTable.tsx
+  src/components/cards/IssueTable.tsx
+  src/components/cards/SprintReportCard.tsx
+  src/components/charts/EpicProgressChart.tsx
+  src/components/charts/IssueStatusChart.tsx
+  src/components/charts/VelocityChart.tsx
+  src/components/charts/BurndownChart.tsx
+  src/components/charts/WorkloadChart.tsx
+"
+
+for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES $CORE_FILES src/config/dataSource.ts; do
   show "$f" > "$f"
   echo "  + $f"
 done

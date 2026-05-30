@@ -8,6 +8,7 @@ import type {
   SprintSummary,
   MemberWorkload,
   SprintIssue,
+  SprintReport,
 } from '../types/jira'
 
 // ── 책임자 대시보드 ──────────────────────────────────────────────────────────
@@ -31,11 +32,13 @@ export const mockEpicProgress: EpicProgress[] = [
 ]
 
 export const mockIssueDistribution: IssueDistribution[] = [
-  { status: 'Done', count: 148 },
-  { status: 'In Progress', count: 32 },
-  { status: 'In Review', count: 12 },
-  { status: 'To Do', count: 28 },
-  { status: 'Blocked', count: 5 },
+  { status: 'Open', count: 28 },
+  { status: 'SOC DEVELOP', count: 32 },
+  { status: 'SoC Review', count: 14 },
+  { status: 'SOC DELIVERED', count: 96 },
+  { status: 'Closed', count: 20 },
+  { status: 'Reopened', count: 5 },
+  { status: 'Developer Draft', count: 8 },
 ]
 
 export const mockVelocity: SprintVelocity[] = [
@@ -48,12 +51,13 @@ export const mockVelocity: SprintVelocity[] = [
   { sprintName: 'Sprint 7', planned: 65, completed: 40 },
 ]
 
+const BROWSE = 'https://harmony.lge.com:8443/issue/browse'
+
 export const mockRiskIssues: RiskIssue[] = [
-  { issueKey: 'PROJ-148', summary: '로그인 세션 만료 오류', assignee: '최지아', status: 'Blocked', priority: 'Critical' },
-  { issueKey: 'PROJ-163', summary: '결제 실패 시 롤백 미구현', assignee: '김민준', status: 'Blocked', priority: 'High' },
-  { issueKey: 'PROJ-171', summary: 'API Rate Limit 초과 처리', assignee: '박도현', status: 'In Review', priority: 'High' },
-  { issueKey: 'PROJ-182', summary: '알림 푸시 지연 이슈', assignee: '이서연', status: 'Blocked', priority: 'Medium' },
-  { issueKey: 'PROJ-194', summary: '모바일 반응형 레이아웃 오류', assignee: '임하은', status: 'In Progress', priority: 'Medium' },
+  { issueKey: 'MLCSIXZERO-148', issueUrl: `${BROWSE}/MLCSIXZERO-148`, summary: '로그인 세션 만료 오류', assignee: '최지아', status: 'Open', priority: 'Critical' },
+  { issueKey: 'MLCSIXZERO-163', issueUrl: `${BROWSE}/MLCSIXZERO-163`, summary: '결제 실패 시 롤백 미구현', assignee: '김민준', status: 'develop', priority: 'Critical' },
+  { issueKey: 'MLCSIXZERO-171', issueUrl: `${BROWSE}/MLCSIXZERO-171`, summary: 'API Rate Limit 초과 처리', assignee: '박도현', status: 'Reopen', priority: 'Critical' },
+  { issueKey: 'MLCSIXZERO-182', issueUrl: `${BROWSE}/MLCSIXZERO-182`, summary: '알림 푸시 지연 이슈', assignee: '이서연', status: 'Open', priority: 'Critical' },
 ]
 
 // ── 개발팀 대시보드 ──────────────────────────────────────────────────────────
@@ -94,12 +98,41 @@ export const mockTeamWorkload: MemberWorkload[] = [
 ]
 
 export const mockSprintIssues: SprintIssue[] = [
-  { issueKey: 'PROJ-142', issueType: 'Story', summary: '결제 API 통합 구현', assignee: '김민준', status: 'In Progress', storyPoints: 5, priority: 'High' },
-  { issueKey: 'PROJ-143', issueType: 'Sub-task', summary: '결제 위젯 UI 개발', assignee: '이서연', status: 'In Progress', storyPoints: 3, priority: 'High' },
-  { issueKey: 'PROJ-145', issueType: 'Story', summary: '알림 서비스 백엔드 구현', assignee: '박도현', status: 'To Do', storyPoints: 8, priority: 'Medium' },
-  { issueKey: 'PROJ-148', issueType: 'Bug', summary: '로그인 세션 만료 오류 수정', assignee: '최지아', status: 'Blocked', storyPoints: 2, priority: 'Critical' },
-  { issueKey: 'PROJ-151', issueType: 'Epic', summary: '사용자 프로필 관리 기능', assignee: '정우진', status: 'In Progress', storyPoints: 13, priority: 'Medium' },
-  { issueKey: 'PROJ-155', issueType: 'Story', summary: '대시보드 필터 기능 추가', assignee: '임하은', status: 'To Do', storyPoints: 5, priority: 'Low' },
-  { issueKey: 'PROJ-158', issueType: 'Task', summary: 'API 문서 작성 (Swagger)', assignee: '박도현', status: 'In Review', storyPoints: 2, priority: 'Low' },
-  { issueKey: 'PROJ-161', issueType: 'Story', summary: 'OAuth2.0 소셜 로그인', assignee: '김민준', status: 'In Progress', storyPoints: 8, priority: 'High' },
+  { issueKey: 'MLCSIXZERO-142', issueUrl: `${BROWSE}/MLCSIXZERO-142`, issueType: 'Story', summary: '결제 API 통합 구현', assignee: '김민준', status: 'develop', storyPoints: 5, priority: 'High' },
+  { issueKey: 'MLCSIXZERO-143', issueUrl: `${BROWSE}/MLCSIXZERO-143`, issueType: 'Sub-task', summary: '결제 위젯 UI 개발', assignee: '이서연', status: 'develop', storyPoints: 3, priority: 'High' },
+  { issueKey: 'MLCSIXZERO-145', issueUrl: `${BROWSE}/MLCSIXZERO-145`, issueType: 'Story', summary: '알림 서비스 백엔드 구현', assignee: '박도현', status: 'Open', storyPoints: 8, priority: 'Medium' },
+  { issueKey: 'MLCSIXZERO-148', issueUrl: `${BROWSE}/MLCSIXZERO-148`, issueType: 'Bug', summary: '로그인 세션 만료 오류 수정', assignee: '최지아', status: 'Reopen', storyPoints: 2, priority: 'Critical' },
+  { issueKey: 'MLCSIXZERO-151', issueUrl: `${BROWSE}/MLCSIXZERO-151`, issueType: 'Epic', summary: '사용자 프로필 관리 기능', assignee: '정우진', status: 'develop', storyPoints: 13, priority: 'Medium' },
+  { issueKey: 'MLCSIXZERO-155', issueUrl: `${BROWSE}/MLCSIXZERO-155`, issueType: 'Story', summary: '대시보드 필터 기능 추가', assignee: '임하은', status: 'Open', storyPoints: 5, priority: 'Low' },
+  { issueKey: 'MLCSIXZERO-158', issueUrl: `${BROWSE}/MLCSIXZERO-158`, issueType: 'Task', summary: 'API 문서 작성 (Swagger)', assignee: '박도현', status: 'SoC Closed', storyPoints: 2, priority: 'Low' },
+  { issueKey: 'MLCSIXZERO-161', issueUrl: `${BROWSE}/MLCSIXZERO-161`, issueType: 'Story', summary: 'OAuth2.0 소셜 로그인', assignee: '김민준', status: 'Closed', storyPoints: 8, priority: 'High' },
 ]
+
+export const mockSprintReport: SprintReport = {
+  sprintName: 'Sprint 7',
+  generatedAt: new Date().toISOString(),
+  source: 'rule',
+  summary:
+    'Sprint 7 완료율 62%, 잔여 25 SP (D-6). 번다운은 이상선보다 6 SP 뒤처져 있어요. ' +
+    'Velocity는 직전 평균 44.7 SP 대비 이번 40 SP로 하락 추세예요.',
+  risks: [
+    '미해결 P0 Story 2건 — 스프린트 목표 달성을 직접 위협',
+    '번다운 6 SP 지연 — 현재 페이스 유지 시 미완료 가능',
+    'Velocity 하락 추세 — 팀 처리량 저하 또는 과다 계획 가능',
+    '워크로드 집중: 박도현 (25 SP)',
+  ],
+  recommendations: [
+    '데일리에서 블로커 P0 Story 우선 처리 담당자/기한 확정',
+    '스코프 재조정 또는 잔여 작업 분할로 소진 속도 확보',
+    '박도현 작업 일부 재분배 검토',
+  ],
+  metrics: {
+    completionRate: 62,
+    remainingPoints: 25,
+    daysLeft: 6,
+    totalPoints: 65,
+    burndownGap: 6,
+    blockerCount: 2,
+    velocityTrend: '하락',
+  },
+}

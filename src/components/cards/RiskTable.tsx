@@ -44,7 +44,18 @@ export default function RiskTable({ issues }: Props) {
               )}
             >
               <td className="py-3 px-4">
-                <span className="font-mono text-lg-red text-xs font-bold">{issue.issueKey}</span>
+                {issue.issueUrl ? (
+                  <a
+                    href={issue.issueUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-lg-red text-xs font-bold hover:underline"
+                  >
+                    {issue.issueKey}
+                  </a>
+                ) : (
+                  <span className="font-mono text-lg-red text-xs font-bold">{issue.issueKey}</span>
+                )}
               </td>
               <td className="py-3 px-4 text-gray-700 max-w-xs truncate font-medium">{issue.summary}</td>
               <td className="py-3 px-4 text-gray-600 font-medium">{issue.assignee}</td>

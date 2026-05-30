@@ -70,6 +70,13 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
 
+    # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
+    #  ※ URL/API-key 불필요. SDK가 내부에서 dej 플랫폼 연결을 처리.
+    llm_enabled: bool = False
+    llm_model: str = "dej/gpt-5-nano"   # llm.initialize(model_name=...)
+    # 백그라운드 호출(로그인 request 없음)용 user_id. 비우면 LLM 비활성 → 규칙기반 폴백.
+    llm_user_id: str = ""
+
     model_config = SettingsConfigDict(
         env_file=_env_file_paths(),
         env_file_encoding="utf-8",

@@ -3,6 +3,7 @@ import Header from '../components/layout/Header'
 import KpiCard from '../components/cards/KpiCard'
 import SectionCard from '../components/cards/SectionCard'
 import IssueTable from '../components/cards/IssueTable'
+import SprintReportCard from '../components/cards/SprintReportCard'
 import BurndownChart from '../components/charts/BurndownChart'
 import VelocityChart from '../components/charts/VelocityChart'
 import WorkloadChart from '../components/charts/WorkloadChart'
@@ -12,6 +13,7 @@ import {
   useTeamWorkload,
   useVelocity,
   useSprintIssues,
+  useSprintReport,
 } from '../hooks/useJiraData'
 function LoadingSpinner() {
   return (
@@ -27,6 +29,7 @@ export default function DevTeamDashboard() {
   const { data: workload, isLoading: loadingWorkload } = useTeamWorkload()
   const { data: velocity, isLoading: loadingVelocity } = useVelocity()
   const { data: issues, isLoading: loadingIssues } = useSprintIssues()
+  const sprintReport = useSprintReport()
 
   return (
     <>
@@ -71,6 +74,14 @@ export default function DevTeamDashboard() {
             />
           </div>
         ) : null}
+
+        {/* 주간 스프린트 요약 (LLM) */}
+        <SprintReportCard
+          report={sprintReport.data}
+          isFetching={sprintReport.isFetching}
+          isError={sprintReport.isError}
+          onGenerate={() => sprintReport.refetch()}
+        />
 
         {/* Burndown + Workload */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

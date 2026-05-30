@@ -13,20 +13,24 @@ const TYPE_STYLES: Record<string, string> = {
   Task: 'bg-gray-100 text-gray-700',
 }
 
-const STATUS_DOT: Record<string, string> = {
-  Done: 'bg-emerald-500',
-  'In Progress': 'bg-blue-500',
-  'In Review': 'bg-amber-500',
-  'To Do': 'bg-gray-400',
-  Blocked: 'bg-lg-red',
-}
-
-const STATUS_TEXT: Record<string, string> = {
-  Done: 'text-emerald-600',
-  'In Progress': 'text-blue-600',
-  'In Review': 'text-amber-600',
-  'To Do': 'text-gray-500',
-  Blocked: 'text-lg-red',
+/**
+ * 상태 색상 — Open=주황·SOC DEVELOP=파랑·SoC Review=보라·Closed=회색·
+ * Reopened=진한빨강·SOC DELIVERED=녹색·Developer Draft=청록
+ * ('SoC ~'가 여러 개라 구체 키워드 우선: reopen→draft→develop→review→deliver→close→open)
+ */
+function statusTone(status: string): { dot: string; text: string } {
+  const s = (status || '').toLowerCase()
+  if (s.includes('reopen')) return { dot: 'bg-red-700', text: 'text-red-700' }
+  if (s.includes('draft')) return { dot: 'bg-cyan-600', text: 'text-cyan-700' }
+  if (s.includes('develop') || s.includes('progress')) return { dot: 'bg-blue-500', text: 'text-blue-600' }
+  if (s.includes('review')) return { dot: 'bg-violet-500', text: 'text-violet-600' }
+  if (s.includes('deliver') || s.includes('done') || s.includes('resolved') || s.includes('완료'))
+    return { dot: 'bg-emerald-500', text: 'text-emerald-600' }
+  if (s.includes('close')) return { dot: 'bg-gray-400', text: 'text-gray-500' }
+  if (s.includes('open') || s.includes('to do') || s.includes('todo') || s.includes('backlog'))
+    return { dot: 'bg-orange-500', text: 'text-orange-600' }
+  if (s.includes('block')) return { dot: 'bg-lg-red', text: 'text-lg-red' }
+  return { dot: 'bg-gray-400', text: 'text-gray-500' }
 }
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -62,7 +66,18 @@ export default function IssueTable({ issues }: Props) {
               )}
             >
               <td className="py-3 px-4">
-                <span className="font-mono text-lg-red text-xs font-bold">{issue.issueKey}</span>
+                {issue.issueUrl ? (
+                  <a
+                    href={issue.issueUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-lg-red text-xs font-bold hover:underline"
+                  >
+                    {issue.issueKey}
+                  </a>
+                ) : (
+                  <span className="font-mono text-lg-red text-xs font-bold">{issue.issueKey}</span>
+                )}
               </td>
               <td className="py-3 px-4">
                 <span className={clsx('px-2 py-0.5 rounded text-xs font-semibold', TYPE_STYLES[issue.issueType] ?? 'bg-gray-100 text-gray-700')}>
@@ -73,8 +88,8 @@ export default function IssueTable({ issues }: Props) {
               <td className="py-3 px-4 text-gray-600 text-xs font-medium">{issue.assignee}</td>
               <td className="py-3 px-4">
                 <div className="flex items-center gap-2">
-                  <div className={clsx('w-1.5 h-1.5 rounded-full shrink-0', STATUS_DOT[issue.status] ?? 'bg-gray-400')} />
-                  <span className={clsx('text-xs font-semibold', STATUS_TEXT[issue.status])}>
+                  <div className={clsx('w-1.5 h-1.5 rounded-full shrink-0', statusTone(issue.status).dot)} />
+                  <span className={clsx('text-xs font-semibold', statusTone(issue.status).text)}>
                     {issue.status}
                   </span>
                 </div>

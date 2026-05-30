@@ -9,6 +9,7 @@ import type {
   SprintSummary,
   MemberWorkload,
   SprintIssue,
+  SprintReport,
 } from '../types/jira'
 
 export const jiraApi = {
@@ -44,4 +45,9 @@ export const jiraApi = {
 
   getCurrentSprintIssues: () =>
     client.get<SprintIssue[]>('/issues/current-sprint').then((r) => r.data),
+
+  getSprintReport: (refresh = false) =>
+    client
+      .get<SprintReport>('/sprints/current/report', { params: refresh ? { refresh: true } : undefined })
+      .then((r) => r.data),
 }

@@ -10,6 +10,7 @@ import type {
   SprintSummary,
   MemberWorkload,
   SprintIssue,
+  SprintReport,
 } from '../types/jira'
 import {
   mockProjectSummary,
@@ -21,6 +22,7 @@ import {
   mockBurndown,
   mockTeamWorkload,
   mockSprintIssues,
+  mockSprintReport,
 } from '../mocks/mockData'
 
 import { USE_MOCK } from '../config/dataSource'
@@ -100,5 +102,18 @@ export function useSprintIssues() {
     queryKey: ['sprintIssues'],
     queryFn: USE_MOCK ? () => Promise.resolve(mockSprintIssues) : jiraApi.getCurrentSprintIssues,
     staleTime: 2 * 60 * 1000,
+  })
+}
+
+// 주간 스프린트 요약 보고 — 버튼 클릭 시에만 생성(enabled:false → refetch로 트리거)
+export function useSprintReport() {
+  return useQuery<SprintReport>({
+    queryKey: ['sprintReport'],
+    queryFn: USE_MOCK
+      ? () => Promise.resolve(mockSprintReport)
+      : () => jiraApi.getSprintReport(true),
+    enabled: false,
+    gcTime: 30 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   })
 }
