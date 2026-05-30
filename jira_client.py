@@ -10,21 +10,74 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
-import logging
-import json
-
-logger = logging.getLogger(__name__)
 
 # 내부 서버 자체 서명 인증서 경고 억제
 if not settings.jira_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
+# prod(/usr/app/src) · workspace dev(/workspace/project) .env 경로
+_DOTENV_PATHS = (
+    Path("/usr/app/src/.env"),
+    Path("/workspace/project/.env"),
+    Path(".env"),
+)
+
+
+def _read_token_from_dotenv() -> str:
+    """settings가 빈 token일 때 .env 파일에서 직접 읽기 (K8s 빈 env 우선 문제 회피)."""
+    for path in _DOTENV_PATHS:
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            if key.strip() != "JIRA_API_TOKEN":
+                continue
+            token = val.strip().strip('"').strip("'")
+            if token:
+                return token
+    return ""
+
+
+def _normalize_token(raw: Any) -> str:
+    if raw is None:
+        return ""
+    if isinstance(raw, bytes):
+        return raw.decode("utf-8", errors="ignore").strip()
+    return str(raw).strip()
+
+
+def _resolve_jira_token() -> str:
+    token = _normalize_token(settings.jira_api_token)
+    if token:
+        return token
+    token = _read_token_from_dotenv()
+    if token:
+        return token
+    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+        token = _normalize_token(os.getenv(key))
+        if token:
+            return token
+    raise ValueError(
+        "JIRA_API_TOKEN이 비어 있습니다. /usr/app/src/.env 또는 /workspace/project/.env 확인."
+    )
+
+
+def _bearer_token() -> str:
+    return f"Bearer {_resolve_jira_token()}"
+
 
 def _make_client() -> httpx.AsyncClient:
-    """요청용 httpx 클라이언트 생성."""
+    """요청용 httpx AsyncClient 생성."""
     return httpx.AsyncClient(
         headers={
-            "Authorization": f"Bearer {settings.jira_api_token}",
+            "Authorization": _bearer_token(),
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
@@ -130,25 +183,33 @@ class JiraClient:
     async def get_active_sprint(self) -> dict | None:
         """현재 활성 스프린트 반환 (없으면 None)."""
         data = await self.get_board_sprints(state="active", max_results=1)
-        
-        logger.info(f"get_active_sprint data: {json.dumps(data, indent=2, ensure_ascii=False)}")
-
         sprints = data.get("values", [])
-        print(sprints[0])
         return sprints[0] if sprints else None
 
-    async def get_closed_sprints(self, count: int = 3) -> list[dict]:
-        """최근 완료된 스프린트 목록 (최신순)."""
+    async def get_closed_sprints(self, count: int = 7) -> list[dict]:
+        """
+        최근 완료된 스프린트 count개 반환 (오래된→최신 정렬).
 
-        data = await self.get_board_sprints(state="closed", max_results=50)
-        sprints = data.get("values", [])
+        Agile API는 startAt=0에서 '오래된' 스프린트부터 주므로, max_results를 작게
+        주면 가장 오래된 것만 잡힌다. 전체를 페이지네이션으로 모은 뒤 최신 count개를 고른다.
+        """
+        all_closed: list[dict] = []
+        start = 0
+        page = 50
+        while True:
+            data = await self.get_board_sprints(
+                state="closed", max_results=page, start_at=start
+            )
+            values = data.get("values", [])
+            all_closed.extend(values)
+            # isLast가 없을 수 있으므로 페이지 크기 미만이면 마지막으로 간주
+            if data.get("isLast", False) or len(values) < page or not values:
+                break
+            start += len(values)
 
-        sprints = sorted(
-            sprints,
-            key=lambda s: s.get("startDate") or "",
-            reverse=True
-        )
-        return sprints[:count]
+        # 시작일(없으면 id) 기준 정렬 후 최신 count개
+        all_closed.sort(key=lambda s: (s.get("startDate") or "", s.get("id", 0)))
+        return all_closed[-count:] if count and count > 0 else all_closed
 
     async def get_all_board_sprints(self, max_results: int = 50) -> list[dict]:
         """보드의 active / closed / future 스프린트 전체."""
@@ -163,16 +224,6 @@ class JiraClient:
                     sprints.append(sprint)
         return sorted(sprints, key=lambda s: s.get("id", 0))
 
-    async def get_board_filter_jql(self) -> str | None:
-        """보드 filter JQL — 해당 보드 이슈만 검색할 때 사용."""
-        board = await self.get(f"/rest/agile/1.0/board/{self.board_id}")
-        filter_id = (board.get("filter") or {}).get("id")
-        if not filter_id:
-            return None
-        filt = await self.get(f"/rest/api/2/filter/{filter_id}")
-        jql = (filt.get("jql") or "").strip()
-        return jql or None
-
     async def get_board_filter_jql(self, board_id: int | None = None) -> str | None:
         """보드 filter JQL — board_id 보드 이슈만 검색할 때 사용."""
         bid = board_id if board_id is not None else self.board_id
@@ -185,6 +236,7 @@ class JiraClient:
         if jql:
             return jql
         return f"filter = {filter_id}"
+
 
 # 싱글톤
 jira_client = JiraClient()
