@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { IssueDistribution } from '../../types/jira'
 import { CHART } from '../../theme/colors'
 
@@ -6,92 +6,100 @@ interface Props {
   data: IssueDistribution[]
 }
 
-const STATUS_GREEN = '#059669'
-const STATUS_GRAY = '#6B7280'
-const STATUS_DARK_RED = '#B91C1C'
-const STATUS_ORANGE = '#EA580C'
-const STATUS_BLUE = '#2563EB'
-const STATUS_PURPLE = '#7C3AED'
-const STATUS_TEAL = '#0891B2'
-
-// 지정되지 않은 상태에 순서대로 배정할 구분용 팔레트 (서로 충분히 다른 색)
-const FALLBACK_PALETTE = ['#DB2777', '#CA8A04', '#0D9488', '#4F46E5', '#9333EA', '#0369A1', '#65A30D']
+/** Jira 상태명 정규화 — 공백·대소문자 차이 흡수 */
+function normStatus(status: string): string {
+  return (status || '').trim().replace(/\s+/g, ' ').toLowerCase()
+}
 
 /**
- * 지정된 상태만 고정색 반환, 그 외에는 null (→ 팔레트에서 자동 배정).
+ * 실제 Jira 7개 상태 고정 색 (정규화된 키).
  * Open=주황 · SOC DEVELOP=파랑 · SoC Review=보라 · Closed=회색 ·
  * Reopened=진한빨강 · SOC DELIVERED=녹색 · Developer Draft=청록
- *
- * ※ 'SoC ~' 상태가 여러 개라 'soc' 단독 매칭 금지. 더 구체적인 키워드를 먼저 검사:
- *   reopen → draft → develop → review → deliver → close → open
  */
-function knownStatusColor(status: string): string | null {
-  const s = (status || '').toLowerCase()
-  if (s.includes('reopen')) return STATUS_DARK_RED            // Reopened
-  if (s.includes('draft')) return STATUS_TEAL                // Developer Draft
-  if (s.includes('develop')) return STATUS_BLUE              // SOC DEVELOP
-  if (s.includes('review')) return STATUS_PURPLE             // SoC Review
-  if (s.includes('deliver') || s.includes('done') || s.includes('resolved') || s.includes('완료'))
-    return STATUS_GREEN                                      // SOC DELIVERED
-  if (s.includes('close')) return STATUS_GRAY                // Closed
-  if (s.includes('open') || s.includes('to do') || s.includes('todo') || s.includes('backlog'))
-    return STATUS_ORANGE                                     // Open
-  if (s.includes('progress')) return STATUS_BLUE
-  if (s.includes('block')) return CHART.colors.lgRed
-  return null
+const EXACT_STATUS_COLORS: Record<string, string> = {
+  open: '#EA580C',
+  'soc develop': '#2563EB',
+  'soc review': '#7C3AED',
+  closed: '#6B7280',
+  reopened: '#B91C1C',
+  'soc delivered': '#059669',
+  'developer draft': '#0891B2',
+}
+
+const FALLBACK_PALETTE = ['#DB2777', '#CA8A04', '#0D9488', '#4F46E5', '#9333EA', '#0369A1', '#65A30D']
+
+function resolveStatusColor(status: string, fallbackIdx: number): string {
+  const key = normStatus(status)
+  if (EXACT_STATUS_COLORS[key]) return EXACT_STATUS_COLORS[key]
+
+  // 부분 일치 fallback (표기 변형 대비)
+  if (key.includes('reopen')) return EXACT_STATUS_COLORS.reopened
+  if (key.includes('draft')) return EXACT_STATUS_COLORS['developer draft']
+  if (key.includes('develop')) return EXACT_STATUS_COLORS['soc develop']
+  if (key.includes('review')) return EXACT_STATUS_COLORS['soc review']
+  if (key.includes('deliver')) return EXACT_STATUS_COLORS['soc delivered']
+  if (key.includes('close')) return EXACT_STATUS_COLORS.closed
+  if (key.includes('open')) return EXACT_STATUS_COLORS.open
+
+  return FALLBACK_PALETTE[fallbackIdx % FALLBACK_PALETTE.length]
 }
 
 export default function IssueStatusChart({ data }: Props) {
-  const total = data.reduce((s, d) => s + d.count, 0)
+  const safeData = Array.isArray(data) ? data : []
+  const total = safeData.reduce((s, d) => s + (d.count ?? 0), 0)
 
-  // 지정색이 없는 상태들에 팔레트 색을 겹치지 않게 순서대로 배정
-  let paletteIdx = 0
-  const colorByStatus = new Map<string, string>()
-  for (const entry of data) {
-    const known = knownStatusColor(entry.status)
-    if (known) {
-      colorByStatus.set(entry.status, known)
-    } else {
-      colorByStatus.set(entry.status, FALLBACK_PALETTE[paletteIdx % FALLBACK_PALETTE.length])
-      paletteIdx += 1
+  let fallbackIdx = 0
+  const chartData = safeData.map((entry) => {
+    const fill = resolveStatusColor(entry.status, fallbackIdx)
+    if (!EXACT_STATUS_COLORS[normStatus(entry.status)] && !normStatus(entry.status).match(/reopen|draft|develop|review|deliver|close|open/)) {
+      fallbackIdx += 1
     }
-  }
+    return { ...entry, fill }
+  })
 
   return (
     <div className="relative">
-      <ResponsiveContainer width="100%" height={260}>
+      <ResponsiveContainer width="100%" height={240}>
         <PieChart>
           <Pie
-            data={data}
+            data={chartData}
             dataKey="count"
             nameKey="status"
             cx="50%"
-            cy="45%"
+            cy="50%"
             innerRadius={68}
             outerRadius={100}
             paddingAngle={2}
             strokeWidth={0}
           >
-            {data.map((entry) => (
-              <Cell key={entry.status} fill={colorByStatus.get(entry.status) ?? STATUS_GRAY} />
+            {chartData.map((entry) => (
+              <Cell key={entry.status} fill={entry.fill} />
             ))}
           </Pie>
           <Tooltip
             contentStyle={CHART.tooltip}
             formatter={(value: number, name: string) => [
-              `${value}개 (${Math.round((value / total) * 100)}%)`,
+              `${value}개 (${total ? Math.round((value / total) * 100) : 0}%)`,
               name,
             ]}
           />
-          <Legend
-            wrapperStyle={{ fontSize: 12, color: CHART.legend, fontWeight: 600 }}
-            formatter={(value) => (
-              <span style={{ color: CHART.axis }}>{value}</span>
-            )}
-          />
         </PieChart>
       </ResponsiveContainer>
-      <div className="absolute top-[38%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+
+      {/* Recharts 기본 Legend는 회색으로만 나오는 경우가 있어 직접 렌더 */}
+      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 px-2 pb-1">
+        {chartData.map((entry) => (
+          <div key={entry.status} className="flex items-center gap-1.5">
+            <span
+              className="inline-block w-3 h-3 rounded-sm shrink-0"
+              style={{ backgroundColor: entry.fill }}
+            />
+            <span className="text-xs font-semibold text-gray-700">{entry.status}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="absolute top-[42%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
         <p className="text-2xl font-bold text-gray-900">{total}</p>
         <p className="text-xs text-gray-500 font-medium">총 이슈</p>
       </div>

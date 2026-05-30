@@ -280,6 +280,20 @@ if [ -f src/api/client.ts ]; then
   echo "  OK client.ts (미변경)"
 fi
 
+if grep -q "EXACT_STATUS_COLORS" src/components/charts/IssueStatusChart.tsx 2>/dev/null; then
+  echo "  OK IssueStatusChart.tsx (7-status colors)"
+else
+  echo "  MISSING IssueStatusChart color map — apply 실패 또는 구버전"
+  ERR=1
+fi
+
+if grep -q "SprintReportCard" src/pages/DevTeamDashboard.tsx 2>/dev/null; then
+  echo "  OK DevTeamDashboard.tsx (LLM 요약 카드)"
+else
+  echo "  MISSING SprintReportCard in DevTeamDashboard"
+  ERR=1
+fi
+
 echo ""
 if [ "$ERR" -eq 0 ]; then
   echo "=== 다음 ==="
