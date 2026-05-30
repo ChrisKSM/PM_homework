@@ -58,7 +58,7 @@ export default function Sidebar() {
             </p>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-page border border-surface-border">
               <div className="w-2 h-2 rounded-full bg-lg-red shrink-0" />
-              <span className="text-sm text-gray-700 font-medium truncate">PROJ — Sample Project</span>
+              <span className="text-sm text-gray-700 font-medium truncate">S80C Soundbar</span>
             </div>
           </div>
         )}
