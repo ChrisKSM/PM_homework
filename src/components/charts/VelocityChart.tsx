@@ -39,8 +39,8 @@ export default function VelocityChart({ data }: Props) {
           formatter={(value: number, name: string) => [`${value} SP`, name]}
         />
         <Legend wrapperStyle={{ fontSize: 12, color: CHART.legend, fontWeight: 600, paddingTop: 8 }} />
-        <Bar dataKey="planned" name="계획" fill={CHART.colors.planned} radius={[3, 3, 0, 0]} maxBarSize={28} />
-        <Bar dataKey="completed" name="완료" fill={CHART.colors.success} radius={[3, 3, 0, 0]} maxBarSize={28} />
+        <Bar dataKey="planned" name="스프린트 Story SP" fill={CHART.colors.planned} radius={[3, 3, 0, 0]} maxBarSize={28} />
+        <Bar dataKey="completed" name="Done Story SP" fill={CHART.colors.success} radius={[3, 3, 0, 0]} maxBarSize={28} />
       </BarChart>
     </ResponsiveContainer>
   )

@@ -97,7 +97,7 @@ export default function ManagerDashboard() {
 
           <SectionCard
             title="스프린트 Velocity"
-            subtitle="스프린트별 계획 대비 완료 Story Points"
+            subtitle="스프린트 커밋 Story SP vs Done(SOC DELIVERED·Closed) Story SP"
           >
             {loadingVelocity ? (
               <LoadingSpinner />

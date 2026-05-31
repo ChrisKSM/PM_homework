@@ -111,7 +111,7 @@ export default function DevTeamDashboard() {
         {/* Velocity */}
         <SectionCard
           title="스프린트 Velocity 비교"
-          subtitle="전체 스프린트 계획 대비 완료 — 팀 역량 및 예측 정확도 분석"
+          subtitle="스프린트 커밋 Story SP vs Done(SOC DELIVERED·Closed) Story SP"
         >
           {loadingVelocity ? (
             <LoadingSpinner />

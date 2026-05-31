@@ -75,6 +75,14 @@ def _blocker_jql(sprint_id: int) -> str:
     )
 
 
+def _is_velocity_done(issue: dict) -> bool:
+    """Velocity 완료 SP: 프로젝트 Done(SOC DELIVERED·Closed) 또는 Jira done 카테고리."""
+    name = _status_name(issue)
+    if name in ("SOC DELIVERED", "Closed"):
+        return True
+    return _status_category(issue) == DONE_CATEGORY
+
+
 def _issue_browse_url(issue_key: str) -> str:
     """Jira 이슈 브라우저 링크."""
     if not issue_key:
@@ -230,43 +238,21 @@ async def get_issue_distribution() -> list[dict[str, Any]]:
 # ── 4. 책임자 — 스프린트 Velocity ────────────────────────────────────────────
 
 async def _velocity_issues(sprint: dict) -> list[dict]:
-    """
-    velocity용 스프린트 이슈 조회.
-    이 Jira는 `sprint WAS`를 지원하지 않으므로, 스프린트 기간(updated) 기반으로
-    제거된 이슈까지 최대한 보정한다. 실패 시 빈 리스트 반환(전체가 죽지 않도록).
-    """
+    """스프린트에 커밋된 Story 이슈만 조회 (Velocity 표준 정의)."""
     sprint_id = sprint["id"]
-    start = (sprint.get("startDate") or "")[:10]
-    end = (sprint.get("endDate") or "")[:10]
-
-    if start and end:
-        jql = (
-            f"(sprint = {sprint_id}) OR "
-            f'(updated >= "{start}" AND updated <= "{end}" AND sprint != {sprint_id})'
-        )
-    else:
-        # active 등 날짜 없을 때 fallback
-        jql = f"sprint = {sprint_id}"
-
+    jql = f"sprint = {sprint_id} AND issuetype = Story"
     try:
         data = await jira_client.search(
-            jql, fields=["status", SP_FIELD], max_results=500
+            jql, fields=["status", "issuetype", SP_FIELD], max_results=500
         )
         return data.get("issues", [])
     except Exception:
-        # JQL 실패 시 단순 조회로 폴백
-        try:
-            data = await jira_client.search(
-                f"sprint = {sprint_id}", fields=["status", SP_FIELD], max_results=500
-            )
-            return data.get("issues", [])
-        except Exception:
-            return []
+        return []
 
 
 @cached(ttl=600)
 async def get_velocity() -> list[dict[str, Any]]:
-    """최근 3개 스프린트의 계획 대비 완료 SP. (sprint WAS 미지원 → 기간 기반 보정)"""
+    """스프린트별 Story SP — planned=스프린트 내 Story 합, completed=Done Story 합."""
     try:
         closed = await jira_client.get_closed_sprints(count=2)
     except Exception:
@@ -286,7 +272,7 @@ async def get_velocity() -> list[dict[str, Any]]:
 
         issues = await _velocity_issues(sprint)
         planned = sum(_sp(i) for i in issues)
-        completed = sum(_sp(i) for i in issues if _status_category(i) == DONE_CATEGORY)
+        completed = sum(_sp(i) for i in issues if _is_velocity_done(i))
         result.append({
             "sprintName": name,
             "planned": round(planned, 1),
