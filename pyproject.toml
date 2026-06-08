@@ -1,6 +1,6 @@
 [project]
 name = "be-audio-test"
-version = "1.0.38"
+version = "1.0.39"
 
 requires-python = ">=3.12,<3.13"
 dependencies = [
