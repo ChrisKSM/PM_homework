@@ -6,6 +6,7 @@ REST API v2 + Agile API v1.0 지원.
 import os
 import httpx
 import warnings
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -180,11 +181,69 @@ class JiraClient:
             f"/rest/agile/1.0/sprint/{sprint_id}/issue", params
         )
 
+    async def _collect_board_sprints(self, state: str) -> list[dict]:
+        """보드 스프린트 전체 페이지네이션 수집."""
+        all_sprints: list[dict] = []
+        start = 0
+        page = 50
+        while True:
+            data = await self.get_board_sprints(
+                state=state, max_results=page, start_at=start
+            )
+            values = data.get("values", [])
+            all_sprints.extend(values)
+            if data.get("isLast", False) or len(values) < page or not values:
+                break
+            start += len(values)
+        return all_sprints
+
+    @staticmethod
+    def _parse_sprint_dt(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
     async def get_active_sprint(self) -> dict | None:
-        """현재 활성 스프린트 반환 (없으면 None)."""
-        data = await self.get_board_sprints(state="active", max_results=1)
-        sprints = data.get("values", [])
-        return sprints[0] if sprints else None
+        """
+        대시보드용 '현재' 스프린트.
+        1) Jira state=active
+        2) 없으면 오늘 날짜가 start~end 안에 드는 future/closed
+        3) 없으면 가장 가까운 upcoming future
+        """
+        active_data = await self.get_board_sprints(state="active", max_results=10)
+        actives = active_data.get("values", [])
+        if actives:
+            return sorted(actives, key=lambda s: s.get("id", 0))[-1]
+
+        today = datetime.now(timezone.utc).date()
+        in_range: list[dict] = []
+        for state in ("future", "closed"):
+            for sprint in await self._collect_board_sprints(state):
+                start_dt = self._parse_sprint_dt(sprint.get("startDate"))
+                end_dt = self._parse_sprint_dt(sprint.get("endDate"))
+                if start_dt and end_dt and start_dt.date() <= today <= end_dt.date():
+                    in_range.append(sprint)
+
+        if in_range:
+            state_order = {"active": 0, "future": 1, "closed": 2}
+            return sorted(
+                in_range,
+                key=lambda s: (state_order.get(s.get("state", ""), 9), s.get("id", 0)),
+            )[-1]
+
+        upcoming: list[tuple[datetime, dict]] = []
+        for sprint in await self._collect_board_sprints("future"):
+            start_dt = self._parse_sprint_dt(sprint.get("startDate"))
+            if start_dt and start_dt.date() >= today:
+                upcoming.append((start_dt, sprint))
+        if upcoming:
+            upcoming.sort(key=lambda item: item[0])
+            return upcoming[0][1]
+
+        return None
 
     async def get_closed_sprints(self, count: int = 7) -> list[dict]:
         """
