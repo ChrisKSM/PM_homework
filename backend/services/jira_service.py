@@ -290,30 +290,60 @@ async def _velocity_issues_by_id(sprint_id: int) -> list[dict]:
     return []
 
 
+def _ids_for_sprint_name(name: str, pool: list[dict]) -> list[int]:
+    """풀에서 동일 name sprint id (오름차순 — 7711 before 7736)."""
+    return sorted(
+        {
+            int(s["id"])
+            for s in pool
+            if s.get("name") == name and s.get("id") is not None
+        }
+    )
+
+
+def _best_sprint_from_pool(name: str, pool: list[dict]) -> dict | None:
+    """동일 name 중 id가 가장 작은 스프린트(원본)."""
+    matches = [s for s in pool if s.get("name") == name]
+    if not matches:
+        return None
+    return min(matches, key=lambda s: s.get("id", 0))
+
+
 async def _sprint_ids_with_same_name(name: str) -> list[int]:
-    """보드上 동일 name 스프린트 id 목록 (7711·7736 duplicate 대응)."""
+    """보드 전체 페이지네이션으로 동일 name sprint id 수집."""
     ids: list[int] = []
     seen: set[int] = set()
     for state in ("closed", "active"):
-        try:
-            data = await jira_client.get_board_sprints(state=state, max_results=50)
-            for sprint in data.get("values", []):
+        start = 0
+        page = 50
+        while True:
+            try:
+                data = await jira_client.get_board_sprints(
+                    state=state, max_results=page, start_at=start
+                )
+            except Exception:
+                break
+            values = data.get("values", [])
+            for sprint in values:
                 if sprint.get("name") != name:
                     continue
                 sid = sprint.get("id")
                 if sid is not None and sid not in seen:
                     seen.add(sid)
                     ids.append(int(sid))
-        except Exception:
-            continue
+            if data.get("isLast") or len(values) < page or not values:
+                break
+            start += len(values)
     ids.sort()
     return ids
 
 
-async def _velocity_issues(sprint: dict) -> list[dict]:
+async def _velocity_issues(sprint: dict, sprint_pool: list[dict]) -> list[dict]:
     """동일 name duplicate sprint id를 순회하며 Story가 있는 쪽 사용."""
     name = sprint.get("name") or ""
-    sprint_ids = await _sprint_ids_with_same_name(name) if name else []
+    sprint_ids = _ids_for_sprint_name(name, sprint_pool) if name else []
+    if not sprint_ids and name:
+        sprint_ids = await _sprint_ids_with_same_name(name)
     if not sprint_ids:
         sprint_ids = [int(sprint["id"])]
 
@@ -332,21 +362,24 @@ async def get_velocity() -> list[dict[str, Any]]:
         closed_raw = await jira_client.get_closed_sprints(count=20)
         closed = _dedupe_sprints_by_name(closed_raw)[-2:]
     except Exception:
+        closed_raw = []
         closed = []
     try:
         active = await jira_client.get_active_sprint()
     except Exception:
         active = None
+
+    sprint_pool = closed_raw + ([active] if active else [])
     sprints = _dedupe_sprints_by_name(closed + ([active] if active else []))
 
     result = []
     for sprint in sprints:
         if not sprint:
             continue
-        sprint_id = sprint["id"]
-        name = sprint.get("name", f"Sprint {sprint_id}")
+        name = sprint.get("name", f"Sprint {sprint.get('id')}")
+        canonical = _best_sprint_from_pool(name, sprint_pool) or sprint
 
-        issues = await _velocity_issues(sprint)
+        issues = await _velocity_issues(canonical, sprint_pool)
         planned = sum(_sp(i) for i in issues)
         completed = sum(_sp(i) for i in issues if _is_velocity_done(i))
         result.append({
