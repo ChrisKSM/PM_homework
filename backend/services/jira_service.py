@@ -341,9 +341,11 @@ async def _sprint_ids_with_same_name(name: str) -> list[int]:
 async def _velocity_issues(sprint: dict, sprint_pool: list[dict]) -> list[dict]:
     """동일 name duplicate sprint id를 순회하며 Story가 있는 쪽 사용."""
     name = sprint.get("name") or ""
-    sprint_ids = _ids_for_sprint_name(name, sprint_pool) if name else []
-    if not sprint_ids and name:
-        sprint_ids = await _sprint_ids_with_same_name(name)
+    sprint_ids: list[int] = []
+    if name:
+        pool_ids = _ids_for_sprint_name(name, sprint_pool)
+        board_ids = await _sprint_ids_with_same_name(name)
+        sprint_ids = sorted(set(pool_ids) | set(board_ids))
     if not sprint_ids:
         sprint_ids = [int(sprint["id"])]
 
