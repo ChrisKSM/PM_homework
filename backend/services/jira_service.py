@@ -290,7 +290,9 @@ async def _velocity_issues(sprint: dict) -> list[dict]:
 async def get_velocity() -> list[dict[str, Any]]:
     """스프린트별 Story SP — planned=스프린트 내 Story 합, completed=Done Story 합."""
     try:
-        closed = await jira_client.get_closed_sprints(count=2)
+        # duplicate name(7711/7736 SP10) 제거 후 최근 2개 — count=2만 쓰면 빈 duplicate만 남을 수 있음
+        closed_raw = await jira_client.get_closed_sprints(count=20)
+        closed = _dedupe_sprints_by_name(closed_raw)[-2:]
     except Exception:
         closed = []
     try:
