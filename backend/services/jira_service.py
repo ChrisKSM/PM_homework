@@ -252,24 +252,21 @@ def _dedupe_sprints_by_name(sprints: list[dict]) -> list[dict]:
     return [seen[name] for name in order]
 
 
-async def _velocity_issues(sprint: dict) -> list[dict]:
-    """스프린트에 커밋된 Story 이슈만 조회 (Velocity 표준 정의)."""
-    sprint_id = sprint["id"]
+async def _velocity_issues_by_id(sprint_id: int) -> list[dict]:
+    """단일 sprint id에 대한 Story 이슈 조회."""
     fields = ["status", "issuetype", SP_FIELD]
     story_jql = f"sprint = {sprint_id} AND issuetype = Story"
 
-    # 1) board scope JQL — closed 스프린트 completed·removed 이력 포함
+    # 1) bare JQL — board filter 밖 IR2(MLCSKZERO) Story 포함 (Pod 검증: 7711 total 13)
     try:
-        board_jql = await jira_client.get_board_filter_jql()
-        scoped_jql = f"({board_jql}) AND {story_jql}" if board_jql else story_jql
-        data = await jira_client.search(scoped_jql, fields=fields, max_results=500)
+        data = await jira_client.search(story_jql, fields=fields, max_results=500)
         issues = data.get("issues", [])
         if issues:
             return issues
     except Exception:
         pass
 
-    # 2) Agile API — active 스프린트 현재 커밋
+    # 2) Agile API
     try:
         data = await jira_client.get_sprint_issues(sprint_id, fields=fields)
         stories = [i for i in data.get("issues", []) if _issue_type(i) == "Story"]
@@ -278,12 +275,53 @@ async def _velocity_issues(sprint: dict) -> list[dict]:
     except Exception:
         pass
 
-    # 3) bare JQL fallback
+    # 3) board scope JQL fallback
     try:
-        data = await jira_client.search(story_jql, fields=fields, max_results=500)
-        return data.get("issues", [])
+        board_jql = await jira_client.get_board_filter_jql()
+        if board_jql:
+            scoped_jql = f"({board_jql}) AND {story_jql}"
+            data = await jira_client.search(scoped_jql, fields=fields, max_results=500)
+            issues = data.get("issues", [])
+            if issues:
+                return issues
     except Exception:
-        return []
+        pass
+
+    return []
+
+
+async def _sprint_ids_with_same_name(name: str) -> list[int]:
+    """보드上 동일 name 스프린트 id 목록 (7711·7736 duplicate 대응)."""
+    ids: list[int] = []
+    seen: set[int] = set()
+    for state in ("closed", "active"):
+        try:
+            data = await jira_client.get_board_sprints(state=state, max_results=50)
+            for sprint in data.get("values", []):
+                if sprint.get("name") != name:
+                    continue
+                sid = sprint.get("id")
+                if sid is not None and sid not in seen:
+                    seen.add(sid)
+                    ids.append(int(sid))
+        except Exception:
+            continue
+    ids.sort()
+    return ids
+
+
+async def _velocity_issues(sprint: dict) -> list[dict]:
+    """동일 name duplicate sprint id를 순회하며 Story가 있는 쪽 사용."""
+    name = sprint.get("name") or ""
+    sprint_ids = await _sprint_ids_with_same_name(name) if name else []
+    if not sprint_ids:
+        sprint_ids = [int(sprint["id"])]
+
+    for sprint_id in sprint_ids:
+        issues = await _velocity_issues_by_id(sprint_id)
+        if issues:
+            return issues
+    return []
 
 
 @cached(ttl=600)
