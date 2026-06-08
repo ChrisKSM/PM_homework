@@ -76,9 +76,9 @@ def _blocker_jql(sprint_id: int) -> str:
 
 
 def _is_velocity_done(issue: dict) -> bool:
-    """Velocity 완료 SP: 프로젝트 Done(SOC DELIVERED·Closed) 또는 Jira done 카테고리."""
+    """Velocity 완료 SP: 프로젝트 Done(SDC/SOC DELIVERED·Closed) 또는 Jira done 카테고리."""
     name = _status_name(issue)
-    if name in ("SOC DELIVERED", "Closed"):
+    if name in ("SDC DELIVERED", "SOC DELIVERED", "Closed", "SoC Closed"):
         return True
     return _status_category(issue) == DONE_CATEGORY
 
@@ -237,14 +237,50 @@ async def get_issue_distribution() -> list[dict[str, Any]]:
 
 # ── 4. 책임자 — 스프린트 Velocity ────────────────────────────────────────────
 
+def _dedupe_sprints_by_name(sprints: list[dict]) -> list[dict]:
+    """동일 name 스프린트 중 id가 작은 것만 유지 (reopen/복제 duplicate 제거)."""
+    seen: dict[str, dict] = {}
+    order: list[str] = []
+    for sprint in sprints:
+        name = sprint.get("name") or str(sprint.get("id"))
+        if name not in seen:
+            seen[name] = sprint
+            order.append(name)
+            continue
+        if sprint.get("id", 0) < seen[name].get("id", 0):
+            seen[name] = sprint
+    return [seen[name] for name in order]
+
+
 async def _velocity_issues(sprint: dict) -> list[dict]:
     """스프린트에 커밋된 Story 이슈만 조회 (Velocity 표준 정의)."""
     sprint_id = sprint["id"]
-    jql = f"sprint = {sprint_id} AND issuetype = Story"
+    fields = ["status", "issuetype", SP_FIELD]
+    story_jql = f"sprint = {sprint_id} AND issuetype = Story"
+
+    # 1) board scope JQL — closed 스프린트 completed·removed 이력 포함
     try:
-        data = await jira_client.search(
-            jql, fields=["status", "issuetype", SP_FIELD], max_results=500
-        )
+        board_jql = await jira_client.get_board_filter_jql()
+        scoped_jql = f"({board_jql}) AND {story_jql}" if board_jql else story_jql
+        data = await jira_client.search(scoped_jql, fields=fields, max_results=500)
+        issues = data.get("issues", [])
+        if issues:
+            return issues
+    except Exception:
+        pass
+
+    # 2) Agile API — active 스프린트 현재 커밋
+    try:
+        data = await jira_client.get_sprint_issues(sprint_id, fields=fields)
+        stories = [i for i in data.get("issues", []) if _issue_type(i) == "Story"]
+        if stories:
+            return stories
+    except Exception:
+        pass
+
+    # 3) bare JQL fallback
+    try:
+        data = await jira_client.search(story_jql, fields=fields, max_results=500)
         return data.get("issues", [])
     except Exception:
         return []
@@ -261,7 +297,7 @@ async def get_velocity() -> list[dict[str, Any]]:
         active = await jira_client.get_active_sprint()
     except Exception:
         active = None
-    sprints = closed + ([active] if active else [])
+    sprints = _dedupe_sprints_by_name(closed + ([active] if active else []))
 
     result = []
     for sprint in sprints:
