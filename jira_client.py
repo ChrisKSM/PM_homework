@@ -6,6 +6,7 @@ REST API v2 + Agile API v1.0 지원.
 import os
 import httpx
 import warnings
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -180,11 +181,123 @@ class JiraClient:
             f"/rest/agile/1.0/sprint/{sprint_id}/issue", params
         )
 
+    async def _collect_board_sprints(self, state: str) -> list[dict]:
+        """보드 스프린트 전체 페이지네이션 수집."""
+        all_sprints: list[dict] = []
+        start = 0
+        page = 50
+        while True:
+            data = await self.get_board_sprints(
+                state=state, max_results=page, start_at=start
+            )
+            values = data.get("values", [])
+            all_sprints.extend(values)
+            if data.get("isLast", False) or len(values) < page or not values:
+                break
+            start += len(values)
+        return all_sprints
+
+    @staticmethod
+    def _parse_sprint_dt(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    @classmethod
+    def _pick_best_active_sprint(cls, actives: list[dict], today) -> dict | None:
+        """
+        Jira 보드에 active 스프린트가 여러 개일 때 '현재' 스프린트 선택.
+        (동일 board에서 SP10·SP11·SP12가 동시 active인 경우 max(id)만 쓰면 잘못된 스프린트 선택)
+        """
+        if not actives:
+            return None
+
+        dated: list[tuple[dict, datetime | None, datetime | None]] = []
+        for sprint in actives:
+            start_dt = cls._parse_sprint_dt(sprint.get("startDate"))
+            end_dt = cls._parse_sprint_dt(sprint.get("endDate"))
+            dated.append((sprint, start_dt, end_dt))
+
+        # 아직 종료되지 않은 active만 (종료일 지났는데 state=active인 스프린트 제외)
+        not_ended = [
+            sprint
+            for sprint, _, end_dt in dated
+            if end_dt is None or today <= end_dt.date()
+        ]
+        pool = not_ended or [sprint for sprint, _, _ in dated]
+
+        in_progress = [
+            sprint
+            for sprint, start_dt, end_dt in dated
+            if sprint in pool
+            and start_dt
+            and end_dt
+            and start_dt.date() <= today <= end_dt.date()
+        ]
+        if in_progress:
+            return sorted(
+                in_progress,
+                key=lambda s: (s.get("startDate") or "", s.get("id", 0)),
+            )[-1]
+
+        # 시작 전이지만 active로 켜 둔 스프린트(SP12 등) — 종료만 안 됐으면 가장 늦은 startDate
+        with_start = [
+            (sprint, start_dt)
+            for sprint, start_dt, end_dt in dated
+            if sprint in pool and start_dt
+        ]
+        if with_start:
+            return sorted(
+                with_start,
+                key=lambda item: (item[1], item[0].get("id", 0)),
+            )[-1][0]
+
+        return sorted(pool, key=lambda s: s.get("id", 0))[-1]
+
     async def get_active_sprint(self) -> dict | None:
-        """현재 활성 스프린트 반환 (없으면 None)."""
-        data = await self.get_board_sprints(state="active", max_results=1)
-        sprints = data.get("values", [])
-        return sprints[0] if sprints else None
+        """
+        대시보드용 '현재' 스프린트.
+        1) Jira state=active (여러 개면 날짜 기준으로 최적 1개)
+        2) 없으면 오늘 날짜가 start~end 안에 드는 future/closed
+        3) 없으면 가장 가까운 upcoming future
+        """
+        active_data = await self.get_board_sprints(state="active", max_results=50)
+        actives = active_data.get("values", [])
+        if actives:
+            today = datetime.now(timezone.utc).date()
+            picked = self._pick_best_active_sprint(actives, today)
+            if picked:
+                return picked
+
+        today = datetime.now(timezone.utc).date()
+        in_range: list[dict] = []
+        for state in ("future", "closed"):
+            for sprint in await self._collect_board_sprints(state):
+                start_dt = self._parse_sprint_dt(sprint.get("startDate"))
+                end_dt = self._parse_sprint_dt(sprint.get("endDate"))
+                if start_dt and end_dt and start_dt.date() <= today <= end_dt.date():
+                    in_range.append(sprint)
+
+        if in_range:
+            state_order = {"active": 0, "future": 1, "closed": 2}
+            return sorted(
+                in_range,
+                key=lambda s: (state_order.get(s.get("state", ""), 9), s.get("id", 0)),
+            )[-1]
+
+        upcoming: list[tuple[datetime, dict]] = []
+        for sprint in await self._collect_board_sprints("future"):
+            start_dt = self._parse_sprint_dt(sprint.get("startDate"))
+            if start_dt and start_dt.date() >= today:
+                upcoming.append((start_dt, sprint))
+        if upcoming:
+            upcoming.sort(key=lambda item: item[0])
+            return upcoming[0][1]
+
+        return None
 
     async def get_closed_sprints(self, count: int = 7) -> list[dict]:
         """
