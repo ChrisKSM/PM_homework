@@ -76,9 +76,9 @@ def _blocker_jql(sprint_id: int) -> str:
 
 
 def _is_velocity_done(issue: dict) -> bool:
-    """Velocity 완료 SP: 프로젝트 Done(SOC DELIVERED·Closed) 또는 Jira done 카테고리."""
+    """Velocity 완료 SP: 프로젝트 Done(SDC/SOC DELIVERED·Closed) 또는 Jira done 카테고리."""
     name = _status_name(issue)
-    if name in ("SOC DELIVERED", "Closed"):
+    if name in ("SDC DELIVERED", "SOC DELIVERED", "Closed", "SoC Closed"):
         return True
     return _status_category(issue) == DONE_CATEGORY
 
@@ -237,40 +237,151 @@ async def get_issue_distribution() -> list[dict[str, Any]]:
 
 # ── 4. 책임자 — 스프린트 Velocity ────────────────────────────────────────────
 
-async def _velocity_issues(sprint: dict) -> list[dict]:
-    """스프린트에 커밋된 Story 이슈만 조회 (Velocity 표준 정의)."""
-    sprint_id = sprint["id"]
-    jql = f"sprint = {sprint_id} AND issuetype = Story"
+def _dedupe_sprints_by_name(sprints: list[dict]) -> list[dict]:
+    """동일 name 스프린트 중 id가 작은 것만 유지 (reopen/복제 duplicate 제거)."""
+    seen: dict[str, dict] = {}
+    order: list[str] = []
+    for sprint in sprints:
+        name = sprint.get("name") or str(sprint.get("id"))
+        if name not in seen:
+            seen[name] = sprint
+            order.append(name)
+            continue
+        if sprint.get("id", 0) < seen[name].get("id", 0):
+            seen[name] = sprint
+    return [seen[name] for name in order]
+
+
+async def _velocity_issues_by_id(sprint_id: int) -> list[dict]:
+    """단일 sprint id에 대한 Story 이슈 조회."""
+    fields = ["status", "issuetype", SP_FIELD]
+    story_jql = f"sprint = {sprint_id} AND issuetype = Story"
+
+    # 1) bare JQL — board filter 밖 IR2(MLCSKZERO) Story 포함 (Pod 검증: 7711 total 13)
     try:
-        data = await jira_client.search(
-            jql, fields=["status", "issuetype", SP_FIELD], max_results=500
-        )
-        return data.get("issues", [])
+        data = await jira_client.search(story_jql, fields=fields, max_results=500)
+        issues = data.get("issues", [])
+        if issues:
+            return issues
     except Exception:
-        return []
+        pass
+
+    # 2) Agile API
+    try:
+        data = await jira_client.get_sprint_issues(sprint_id, fields=fields)
+        stories = [i for i in data.get("issues", []) if _issue_type(i) == "Story"]
+        if stories:
+            return stories
+    except Exception:
+        pass
+
+    # 3) board scope JQL fallback
+    try:
+        board_jql = await jira_client.get_board_filter_jql()
+        if board_jql:
+            scoped_jql = f"({board_jql}) AND {story_jql}"
+            data = await jira_client.search(scoped_jql, fields=fields, max_results=500)
+            issues = data.get("issues", [])
+            if issues:
+                return issues
+    except Exception:
+        pass
+
+    return []
+
+
+def _ids_for_sprint_name(name: str, pool: list[dict]) -> list[int]:
+    """풀에서 동일 name sprint id (오름차순 — 7711 before 7736)."""
+    return sorted(
+        {
+            int(s["id"])
+            for s in pool
+            if s.get("name") == name and s.get("id") is not None
+        }
+    )
+
+
+def _best_sprint_from_pool(name: str, pool: list[dict]) -> dict | None:
+    """동일 name 중 id가 가장 작은 스프린트(원본)."""
+    matches = [s for s in pool if s.get("name") == name]
+    if not matches:
+        return None
+    return min(matches, key=lambda s: s.get("id", 0))
+
+
+async def _sprint_ids_with_same_name(name: str) -> list[int]:
+    """보드 전체 페이지네이션으로 동일 name sprint id 수집."""
+    ids: list[int] = []
+    seen: set[int] = set()
+    for state in ("closed", "active"):
+        start = 0
+        page = 50
+        while True:
+            try:
+                data = await jira_client.get_board_sprints(
+                    state=state, max_results=page, start_at=start
+                )
+            except Exception:
+                break
+            values = data.get("values", [])
+            for sprint in values:
+                if sprint.get("name") != name:
+                    continue
+                sid = sprint.get("id")
+                if sid is not None and sid not in seen:
+                    seen.add(sid)
+                    ids.append(int(sid))
+            if data.get("isLast") or len(values) < page or not values:
+                break
+            start += len(values)
+    ids.sort()
+    return ids
+
+
+async def _velocity_issues(sprint: dict, sprint_pool: list[dict]) -> list[dict]:
+    """동일 name duplicate sprint id를 순회하며 Story가 있는 쪽 사용."""
+    name = sprint.get("name") or ""
+    sprint_ids: list[int] = []
+    if name:
+        pool_ids = _ids_for_sprint_name(name, sprint_pool)
+        board_ids = await _sprint_ids_with_same_name(name)
+        sprint_ids = sorted(set(pool_ids) | set(board_ids))
+    if not sprint_ids:
+        sprint_ids = [int(sprint["id"])]
+
+    for sprint_id in sprint_ids:
+        issues = await _velocity_issues_by_id(sprint_id)
+        if issues:
+            return issues
+    return []
 
 
 @cached(ttl=600)
 async def get_velocity() -> list[dict[str, Any]]:
     """스프린트별 Story SP — planned=스프린트 내 Story 합, completed=Done Story 합."""
     try:
-        closed = await jira_client.get_closed_sprints(count=2)
+        # duplicate name(7711/7736 SP10) 제거 후 최근 2개 — count=2만 쓰면 빈 duplicate만 남을 수 있음
+        closed_raw = await jira_client.get_closed_sprints(count=20)
+        closed = _dedupe_sprints_by_name(closed_raw)[-2:]
     except Exception:
+        closed_raw = []
         closed = []
     try:
         active = await jira_client.get_active_sprint()
     except Exception:
         active = None
-    sprints = closed + ([active] if active else [])
+
+    sprint_pool = closed_raw + ([active] if active else [])
+    sprints = _dedupe_sprints_by_name(closed + ([active] if active else []))
 
     result = []
     for sprint in sprints:
         if not sprint:
             continue
-        sprint_id = sprint["id"]
-        name = sprint.get("name", f"Sprint {sprint_id}")
+        name = sprint.get("name", f"Sprint {sprint.get('id')}")
+        canonical = _best_sprint_from_pool(name, sprint_pool) or sprint
 
-        issues = await _velocity_issues(sprint)
+        issues = await _velocity_issues(canonical, sprint_pool)
         planned = sum(_sp(i) for i in issues)
         completed = sum(_sp(i) for i in issues if _is_velocity_done(i))
         result.append({
