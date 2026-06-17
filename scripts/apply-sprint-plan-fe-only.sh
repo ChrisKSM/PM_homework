@@ -46,6 +46,7 @@ SPRINT_PLAN_FILES="
   src/components/sprintPlan/SprintPlanGantt.tsx
   src/components/sprintPlan/sprintPlanUtils.ts
   src/components/devteam/SprintForecastPanel.tsx
+  src/components/devteam/sprintForecastUtils.ts
 "
 
 for f in $SPRINT_PLAN_FILES; do
@@ -71,6 +72,7 @@ for f in \
   src/components/sprintPlan/SprintPlanGantt.tsx \
   src/components/sprintPlan/sprintPlanUtils.ts \
   src/components/devteam/SprintForecastPanel.tsx \
+  src/components/devteam/sprintForecastUtils.ts \
   src/pages/DevTeamDashboard.tsx \
   src/App.tsx \
   src/components/layout/Sidebar.tsx

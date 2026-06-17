@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Flame, Target, Zap, AlertTriangle } from 'lucide-react'
 import Header from '../components/layout/Header'
 import KpiCard from '../components/cards/KpiCard'
@@ -17,6 +18,7 @@ import {
 } from '../hooks/useJiraData'
 import { useSprintPlanForecast } from '../hooks/useSprintPlanData'
 import SprintForecastPanel from '../components/devteam/SprintForecastPanel'
+import { buildSprintForecastFromDevTeamData } from '../components/devteam/sprintForecastUtils'
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-32">
@@ -32,7 +34,30 @@ export default function DevTeamDashboard() {
   const { data: velocity, isLoading: loadingVelocity } = useVelocity()
   const { data: issues, isLoading: loadingIssues } = useSprintIssues()
   const sprintReport = useSprintReport()
-  const { data: forecast, isLoading: loadingForecast } = useSprintPlanForecast()
+  const { data: forecastApi, isLoading: loadingForecastApi } = useSprintPlanForecast()
+
+  const localForecast = useMemo(() => {
+    if (!burndown || !sprint) return null
+    return buildSprintForecastFromDevTeamData({
+      burndown,
+      sprint,
+      velocity: velocity ?? [],
+      workload: workload ?? [],
+      emvOverride: forecastApi?.emv,
+    })
+  }, [burndown, sprint, velocity, workload, forecastApi?.emv])
+
+  const forecast = useMemo(() => {
+    if (forecastApi) {
+      return {
+        ...forecastApi,
+        meta: { ...forecastApi.meta, methods: forecastApi.meta.methods ?? 'burndown · velocity · EMV · workload (API)' },
+      }
+    }
+    return localForecast
+  }, [forecastApi, localForecast])
+
+  const showForecastLoading = loadingForecastApi && !localForecast
 
   return (
     <>
@@ -76,13 +101,6 @@ export default function DevTeamDashboard() {
               icon={<AlertTriangle size={16} />}
             />
           </div>
-        ) : null}
-
-        {/* 스프린트 · 릴리즈 예측 */}
-        {loadingForecast ? (
-          <LoadingSpinner />
-        ) : forecast ? (
-          <SprintForecastPanel data={forecast} />
         ) : null}
 
         {/* 주간 스프린트 요약 (LLM) */}
@@ -141,6 +159,19 @@ export default function DevTeamDashboard() {
             <IssueTable issues={issues} />
           ) : null}
         </SectionCard>
+
+        {/* 스프린트 · 릴리즈 예측 — 현재 스프린트 이슈 아래 */}
+        {showForecastLoading ? (
+          <LoadingSpinner />
+        ) : forecast ? (
+          <SprintForecastPanel data={forecast} />
+        ) : (
+          <SectionCard title="스프린트 · 릴리즈 예측 (1단계)" subtitle="Burndown/Velocity 로드 후 표시">
+            <p className="text-sm text-gray-500 py-8 text-center">
+              스프린트 KPI · Burn Down 데이터를 불러오는 중이거나 없습니다.
+            </p>
+          </SectionCard>
+        )}
       </div>
     </>
   )
