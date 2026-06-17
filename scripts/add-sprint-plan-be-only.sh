@@ -25,7 +25,6 @@ mkdir -p routers services scripts
 for f in \
   backend/routers/sprint_plan.py:routers/sprint_plan.py \
   backend/services/sprint_plan_service.py:services/sprint_plan_service.py \
-  backend/services/sprint_plan_forecast_service.py:services/sprint_plan_forecast_service.py \
   scripts/patch-be-main-sprint-plan.sh:scripts/patch-be-main-sprint-plan.sh \
   scripts/verify-sprint-plan-be.sh:scripts/verify-sprint-plan-be.sh
 do
@@ -42,8 +41,8 @@ sh scripts/patch-be-main-sprint-plan.sh
 
 echo ""
 echo "=== import 테스트 ==="
-python3 -c "from services import sprint_plan_service, sprint_plan_forecast_service; from routers import sprint_plan; print('OK', sprint_plan.router.prefix)" 2>/dev/null \
-  || python -c "from services import sprint_plan_service, sprint_plan_forecast_service; from routers import sprint_plan; print('OK', sprint_plan.router.prefix)"
+python3 -c "from services import sprint_plan_service; from routers import sprint_plan; print('OK', sprint_plan.router.prefix, hasattr(sprint_plan_service, 'get_sprint_plan_forecast'))" 2>/dev/null \
+  || python -c "from services import sprint_plan_service; from routers import sprint_plan; print('OK', sprint_plan.router.prefix, hasattr(sprint_plan_service, 'get_sprint_plan_forecast'))"
 
 echo ""
 echo "=== 다음 ==="
