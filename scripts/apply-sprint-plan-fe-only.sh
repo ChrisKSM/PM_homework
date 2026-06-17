@@ -37,7 +37,6 @@ SPRINT_PLAN_FILES="
   src/types/sprintPlan.ts
   src/types/sprintPlanForecast.ts
   src/mocks/mockSprintPlanData.ts
-  src/mocks/mockSprintPlanForecast.ts
   src/api/sprintPlanApi.ts
   src/hooks/useSprintPlanData.ts
   src/pages/ReleaseSprintPlanPage.tsx
