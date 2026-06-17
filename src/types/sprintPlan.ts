@@ -64,5 +64,8 @@ export interface SprintPlanTimeline {
     message?: string
     riskMatch?: string
     mvpMatch?: string
+    riskRows?: number
+    riskJqlMatched?: number
+    riskJqlUnmapped?: number
   }
 }

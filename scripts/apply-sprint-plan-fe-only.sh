@@ -49,7 +49,12 @@ for f in $SPRINT_PLAN_FILES; do
   echo "  + $f"
 done
 
-for f in src/App.tsx src/components/layout/Sidebar.tsx; do
+for f in src/App.tsx src/components/layout/Sidebar.tsx src/main.tsx; do
+  show "$f" > "$f"
+  echo "  + $f"
+done
+
+for f in webpack.config.js public/index.html; do
   show "$f" > "$f"
   echo "  + $f"
 done

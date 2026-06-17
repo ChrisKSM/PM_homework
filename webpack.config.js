@@ -1,10 +1,12 @@
 const path = require('path');
+const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const Dotenv = require('dotenv-webpack');
 const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = (env, argv) => {
   const isDev = argv.mode === 'development';
+  const buildId = Date.now().toString();
 
   return {
     entry: './src/main.tsx',
@@ -42,6 +44,19 @@ module.exports = (env, argv) => {
     },
 
     plugins: [
+      new webpack.DefinePlugin({
+        'process.env.APP_BUILD_ID': JSON.stringify(buildId),
+      }),
+      new (class BuildVersionPlugin {
+        apply(compiler) {
+          compiler.hooks.emit.tap('BuildVersionPlugin', (compilation) => {
+            compilation.emitAsset(
+              'build-version.txt',
+              new webpack.sources.RawSource(buildId),
+            );
+          });
+        }
+      })(),
       new HtmlWebpackPlugin({
         template: './public/index.html',
         favicon: './public/favicon.svg',
