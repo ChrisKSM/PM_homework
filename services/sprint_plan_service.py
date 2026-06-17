@@ -13,7 +13,7 @@ from config import settings
 from jira_client import jira_client
 from services.jira_service import _dedupe_sprints_by_name
 from services.planning_service import _is_story_issue
-from services.quality_service import _issue_browse_url, _parse_jira_date
+from services.quality_service import _board_jql_clause, _issue_browse_url, _parse_jira_date, _search_all_issues
 from services.risk_service import (
     ENV_FIELD,
     RISK_LABEL,
@@ -28,8 +28,9 @@ GANTT_START = "2026-02-01"
 GANTT_END = "2026-08-31"
 SP_MIN = 2
 SP_MAX = 17
-SPRINT_NAME_RE = re.compile(r"2026_IR(\d+)SP(\d+)", re.IGNORECASE)
-EPIC_LINK_FIELD = settings.epic_link_field
+SPRINT_FIELD = settings.sprint_field
+RELEASE_SPRINT_FIELD = settings.release_sprint_field
+SPRINT_KEY_RE = re.compile(r"2026_IR\d+SP\d+", re.IGNORECASE)
 
 
 def _is_epic_issue(issue: dict) -> bool:
@@ -107,12 +108,78 @@ def _label_list(fields: dict) -> list[str]:
 
 def _is_bug_issue(issue: dict) -> bool:
     name = (issue.get("fields", {}).get("issuetype", {}).get("name") or "").strip().lower()
-    return name in ("bug", "버그") or "bug" in name or "버그" in name
+    if name in ("bug", "버그", "defect"):
+        return True
+    return "bug" in name or "버그" in name or "defect" in name
+
+
+def _has_risk_label(labels: list[str]) -> bool:
+    for label in labels:
+        norm = re.sub(r"[_\-\s]", "", str(label).lower())
+        if norm == "risk" or norm.startswith("risk"):
+            return True
+    return False
 
 
 def _is_risk_bug(issue: dict) -> bool:
-    """RISK = issuetype Bug + labels risk (리스크 관리 대시보드와 동일)."""
+    """RISK = issuetype Bug + labels risk/RISK."""
     return _is_bug_issue(issue) and _has_risk_label(_label_list(issue.get("fields", {})))
+
+
+def _issue_sprint_name_keys(fields: dict) -> list[str]:
+    """Jira Sprint / Release Sprint 커스텀 필드에서 2026_IRxSPxx 키 추출."""
+    names: list[str] = []
+    for field_id in (SPRINT_FIELD, RELEASE_SPRINT_FIELD):
+        raw = fields.get(field_id)
+        if raw is None:
+            continue
+        items = raw if isinstance(raw, list) else [raw]
+        for item in items:
+            if isinstance(item, dict):
+                text = str(item.get("name") or item.get("value") or "")
+            else:
+                text = str(item)
+            m = SPRINT_KEY_RE.search(text)
+            if m:
+                names.append(m.group(0))
+    return names
+
+
+def _resolve_sprint_for_issue(issue: dict, sprint_by_name: dict[str, dict]) -> dict | None:
+    fields = issue.get("fields", {})
+    for key in _issue_sprint_name_keys(fields):
+        if key in sprint_by_name:
+            return sprint_by_name[key]
+        for name, sprint in sprint_by_name.items():
+            if key.lower() in name.lower() or name.lower() in key.lower():
+                return sprint
+    return None
+
+
+async def _fetch_risk_bugs_board(fields: list[str]) -> list[dict]:
+    """Agile sprint API에 없어도 보드 JQL로 Bug+labels=risk 수집."""
+    board_jql = await _board_jql_clause()
+    search_fields = list(
+        dict.fromkeys(
+            fields + [SPRINT_FIELD, RELEASE_SPRINT_FIELD, "components", "assignee", "priority"],
+        ),
+    )
+    jql = (
+        f'({board_jql}) AND issuetype in (Bug, "버그") '
+        f'AND (labels = risk OR labels = RISK OR labels = Risk)'
+    )
+    try:
+        issues = await _search_all_issues(jql, search_fields)
+    except Exception:
+        jql = f'({board_jql}) AND labels = risk'
+        try:
+            issues = await _search_all_issues(jql, search_fields)
+        except Exception:
+            return []
+    return [i for i in issues if _is_risk_bug(i)]
+
+
+EPIC_LINK_FIELD = settings.epic_link_field
 
 
 def _mvp_from_fields(fields: dict, extra_labels: list[str] | None = None) -> bool:
@@ -173,10 +240,6 @@ def _build_risk_payload(risk_issue: dict, sprint: dict, now: datetime) -> dict[s
         "markerDate": _risk_marker_date(risk_issue, sprint),
         "category": parsed.get("category") or _primary_category(fields),
     }
-
-
-def _has_risk_label(labels: list[str]) -> bool:
-    return any(str(l).lower() == RISK_LABEL.lower() for l in labels)
 
 
 def _build_risk_row(risk_issue: dict, sprint: dict, now: datetime) -> dict[str, Any]:
@@ -273,7 +336,10 @@ async def _load_sprint_bundle(sprint: dict, fields: list[str], now: datetime) ->
     rows: list[dict] = []
     for issue in issues:
         if _is_risk_bug(issue):
-            rows.append(_build_risk_row(issue, sprint, now))
+            try:
+                rows.append(_build_risk_row(issue, sprint, now))
+            except Exception:
+                continue
             continue
         fields_data = issue.get("fields", {})
         if _is_epic_issue(issue):
@@ -323,6 +389,8 @@ async def get_sprint_plan_timeline() -> dict[str, Any]:
         "description",
         ENV_FIELD,
         EPIC_LINK_FIELD,
+        SPRINT_FIELD,
+        RELEASE_SPRINT_FIELD,
         "created",
     ]
 
@@ -330,6 +398,26 @@ async def get_sprint_plan_timeline() -> dict[str, Any]:
     rows: list[dict] = []
     for sprint_rows, _ in bundles:
         rows.extend(sprint_rows)
+
+    sprint_by_name = {s.get("name", ""): s for s in sprints if s.get("name")}
+    existing_risk_keys = {r["issueKey"] for r in rows if r.get("issueType") == "Risk"}
+    jql_risk_bugs = await _fetch_risk_bugs_board(fetch_fields)
+    jql_matched = 0
+    jql_unmapped = 0
+    for bug in jql_risk_bugs:
+        key = bug.get("key", "")
+        if not key or key in existing_risk_keys:
+            continue
+        sprint = _resolve_sprint_for_issue(bug, sprint_by_name)
+        if not sprint:
+            jql_unmapped += 1
+            continue
+        try:
+            rows.append(_build_risk_row(bug, sprint, now))
+            existing_risk_keys.add(key)
+            jql_matched += 1
+        except Exception:
+            continue
 
     rows.sort(key=lambda r: (r["startDate"], {"Epic": 0, "Story": 1, "Risk": 2}.get(r["issueType"], 3), r["issueKey"]))
 
@@ -363,7 +451,10 @@ async def get_sprint_plan_timeline() -> dict[str, Any]:
         "meta": {
             "fixVersionField": "Release 1.0",
             "riskLabel": RISK_LABEL,
-            "riskMatch": "issuetype=Bug AND labels=risk",
+            "riskMatch": "issuetype=Bug AND labels=risk|RISK",
+            "riskRows": len(existing_risk_keys),
+            "riskJqlMatched": jql_matched,
+            "riskJqlUnmapped": jql_unmapped,
             "mvpMatch": "labels MVP* OR Epic labels OR fixVersions MVP",
             "totalSprints": len(sprints),
             "activeSprint": active_name,
