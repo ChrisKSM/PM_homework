@@ -105,12 +105,32 @@ def _label_list(fields: dict) -> list[str]:
     return [str(x) for x in (fields.get("labels") or [])]
 
 
+def _is_bug_issue(issue: dict) -> bool:
+    name = (issue.get("fields", {}).get("issuetype", {}).get("name") or "").strip().lower()
+    return name in ("bug", "버그") or "bug" in name or "버그" in name
+
+
+def _is_risk_bug(issue: dict) -> bool:
+    """RISK = issuetype Bug + labels risk (리스크 관리 대시보드와 동일)."""
+    return _is_bug_issue(issue) and _has_risk_label(_label_list(issue.get("fields", {})))
+
+
+def _mvp_from_fields(fields: dict, extra_labels: list[str] | None = None) -> bool:
+    """labels MVP / MVP_* 또는 fixVersions 이름에 MVP 포함."""
+    labels = _label_list(fields) + (extra_labels or [])
+    for label in labels:
+        norm = re.sub(r"[_\-\s]", "", str(label).lower())
+        if norm == "mvp" or norm.startswith("mvp"):
+            return True
+    for fv in fields.get("fixVersions") or []:
+        name = (fv.get("name") if isinstance(fv, dict) else str(fv)) or ""
+        if "mvp" in name.lower():
+            return True
+    return False
+
+
 def _has_mvp(labels: list[str]) -> bool:
-    return any(str(l).lower() == "mvp" for l in labels)
-
-
-def _has_risk_label(labels: list[str]) -> bool:
-    return any(str(l).lower() == RISK_LABEL.lower() for l in labels)
+    return _mvp_from_fields({"labels": labels}, None)
 
 
 def _risk_marker_date(risk_issue: dict, sprint: dict) -> str:
@@ -155,11 +175,16 @@ def _build_risk_payload(risk_issue: dict, sprint: dict, now: datetime) -> dict[s
     }
 
 
+def _has_risk_label(labels: list[str]) -> bool:
+    return any(str(l).lower() == RISK_LABEL.lower() for l in labels)
+
+
 def _build_row(
     issue: dict,
     sprint: dict,
     issue_type: str,
     risks: list[dict[str, Any]],
+    extra_labels: list[str] | None = None,
 ) -> dict[str, Any]:
     fields = issue.get("fields", {})
     key = issue.get("key", "")
@@ -167,6 +192,7 @@ def _build_row(
     start = (sprint.get("startDate") or "")[:10]
     end = (sprint.get("endDate") or "")[:10]
     name = sprint.get("name") or ""
+    is_mvp = _mvp_from_fields(fields, extra_labels)
     return {
         "id": key,
         "issueType": issue_type,
@@ -176,7 +202,7 @@ def _build_row(
         "fixVersion": _fix_version_name(fields),
         "gate": _gate_from_sprint_name(name),
         "labels": labels,
-        "isMvp": _has_mvp(labels),
+        "isMvp": is_mvp,
         "sprintKey": name,
         "sprintLabel": _sprint_label(sprint),
         "startDate": start or GANTT_START,
@@ -198,16 +224,34 @@ async def _fetch_sprint_issues(sprint_id: int, fields: list[str]) -> list[dict]:
 async def _load_sprint_bundle(sprint: dict, fields: list[str], now: datetime) -> tuple[list[dict], list[dict]]:
     sid = int(sprint["id"])
     issues = await _fetch_sprint_issues(sid, fields)
-    risk_issues = [i for i in issues if _has_risk_label(_label_list(i.get("fields", {})))]
+    risk_issues = [i for i in issues if _is_risk_bug(i)]
     risk_payloads = [_build_risk_payload(r, sprint, now) for r in risk_issues]
+
+    epic_label_cache: dict[str, list[str]] = {}
+
+    async def _epic_labels(epic_key: str | None) -> list[str]:
+        if not epic_key:
+            return []
+        if epic_key in epic_label_cache:
+            return epic_label_cache[epic_key]
+        try:
+            epic = await jira_client.get_issue(epic_key, fields=["labels", "fixVersions"])
+            epic_label_cache[epic_key] = _label_list(epic.get("fields", {}))
+        except Exception:
+            epic_label_cache[epic_key] = []
+        return epic_label_cache[epic_key]
+
     rows: list[dict] = []
     for issue in issues:
+        if _is_risk_bug(issue):
+            continue
         fields_data = issue.get("fields", {})
-        labels = _label_list(fields_data)
         if _is_epic_issue(issue):
             rows.append(_build_row(issue, sprint, "Epic", risk_payloads))
         elif _is_story_issue(issue):
-            rows.append(_build_row(issue, sprint, "Story", risk_payloads))
+            epic_key = fields_data.get(EPIC_LINK_FIELD)
+            extra = await _epic_labels(epic_key)
+            rows.append(_build_row(issue, sprint, "Story", risk_payloads, extra_labels=extra))
     return rows, risk_payloads
 
 
@@ -289,6 +333,8 @@ async def get_sprint_plan_timeline() -> dict[str, Any]:
         "meta": {
             "fixVersionField": "Release 1.0",
             "riskLabel": RISK_LABEL,
+            "riskMatch": "issuetype=Bug AND labels=risk",
+            "mvpMatch": "labels MVP* OR Epic labels OR fixVersions MVP",
             "totalSprints": len(sprints),
             "activeSprint": active_name,
             "jiraBrowseBase": browse_base,
