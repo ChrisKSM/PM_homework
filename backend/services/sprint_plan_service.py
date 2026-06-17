@@ -30,6 +30,7 @@ SP_MIN = 2
 SP_MAX = 17
 SPRINT_FIELD = settings.sprint_field
 RELEASE_SPRINT_FIELD = settings.release_sprint_field
+SPRINT_NAME_RE = re.compile(r"2026_IR(\d+)SP(\d+)", re.IGNORECASE)
 SPRINT_KEY_RE = re.compile(r"2026_IR\d+SP\d+", re.IGNORECASE)
 
 
@@ -317,7 +318,12 @@ async def _load_sprint_bundle(sprint: dict, fields: list[str], now: datetime) ->
     sid = int(sprint["id"])
     issues = await _fetch_sprint_issues(sid, fields)
     risk_issues = [i for i in issues if _is_risk_bug(i)]
-    risk_payloads = [_build_risk_payload(r, sprint, now) for r in risk_issues]
+    risk_payloads: list[dict[str, Any]] = []
+    for r in risk_issues:
+        try:
+            risk_payloads.append(_build_risk_payload(r, sprint, now))
+        except Exception:
+            continue
 
     epic_label_cache: dict[str, list[str]] = {}
 
@@ -394,9 +400,15 @@ async def get_sprint_plan_timeline() -> dict[str, Any]:
         "created",
     ]
 
-    bundles = await asyncio.gather(*[_load_sprint_bundle(s, fetch_fields, now) for s in sprints])
+    bundles = await asyncio.gather(
+        *[_load_sprint_bundle(s, fetch_fields, now) for s in sprints],
+        return_exceptions=True,
+    )
     rows: list[dict] = []
-    for sprint_rows, _ in bundles:
+    for bundle in bundles:
+        if isinstance(bundle, Exception):
+            continue
+        sprint_rows, _ = bundle
         rows.extend(sprint_rows)
 
     sprint_by_name = {s.get("name", ""): s for s in sprints if s.get("name")}
