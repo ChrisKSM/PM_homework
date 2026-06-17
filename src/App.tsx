@@ -5,6 +5,7 @@ import DevTeamDashboard from './pages/DevTeamDashboard'
 import PlanningTraceabilityPage from './pages/PlanningTraceabilityPage'
 import QualityDashboardPage from './pages/QualityDashboardPage'
 import ProcurementDashboardPage from './pages/ProcurementDashboardPage'
+import ReleaseSprintPlanPage from './pages/ReleaseSprintPlanPage'
 import RiskDashboardPage from './pages/RiskDashboardPage'
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
           <Route index element={<Navigate to="/manager" replace />} />
           <Route path="manager" element={<ManagerDashboard />} />
           <Route path="devteam" element={<DevTeamDashboard />} />
+          <Route path="sprint-plan" element={<ReleaseSprintPlanPage />} />
           <Route path="planning" element={<PlanningTraceabilityPage />} />
           <Route path="quality" element={<QualityDashboardPage />} />
           <Route path="procurement" element={<ProcurementDashboardPage />} />

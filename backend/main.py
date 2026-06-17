@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from cache import clear_cache
-from routers import manager, devteam, planning, quality, procurement, risk
+from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -32,6 +32,7 @@ app.include_router(planning.router)
 app.include_router(quality.router)
 app.include_router(procurement.router)
 app.include_router(risk.router)
+app.include_router(sprint_plan.router)
 
 # daily report — jinja2 미설치 환경(prod 이미지 등)에서는 건너뜀
 try:
