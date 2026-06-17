@@ -9,7 +9,12 @@ echo ""
 
 echo ""
 echo "=== sprint-plan timeline (첫 800자) ==="
-curl -sf "$BASE/api/sprint-plan/timeline" | head -c 800
+HTTP=$(curl -s -o /tmp/sp-timeline.json -w "%{http_code}" "$BASE/api/sprint-plan/timeline")
+head -c 800 /tmp/sp-timeline.json
 echo ""
-echo ""
-echo "=== OK (502면 JIRA_API_TOKEN / board 12641 확인) ==="
+echo "HTTP $HTTP"
+if [ "$HTTP" != "200" ]; then
+  echo "FAIL — detail 확인:"
+  cat /tmp/sp-timeline.json
+  exit 1
+fi
