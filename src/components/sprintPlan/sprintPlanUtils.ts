@@ -71,6 +71,7 @@ export function statusBarColor(status: SprintPlanStatus, isActive: boolean): str
 }
 
 export function issueTypeBarColor(issueType: SprintPlanRow['issueType'], status: SprintPlanStatus): string {
+  if (issueType === 'Risk') return CHART.colors.warning
   if (status === 'active') return LG.red
   if (issueType === 'Epic') return CHART.colors.info
   return status === 'completed' ? CHART.colors.success : CHART.colors.planned

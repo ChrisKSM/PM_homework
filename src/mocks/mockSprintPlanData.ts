@@ -71,6 +71,28 @@ function rowFromSprint(
   }
 }
 
+function riskRow(
+  id: string,
+  issueKey: string,
+  summary: string,
+  sprintKey: string,
+  risk: SprintPlanRow['risks'][number],
+  status?: SprintPlanRow['status'],
+): SprintPlanRow {
+  return rowFromSprint({
+    id,
+    issueType: 'Risk',
+    issueKey,
+    issueUrl: `${BROWSE}/${issueKey}`,
+    summary,
+    labels: ['risk'],
+    isMvp: false,
+    sprintKey,
+    status,
+    risks: [risk],
+  })
+}
+
 const ENV_R03 = `R-ID : R-03
 
 EMV
@@ -164,20 +186,25 @@ const ROWS: SprintPlanRow[] = [
     isMvp: false,
     epicKey: 'MLCSIXZERO-130',
     sprintKey: '2026_IR2SP06',
-    risks: [
-      {
-        id: 'R-03',
-        issueKey: 'MLCSIXZERO-403',
-        issueUrl: `${BROWSE}/MLCSIXZERO-403`,
-        summary: '[RISK] System 기능 성능 최적화 및 안정화',
-        description:
-          '대응 전략 : 시스템 개발 인원 재 분배 및 가용 리소스 늘려 대응 할 것\n현재 대응 조치: MLCSIXZERO-403 Performace, Booting , emergency 등 핵심 기능 세분화 확인\n미래 대응 계획: 정기적인 요구사항 검토 회의 및 이해관계자와의 긴밀한 커뮤니케이션 유지.',
-        environment: ENV_R03,
-        markerDate: '2026-03-20',
-        category: '자원',
-      },
-    ],
+    risks: [],
   }),
+  riskRow(
+    'risk-403',
+    'MLCSIXZERO-403',
+    '[RISK] System 기능 성능 최적화 및 안정화',
+    '2026_IR2SP06',
+    {
+      id: 'R-03',
+      issueKey: 'MLCSIXZERO-403',
+      issueUrl: `${BROWSE}/MLCSIXZERO-403`,
+      summary: '[RISK] System 기능 성능 최적화 및 안정화',
+      description:
+        '대응 전략 : 시스템 개발 인원 재 분배 및 가용 리소스 늘려 대응 할 것\n현재 대응 조치: MLCSIXZERO-403 Performace, Booting , emergency 등 핵심 기능 세분화 확인\n미래 대응 계획: 정기적인 요구사항 검토 회의 및 이해관계자와의 긴밀한 커뮤니케이션 유지.',
+      environment: ENV_R03,
+      markerDate: '2026-03-20',
+      category: '자원',
+    },
+  ),
   rowFromSprint({
     id: 'st-framework',
     issueType: 'Story',
@@ -188,20 +215,25 @@ const ROWS: SprintPlanRow[] = [
     isMvp: false,
     epicKey: 'MLCSIXZERO-120',
     sprintKey: '2026_IR2SP08',
-    risks: [
-      {
-        id: 'R-02',
-        issueKey: 'MLCSIXZERO-402',
-        issueUrl: `${BROWSE}/MLCSIXZERO-402`,
-        summary: '[RISK] Audio framework 포팅 지연',
-        description:
-          '대응 전략 : 개발팀과 긴밀한 소통을 통해 일정 Check, Daily scrum 활동 진행\n현재 대응 조치: MLCSIXZERO-402 개발 진척도 Daily 확인 진행\n미래 대응 계획: 정기적인 요구사항 검토 회의 및 이해관계자와의 긴밀한 커뮤니케이션 유지.',
-        environment: ENV_R02,
-        markerDate: '2026-04-18',
-        category: '일정',
-      },
-    ],
+    risks: [],
   }),
+  riskRow(
+    'risk-402',
+    'MLCSIXZERO-402',
+    '[RISK] Audio framework 포팅 지연',
+    '2026_IR2SP08',
+    {
+      id: 'R-02',
+      issueKey: 'MLCSIXZERO-402',
+      issueUrl: `${BROWSE}/MLCSIXZERO-402`,
+      summary: '[RISK] Audio framework 포팅 지연',
+      description:
+        '대응 전략 : 개발팀과 긴밀한 소통을 통해 일정 Check, Daily scrum 활동 진행\n현재 대응 조치: MLCSIXZERO-402 개발 진척도 Daily 확인 진행\n미래 대응 계획: 정기적인 요구사항 검토 회의 및 이해관계자와의 긴밀한 커뮤니케이션 유지.',
+      environment: ENV_R02,
+      markerDate: '2026-04-18',
+      category: '일정',
+    },
+  ),
   rowFromSprint({
     id: 'st-quality',
     issueType: 'Story',
@@ -212,20 +244,25 @@ const ROWS: SprintPlanRow[] = [
     isMvp: false,
     epicKey: 'MLCSIXZERO-120',
     sprintKey: '2026_IR3SP10',
-    risks: [
-      {
-        id: 'R-05',
-        issueKey: 'MLCSIXZERO-405',
-        issueUrl: `${BROWSE}/MLCSIXZERO-405`,
-        summary: '[RISK] 신규 칩셋 검증 범위 · 품질 확보 일정',
-        description:
-          '대응 전략 : funciton별로 조기 안정화 계획 수립 및 테스트 진행\n현재 대응 조치: MLCSIXZERO-405 자동화 우선 순위 진행\n미래 대응 계획: 정기적인 요구사항 검토 회의 및 이해관계자와의 긴밀한 커뮤니케이션 유지.',
-        environment: ENV_R05,
-        markerDate: '2026-05-16',
-        category: '품질',
-      },
-    ],
+    risks: [],
   }),
+  riskRow(
+    'risk-405',
+    'MLCSIXZERO-405',
+    '[RISK] 신규 칩셋 검증 범위 · 품질 확보 일정',
+    '2026_IR3SP10',
+    {
+      id: 'R-05',
+      issueKey: 'MLCSIXZERO-405',
+      issueUrl: `${BROWSE}/MLCSIXZERO-405`,
+      summary: '[RISK] 신규 칩셋 검증 범위 · 품질 확보 일정',
+      description:
+        '대응 전략 : funciton별로 조기 안정화 계획 수립 및 테스트 진행\n현재 대응 조치: MLCSIXZERO-405 자동화 우선 순위 진행\n미래 대응 계획: 정기적인 요구사항 검토 회의 및 이해관계자와의 긴밀한 커뮤니케이션 유지.',
+      environment: ENV_R05,
+      markerDate: '2026-05-16',
+      category: '품질',
+    },
+  ),
   rowFromSprint({
     id: 'st-fullfunc',
     issueType: 'Story',
@@ -236,44 +273,55 @@ const ROWS: SprintPlanRow[] = [
     isMvp: false,
     epicKey: 'MLCSIXZERO-120',
     sprintKey: '2026_IR3SP11',
-    risks: [
-      {
-        id: 'R-01',
-        issueKey: 'MLCSIXZERO-401',
-        issueUrl: `${BROWSE}/MLCSIXZERO-401`,
-        summary: '[RISK] Sprint 중 신규 요구사항 인입 (마이버튼)',
-        description:
-          '대응 전략 : 요구사항 관리 계획 수립 및 정기적인 리뷰\n현재 대응 조치: MLCSIXZERO-401 변경사항 신속 반영\n미래 대응 계획: 이해관계자 커뮤니케이션 유지.',
-        environment: ENV_R01,
-        markerDate: '2026-05-30',
-        category: '요구사항',
-      },
-    ],
+    risks: [],
   }),
+  riskRow(
+    'risk-401',
+    'MLCSIXZERO-401',
+    '[RISK] Sprint 중 신규 요구사항 인입 (마이버튼)',
+    '2026_IR3SP11',
+    {
+      id: 'R-01',
+      issueKey: 'MLCSIXZERO-401',
+      issueUrl: `${BROWSE}/MLCSIXZERO-401`,
+      summary: '[RISK] Sprint 중 신규 요구사항 인입 (마이버튼)',
+      description:
+        '대응 전략 : 요구사항 관리 계획 수립 및 정기적인 리뷰\n현재 대응 조치: MLCSIXZERO-401 변경사항 신속 반영\n미래 대응 계획: 이해관계자 커뮤니케이션 유지.',
+      environment: ENV_R01,
+      markerDate: '2026-05-30',
+      category: '요구사항',
+    },
+  ),
   rowFromSprint({
     id: 'ep-mvp',
     issueType: 'Epic',
     issueKey: 'MLCSIXZERO-400',
     issueUrl: `${BROWSE}/MLCSIXZERO-400`,
     summary: 'MVP Release · 시험 및 배포 Epic',
-    labels: ['MVP', 'risk'],
+    labels: ['MVP'],
     isMvp: true,
     sprintKey: '2026_IR4SP16',
     status: 'active',
-    risks: [
-      {
-        id: 'R-06',
-        issueKey: 'MLCSIXZERO-406',
-        issueUrl: `${BROWSE}/MLCSIXZERO-406`,
-        summary: '[RISK] 음장 효과 조합 변별력 · 범위 영향',
-        description:
-          '대응 전략 : 조합 별 음향 효과 선별 확인\n현재 대응 조치: MLCSIXZERO-406 기능 구현 우선 후 조합 확인\n미래 대응 계획: 이해관계자 커뮤니케이션 유지.',
-        environment: ENV_R06,
-        markerDate: '2026-08-10',
-        category: '범위',
-      },
-    ],
+    risks: [],
   }),
+  riskRow(
+    'risk-406',
+    'MLCSIXZERO-406',
+    '[RISK] 음장 효과 조합 변별력 · 범위 영향',
+    '2026_IR4SP16',
+    {
+      id: 'R-06',
+      issueKey: 'MLCSIXZERO-406',
+      issueUrl: `${BROWSE}/MLCSIXZERO-406`,
+      summary: '[RISK] 음장 효과 조합 변별력 · 범위 영향',
+      description:
+        '대응 전략 : 조합 별 음향 효과 선별 확인\n현재 대응 조치: MLCSIXZERO-406 기능 구현 우선 후 조합 확인\n미래 대응 계획: 이해관계자 커뮤니케이션 유지.',
+      environment: ENV_R06,
+      markerDate: '2026-08-10',
+      category: '범위',
+    },
+    'active',
+  ),
   rowFromSprint({
     id: 'st-mvp-release',
     issueType: 'Story',

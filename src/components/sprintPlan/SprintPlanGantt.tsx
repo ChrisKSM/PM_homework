@@ -36,11 +36,15 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
       [...data.rows].sort((a, b) => {
         const dateCmp = a.startDate.localeCompare(b.startDate)
         if (dateCmp !== 0) return dateCmp
-        if (a.issueType === b.issueType) return 0
-        return a.issueType === 'Epic' ? -1 : 1
+        const order = { Epic: 0, Story: 1, Risk: 2 } as const
+        const typeCmp = (order[a.issueType] ?? 3) - (order[b.issueType] ?? 3)
+        if (typeCmp !== 0) return typeCmp
+        return a.issueKey.localeCompare(b.issueKey)
       }),
     [data.rows],
   )
+
+  const openRisk = (risk: SprintPlanRisk) => setSelectedRisk(risk)
 
   return (
     <>
@@ -82,6 +86,8 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
               const bar = barStyleForGantt(row, ganttStart, ganttEnd)
               const isActive = row.status === 'active'
               const barColor = issueTypeBarColor(row.issueType, row.status)
+              const primaryRisk = row.risks[0] ?? null
+              const isRiskRow = row.issueType === 'Risk'
 
               return (
                 <div
@@ -104,7 +110,9 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
                       <span
                         className={clsx(
                           'shrink-0 text-[9px] font-black px-1 py-0.5 rounded',
-                          row.issueType === 'Epic' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700',
+                          row.issueType === 'Epic' && 'bg-blue-100 text-blue-800',
+                          row.issueType === 'Story' && 'bg-gray-100 text-gray-700',
+                          row.issueType === 'Risk' && 'bg-amber-100 text-amber-900',
                         )}
                       >
                         {row.issueType}
@@ -139,9 +147,21 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
                     )}
                     style={{ width: SPRINT_COL_W, left: SUMMARY_COL_W, height: ROW_HEIGHT_PX }}
                   >
-                    <span className="truncate whitespace-nowrap" title={row.sprintLabel}>
-                      {row.sprintLabel}
-                    </span>
+                    {isRiskRow && primaryRisk ? (
+                      <button
+                        type="button"
+                        onClick={() => openRisk(primaryRisk)}
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-amber-500 text-white text-[9px] font-black tracking-tight hover:bg-amber-600 transition-colors"
+                        title={row.sprintLabel}
+                      >
+                        <AlertTriangle size={10} className="shrink-0" />
+                        RISK
+                      </button>
+                    ) : (
+                      <span className="truncate whitespace-nowrap" title={row.sprintLabel}>
+                        {row.sprintLabel}
+                      </span>
+                    )}
                   </div>
 
                   <div
@@ -182,7 +202,7 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
                       <button
                         key={risk.id}
                         type="button"
-                        onClick={() => setSelectedRisk(risk)}
+                        onClick={() => openRisk(risk)}
                         className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 z-[2] focus:outline-none focus-visible:ring-2 focus-visible:ring-lg-red focus-visible:ring-offset-1"
                         style={{
                           left: markerLeftOnTimeline(risk, row, ganttStart, ganttEnd),
@@ -220,8 +240,12 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
             labels=MVP
           </span>
           <span className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-amber-500" />
+            Risk (Bug + labels={data.meta.riskLabel})
+          </span>
+          <span className="flex items-center gap-1.5">
             <span className="px-1 py-0.5 rounded bg-amber-500 text-white text-[9px] font-black">RISK</span>
-            Bug + labels={data.meta.riskLabel} · Description · Environment
+            클릭 → Description · Environment
           </span>
         </div>
       </div>

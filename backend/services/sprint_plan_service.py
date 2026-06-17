@@ -179,6 +179,35 @@ def _has_risk_label(labels: list[str]) -> bool:
     return any(str(l).lower() == RISK_LABEL.lower() for l in labels)
 
 
+def _build_risk_row(risk_issue: dict, sprint: dict, now: datetime) -> dict[str, Any]:
+    """Bug + labels=risk → Gantt 전용 Risk 행 (Epic/Story와 분리)."""
+    payload = _build_risk_payload(risk_issue, sprint, now)
+    fields = risk_issue.get("fields", {})
+    key = risk_issue.get("key", "")
+    labels = _label_list(fields)
+    start = (sprint.get("startDate") or "")[:10]
+    end = (sprint.get("endDate") or "")[:10]
+    name = sprint.get("name") or ""
+    return {
+        "id": key,
+        "issueType": "Risk",
+        "issueKey": key,
+        "issueUrl": _issue_browse_url(key),
+        "summary": fields.get("summary") or payload.get("summary") or "",
+        "fixVersion": _fix_version_name(fields),
+        "gate": _gate_from_sprint_name(name),
+        "labels": labels,
+        "isMvp": False,
+        "sprintKey": name,
+        "sprintLabel": _sprint_label(sprint),
+        "startDate": start or GANTT_START,
+        "endDate": end or start or GANTT_END,
+        "status": _sprint_plan_status(sprint),
+        "epicKey": None,
+        "risks": [payload],
+    }
+
+
 def _build_row(
     issue: dict,
     sprint: dict,
@@ -244,14 +273,15 @@ async def _load_sprint_bundle(sprint: dict, fields: list[str], now: datetime) ->
     rows: list[dict] = []
     for issue in issues:
         if _is_risk_bug(issue):
+            rows.append(_build_risk_row(issue, sprint, now))
             continue
         fields_data = issue.get("fields", {})
         if _is_epic_issue(issue):
-            rows.append(_build_row(issue, sprint, "Epic", risk_payloads))
+            rows.append(_build_row(issue, sprint, "Epic", []))
         elif _is_story_issue(issue):
             epic_key = fields_data.get(EPIC_LINK_FIELD)
             extra = await _epic_labels(epic_key)
-            rows.append(_build_row(issue, sprint, "Story", risk_payloads, extra_labels=extra))
+            rows.append(_build_row(issue, sprint, "Story", [], extra_labels=extra))
     return rows, risk_payloads
 
 
@@ -301,7 +331,7 @@ async def get_sprint_plan_timeline() -> dict[str, Any]:
     for sprint_rows, _ in bundles:
         rows.extend(sprint_rows)
 
-    rows.sort(key=lambda r: (r["startDate"], 0 if r["issueType"] == "Epic" else 1, r["issueKey"]))
+    rows.sort(key=lambda r: (r["startDate"], {"Epic": 0, "Story": 1, "Risk": 2}.get(r["issueType"], 3), r["issueKey"]))
 
     active = next((s for s in sprints if (s.get("state") or "").lower() == "active"), None)
     active_name = active.get("name") if active else (sprints[-1].get("name") if sprints else "—")

@@ -1,5 +1,5 @@
 export type SprintPlanStatus = 'completed' | 'active' | 'future'
-export type SprintPlanIssueType = 'Epic' | 'Story'
+export type SprintPlanIssueType = 'Epic' | 'Story' | 'Risk'
 
 export interface SprintPlanRisk {
   id: string
