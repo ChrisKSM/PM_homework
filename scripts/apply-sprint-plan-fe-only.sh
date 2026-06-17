@@ -29,19 +29,24 @@ mkdir -p \
   src/hooks \
   src/pages \
   src/components/sprintPlan \
+  src/components/devteam \
   src/components/layout \
   src/config
 
 SPRINT_PLAN_FILES="
   src/types/sprintPlan.ts
+  src/types/sprintPlanForecast.ts
   src/mocks/mockSprintPlanData.ts
+  src/mocks/mockSprintPlanForecast.ts
   src/api/sprintPlanApi.ts
   src/hooks/useSprintPlanData.ts
   src/pages/ReleaseSprintPlanPage.tsx
+  src/pages/DevTeamDashboard.tsx
   src/components/sprintPlan/JiraLinkedText.tsx
   src/components/sprintPlan/RiskDescriptionPanel.tsx
   src/components/sprintPlan/SprintPlanGantt.tsx
   src/components/sprintPlan/sprintPlanUtils.ts
+  src/components/devteam/SprintForecastPanel.tsx
 "
 
 for f in $SPRINT_PLAN_FILES; do
@@ -66,6 +71,8 @@ for f in \
   src/pages/ReleaseSprintPlanPage.tsx \
   src/components/sprintPlan/SprintPlanGantt.tsx \
   src/components/sprintPlan/sprintPlanUtils.ts \
+  src/components/devteam/SprintForecastPanel.tsx \
+  src/pages/DevTeamDashboard.tsx \
   src/App.tsx \
   src/components/layout/Sidebar.tsx
 do

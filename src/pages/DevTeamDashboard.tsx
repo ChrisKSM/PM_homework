@@ -15,6 +15,8 @@ import {
   useSprintIssues,
   useSprintReport,
 } from '../hooks/useJiraData'
+import { useSprintPlanForecast } from '../hooks/useSprintPlanData'
+import SprintForecastPanel from '../components/devteam/SprintForecastPanel'
 function LoadingSpinner() {
   return (
     <div className="flex items-center justify-center h-32">
@@ -30,6 +32,7 @@ export default function DevTeamDashboard() {
   const { data: velocity, isLoading: loadingVelocity } = useVelocity()
   const { data: issues, isLoading: loadingIssues } = useSprintIssues()
   const sprintReport = useSprintReport()
+  const { data: forecast, isLoading: loadingForecast } = useSprintPlanForecast()
 
   return (
     <>
@@ -73,6 +76,13 @@ export default function DevTeamDashboard() {
               icon={<AlertTriangle size={16} />}
             />
           </div>
+        ) : null}
+
+        {/* 스프린트 · 릴리즈 예측 */}
+        {loadingForecast ? (
+          <LoadingSpinner />
+        ) : forecast ? (
+          <SprintForecastPanel data={forecast} />
         ) : null}
 
         {/* 주간 스프린트 요약 (LLM) */}
