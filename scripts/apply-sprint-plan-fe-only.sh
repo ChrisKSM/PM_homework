@@ -42,7 +42,6 @@ SPRINT_PLAN_FILES="
   src/components/sprintPlan/RiskDescriptionPanel.tsx
   src/components/sprintPlan/SprintPlanGantt.tsx
   src/components/sprintPlan/sprintPlanUtils.ts
-  src/components/sprintPlan/sprintPlanLabels.ts
 "
 
 for f in $SPRINT_PLAN_FILES; do
@@ -61,6 +60,7 @@ ERR=0
 for f in \
   src/pages/ReleaseSprintPlanPage.tsx \
   src/components/sprintPlan/SprintPlanGantt.tsx \
+  src/components/sprintPlan/sprintPlanUtils.ts \
   src/App.tsx \
   src/components/layout/Sidebar.tsx
 do

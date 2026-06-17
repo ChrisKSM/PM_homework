@@ -12,9 +12,9 @@ import {
   buildGanttMonthTicks,
   issueTypeBarColor,
   markerLeftOnTimeline,
+  rowMvpLabels,
   todayMarkerLeft,
 } from './sprintPlanUtils'
-import { rowMvpLabels } from './sprintPlanLabels'
 
 interface SprintPlanGanttProps {
   data: SprintPlanTimeline

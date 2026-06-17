@@ -1,4 +1,4 @@
-import { AlertCircle, CalendarRange, GitBranch } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 import Header from '../components/layout/Header'
 import KpiCard from '../components/cards/KpiCard'
 import SectionCard from '../components/cards/SectionCard'
@@ -16,8 +16,6 @@ function LoadingBlock() {
 export default function ReleaseSprintPlanPage() {
   const { data, isLoading, error } = useSprintPlanTimeline()
 
-  const epicCount = data?.rows.filter((r) => r.issueType === 'Epic').length ?? 0
-  const storyCount = data?.rows.filter((r) => r.issueType === 'Story').length ?? 0
   const riskCount = data?.rows.reduce((n, r) => n + r.risks.length, 0) ?? 0
   const mvpCount = data?.rows.filter((r) => r.isMvp).length ?? 0
 
@@ -42,18 +40,7 @@ export default function ReleaseSprintPlanPage() {
           <LoadingBlock />
         ) : (
           <>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <KpiCard
-                label="Sprint 범위"
-                value={`${data.sprints[0]?.label.split('(')[0]} …`}
-                sub={`~ ${data.sprints[data.sprints.length - 1]?.label.split('(')[0]}`}
-                icon={<CalendarRange size={16} />}
-              />
-              <KpiCard
-                label="Epic / Story"
-                value={`${epicCount} / ${storyCount}`}
-                icon={<GitBranch size={16} />}
-              />
+            <div className="grid grid-cols-2 gap-4 max-w-xl">
               <KpiCard
                 label="MVP 항목"
                 value={mvpCount}

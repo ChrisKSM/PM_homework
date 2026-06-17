@@ -114,3 +114,13 @@ export const TIMELINE_WIDTH_PX = 720
 export const SUMMARY_COL_W = 300
 export const SPRINT_COL_W = 168
 export const ROW_HEIGHT_PX = 34
+
+/** labels / fixVersions 기준 MVP 여부 (BE와 동일 규칙) */
+export function isMvpLabel(label: string): boolean {
+  const norm = label.toLowerCase().replace(/[_\-\s]/g, '')
+  return norm === 'mvp' || norm.startsWith('mvp')
+}
+
+export function rowMvpLabels(labels: string[]): string[] {
+  return labels.filter(isMvpLabel)
+}
