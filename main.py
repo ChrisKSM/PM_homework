@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
 from cache import clear_cache
-from routers import manager, devteam, planning, quality, procurement, risk
+from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan
 
 app = FastAPI(
     title="Jira Dashboard API",
