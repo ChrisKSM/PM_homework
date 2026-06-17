@@ -42,6 +42,7 @@ SPRINT_PLAN_FILES="
   src/components/sprintPlan/RiskDescriptionPanel.tsx
   src/components/sprintPlan/SprintPlanGantt.tsx
   src/components/sprintPlan/sprintPlanUtils.ts
+  src/components/sprintPlan/sprintPlanLabels.ts
 "
 
 for f in $SPRINT_PLAN_FILES; do

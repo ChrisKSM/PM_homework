@@ -7,12 +7,14 @@ import {
   TIMELINE_WIDTH_PX,
   SUMMARY_COL_W,
   SPRINT_COL_W,
+  ROW_HEIGHT_PX,
   barStyleForGantt,
   buildGanttMonthTicks,
   issueTypeBarColor,
   markerLeftOnTimeline,
   todayMarkerLeft,
 } from './sprintPlanUtils'
+import { rowMvpLabels } from './sprintPlanLabels'
 
 interface SprintPlanGanttProps {
   data: SprintPlanTimeline
@@ -92,16 +94,16 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
                 >
                   <div
                     className={clsx(
-                      'shrink-0 px-4 py-3 border-r border-surface-muted sticky left-0 z-10 bg-white',
+                      'shrink-0 px-2 border-r border-surface-muted sticky left-0 z-10 bg-white flex items-center min-w-0',
                       index % 2 === 1 && 'bg-surface-page/40',
                       isActive && 'bg-lg-red-light/20',
                     )}
-                    style={{ width: SUMMARY_COL_W }}
+                    style={{ width: SUMMARY_COL_W, height: ROW_HEIGHT_PX }}
                   >
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    <div className="flex items-center gap-1 min-w-0 w-full overflow-hidden">
                       <span
                         className={clsx(
-                          'text-[10px] font-black px-1.5 py-0.5 rounded',
+                          'shrink-0 text-[9px] font-black px-1 py-0.5 rounded',
                           row.issueType === 'Epic' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-700',
                         )}
                       >
@@ -111,40 +113,40 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
                         href={row.issueUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-[10px] font-mono font-semibold text-lg-red hover:underline"
+                        className="shrink-0 text-[9px] font-mono font-semibold text-lg-red hover:underline"
                       >
                         {row.issueKey}
                       </a>
-                      <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
+                      <span className="shrink-0 text-[9px] font-semibold text-indigo-700 bg-indigo-50 px-1 py-0.5 rounded">
                         {row.gate}
                       </span>
-                      {row.isMvp && (
-                        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">
+                      {(row.isMvp || rowMvpLabels(row.labels).length > 0) && (
+                        <span className="shrink-0 text-[9px] font-black px-1 py-0.5 rounded bg-purple-100 text-purple-800">
                           MVP
                         </span>
                       )}
+                      <span className="truncate text-[11px] text-gray-800 font-medium" title={row.summary}>
+                        {row.summary}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-800 leading-snug font-medium">{row.summary}</p>
-                    <p className="text-[10px] text-gray-400 mt-0.5">
-                      fixVersions: {row.fixVersion}
-                      {row.epicKey ? ` · Epic ${row.epicKey}` : ''}
-                    </p>
                   </div>
 
                   <div
                     className={clsx(
-                      'shrink-0 px-2 py-3 border-r border-surface-muted text-[11px] text-gray-700 font-medium leading-snug sticky z-10 bg-white',
+                      'shrink-0 px-1.5 border-r border-surface-muted text-[10px] text-gray-700 font-medium sticky z-10 bg-white flex items-center',
                       index % 2 === 1 && 'bg-surface-page/40',
                       isActive && 'bg-lg-red-light/20',
                     )}
-                    style={{ width: SPRINT_COL_W, left: SUMMARY_COL_W }}
+                    style={{ width: SPRINT_COL_W, left: SUMMARY_COL_W, height: ROW_HEIGHT_PX }}
                   >
-                    {row.sprintLabel}
+                    <span className="truncate whitespace-nowrap" title={row.sprintLabel}>
+                      {row.sprintLabel}
+                    </span>
                   </div>
 
                   <div
-                    className="relative flex-1 py-3 pr-3"
-                    style={{ minWidth: TIMELINE_WIDTH_PX, minHeight: 48 }}
+                    className="relative flex-1 pr-2"
+                    style={{ minWidth: TIMELINE_WIDTH_PX, height: ROW_HEIGHT_PX }}
                   >
                     {monthTicks.map((tick) => (
                       <div
@@ -166,7 +168,7 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
 
                     {bar.visible && (
                       <div
-                        className="absolute top-1/2 -translate-y-1/2 h-6 rounded-md opacity-90"
+                        className="absolute top-1/2 -translate-y-1/2 h-4 rounded opacity-90"
                         style={{
                           left: bar.left,
                           width: bar.width,
@@ -219,7 +221,7 @@ export default function SprintPlanGantt({ data }: SprintPlanGanttProps) {
           </span>
           <span className="flex items-center gap-1.5">
             <span className="px-1 py-0.5 rounded bg-amber-500 text-white text-[9px] font-black">RISK</span>
-            클릭 → Description · Environment
+            Bug + labels={data.meta.riskLabel} · Description · Environment
           </span>
         </div>
       </div>

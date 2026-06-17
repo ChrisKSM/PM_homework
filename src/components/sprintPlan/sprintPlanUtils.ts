@@ -111,5 +111,6 @@ export function todayMarkerLeft(ganttStart: string, ganttEnd: string): number | 
 }
 
 export const TIMELINE_WIDTH_PX = 720
-export const SUMMARY_COL_W = 280
-export const SPRINT_COL_W = 200
+export const SUMMARY_COL_W = 300
+export const SPRINT_COL_W = 168
+export const ROW_HEIGHT_PX = 34

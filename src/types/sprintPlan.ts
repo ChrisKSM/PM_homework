@@ -62,5 +62,7 @@ export interface SprintPlanTimeline {
     dataSource?: 'mock' | 'jira'
     boardId?: number
     message?: string
+    riskMatch?: string
+    mvpMatch?: string
   }
 }
