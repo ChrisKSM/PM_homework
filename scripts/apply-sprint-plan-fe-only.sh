@@ -98,6 +98,13 @@ else
   echo "  OK App.tsx sprint-plan route"
 fi
 
+if ! grep -q 'mockSprintPlanForecast' src/mocks/mockSprintPlanData.ts 2>/dev/null; then
+  echo "  MISSING mockSprintPlanForecast in mockSprintPlanData.ts"
+  ERR=1
+else
+  echo "  OK mockSprintPlanForecast mock"
+fi
+
 if [ "$ERR" -ne 0 ]; then
   exit 1
 fi

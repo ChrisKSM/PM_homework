@@ -1,5 +1,6 @@
 import dayjs from 'dayjs'
 import type { SprintDefinition, SprintPlanRow, SprintPlanTimeline } from '../types/sprintPlan'
+import type { SprintPlanForecast } from '../types/sprintPlanForecast'
 
 const BROWSE = 'https://harmony.lge.com:8443/issue/browse'
 const FIX_VERSION = 'Release 1.0'
@@ -352,4 +353,58 @@ export const mockSprintPlanTimeline: SprintPlanTimeline = {
       jiraBrowseBase: BROWSE,
       dataSource: 'mock',
     },
+}
+
+export const mockSprintPlanForecast: SprintPlanForecast = {
+  asOf: new Date().toISOString(),
+  sprintBurndown: {
+    sprintName: '2026_IR3SP12',
+    remainingSp: 25,
+    daysLeft: 6,
+    requiredDailyBurn: 4.2,
+    actualDailyBurn: 2.8,
+    predictedCompletionDate: '2026-05-22',
+    plannedEndDate: '2026-05-16',
+    delayDays: 6,
+    status: 'critical',
+    summary: '예측 +6일 지연 · 필요 4.2 vs 실제 2.8 SP/일',
+  },
+  velocity: {
+    avgCompletedSp: 45.3,
+    avgPlannedSp: 52.0,
+    currentSprintPlanned: 65,
+    currentSprintCompleted: 40,
+    velocityGap: 19.7,
+    commitAchievementPct: 61.5,
+    status: 'warning',
+    summary: '평균 Velocity 45.3 SP 대비 +19.7 SP 커밋',
+  },
+  emv: {
+    totalEmvSchedule: 35.2,
+    totalEmvEffort: 42.5,
+    scheduleReserveDays: 45,
+    reserveUsedPct: 78.2,
+    openRisks: 5,
+    highExposure: 2,
+    status: 'warning',
+    summary: 'Σ EMV_일정 35.2일 — Reserve 78% (주의)',
+  },
+  resource: {
+    teamSize: 6,
+    avgSpPerMember: 10.8,
+    maxSpPerMember: 18,
+    overloadedCount: 1,
+    status: 'warning',
+    summary: '1명 과부하 · 최대 18.0 SP',
+  },
+  alerts: [
+    '예측 +6일 지연 · 필요 4.2 vs 실제 2.8 SP/일',
+    '평균 Velocity 45.3 SP 대비 +19.7 SP 커밋',
+    'Σ EMV_일정 35.2일 — Reserve 78% (주의)',
+    '1명 과부하 · 최대 18.0 SP',
+  ],
+  meta: {
+    dataSource: 'mock',
+    methods: 'burndown_slope · velocity_gap · EMV_reserve · workload_ratio',
+  },
 }

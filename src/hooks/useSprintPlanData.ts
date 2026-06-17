@@ -1,8 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { USE_MOCK } from '../config/dataSource'
 import { sprintPlanApi } from '../api/sprintPlanApi'
-import { mockSprintPlanTimeline } from '../mocks/mockSprintPlanData'
-import { mockSprintPlanForecast } from '../mocks/mockSprintPlanForecast'
+import { mockSprintPlanForecast, mockSprintPlanTimeline } from '../mocks/mockSprintPlanData'
 import type { SprintPlanTimeline } from '../types/sprintPlan'
 import type { SprintPlanForecast } from '../types/sprintPlanForecast'
 
