@@ -72,11 +72,11 @@ do
   fi
 done
 
-if ! grep -q "Release/Sprint Plan" src/components/layout/Sidebar.tsx 2>/dev/null; then
-  echo "  MISSING Sidebar Release/Sprint Plan 메뉴"
+if ! grep -q "릴리즈/스프린트 계획" src/components/layout/Sidebar.tsx 2>/dev/null; then
+  echo "  MISSING Sidebar 릴리즈/스프린트 계획 메뉴"
   ERR=1
 else
-  echo "  OK Sidebar Release/Sprint Plan 메뉴"
+  echo "  OK Sidebar 릴리즈/스프린트 계획 메뉴"
 fi
 
 if ! grep -q 'path="sprint-plan"' src/App.tsx 2>/dev/null; then

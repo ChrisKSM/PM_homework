@@ -6,7 +6,7 @@ import clsx from 'clsx'
 const NAV_ITEMS = [
   { to: '/manager', icon: LayoutDashboard, label: '책임자 대시보드' },
   { to: '/devteam', icon: Users, label: '개발팀 대시보드' },
-  { to: '/sprint-plan', icon: CalendarRange, label: 'Release/Sprint Plan' },
+  { to: '/sprint-plan', icon: CalendarRange, label: '릴리즈/스프린트 계획' },
   { to: '/planning', icon: GitBranch, label: '계획 추적성' },
   { to: '/quality', icon: ShieldCheck, label: '품질 이슈' },
   { to: '/procurement', icon: Package, label: '조달 KPI' },
