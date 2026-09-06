@@ -1,5 +1,5 @@
 import client from './client'
-import type { QualityDashboard, QualityFilterOptions, QualityQueryParams } from '../types/quality'
+import type { QualityDashboard, QualityFilterOptions, QualityQueryParams, QualityAiAnalysis } from '../types/quality'
 
 function buildParams(params?: QualityQueryParams) {
   if (!params) return undefined
@@ -17,6 +17,11 @@ export const qualityApi = {
   getDashboard: (params?: QualityQueryParams) =>
     client
       .get<QualityDashboard>('/quality/dashboard', { params: buildParams(params) })
+      .then((r) => r.data),
+
+  getAiAnalysis: (params?: QualityQueryParams) =>
+    client
+      .post<QualityAiAnalysis>('/quality/ai-analysis', null, { params: buildParams(params) })
       .then((r) => r.data),
 }
 
