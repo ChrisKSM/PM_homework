@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box, Typography, Grid, Card, CardContent, Divider,
   Tab, Tabs, Chip, CircularProgress, Alert,
@@ -6,7 +6,7 @@ import {
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import TableChartIcon from '@mui/icons-material/TableChart';
+import BugReportIcon from '@mui/icons-material/BugReport';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import SprintSelector from '../components/dashboard/SprintSelector';
@@ -14,32 +14,46 @@ import StatCard from '../components/common/StatCard';
 import DashboardCharts from '../components/dashboard/DashboardCharts';
 import WBSTree from '../components/wbs/WBSTree';
 import RiskAnalysis from '../components/risk/RiskAnalysis';
+import QualityInsights from '../components/quality/QualityInsights';
 import { sprintApi, analysisApi } from '../services/api';
 
 const TABS = [
   { label: 'Overview', icon: <DashboardIcon fontSize="small" /> },
   { label: 'WBS Tree', icon: <AccountTreeIcon fontSize="small" /> },
   { label: 'AI Risk Analysis', icon: <WarningAmberIcon fontSize="small" /> },
+  { label: 'Quality Insights', icon: <BugReportIcon fontSize="small" /> },
 ];
 
 export default function DashboardPage() {
   const [tab, setTab] = useState(0);
   const [sprintData, setSprintData] = useState(null);
   const [analysisData, setAnalysisData] = useState(null);
+  const [qualityData, setQualityData] = useState(null);
   const [currentSprint, setCurrentSprint] = useState(null);
+  const [selectedBoardId, setSelectedBoardId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzingQuality, setAnalyzingQuality] = useState(false);
   const [error, setError] = useState('');
+  const [llmStatus, setLlmStatus] = useState(null);
+
+  useEffect(() => {
+    analysisApi.checkLlmHealth()
+      .then(setLlmStatus)
+      .catch(() => setLlmStatus({ connected: false, error: 'Failed to check LLM status' }));
+  }, []);
 
   const handleSprintSelect = async (sprintId, sprintInfo) => {
     setLoading(true);
     setError('');
     setCurrentSprint(sprintInfo);
+    setSelectedBoardId(sprintInfo?.originBoardId || sprintInfo?.boardId || null);
     try {
-      const data = await sprintApi.getWbs(sprintId);
+      const boardId = sprintInfo?.originBoardId || sprintInfo?.boardId || null;
+      const data = await sprintApi.getWbs(sprintId, boardId);
       setSprintData(data);
     } catch (e) {
-      setError(e.message);
+      setError(typeof e === 'string' ? e : e.message || 'Failed to load sprint data');
     } finally {
       setLoading(false);
     }
@@ -49,13 +63,29 @@ export default function DashboardPage() {
     setAnalyzing(true);
     setError('');
     try {
-      const data = await analysisApi.analyzeRisks(sprintId, sprintInfo || {});
+      const boardId = sprintInfo?.originBoardId || sprintInfo?.boardId || selectedBoardId;
+      const data = await analysisApi.analyze(sprintId, boardId);
       setAnalysisData(data);
       setTab(2);
     } catch (e) {
-      setError(e.message);
+      setError(typeof e === 'string' ? e : e.message || 'AI analysis failed');
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleQualityAnalyze = async () => {
+    if (!currentSprint) return;
+    setAnalyzingQuality(true);
+    setError('');
+    try {
+      const boardId = currentSprint?.originBoardId || currentSprint?.boardId || selectedBoardId;
+      const data = await analysisApi.analyzeQuality(currentSprint.id, boardId);
+      setQualityData(data);
+    } catch (e) {
+      setError(typeof e === 'string' ? e : e.message || 'Quality analysis failed');
+    } finally {
+      setAnalyzingQuality(false);
     }
   };
 
@@ -83,9 +113,21 @@ export default function DashboardPage() {
                 color: '#7B61FF', fontWeight: 700, fontSize: '0.65rem',
               }}
             />
+            {llmStatus && (
+              <Chip
+                label={llmStatus.connected ? `LLM Connected (${llmStatus.response_model || llmStatus.model})` : 'LLM Disconnected'}
+                size="small"
+                sx={{
+                  background: llmStatus.connected ? 'rgba(0,230,118,0.12)' : 'rgba(255,69,105,0.12)',
+                  border: `1px solid ${llmStatus.connected ? '#00E67640' : '#FF456940'}`,
+                  color: llmStatus.connected ? '#00E676' : '#FF4569',
+                  fontWeight: 600, fontSize: '0.6rem',
+                }}
+              />
+            )}
           </Box>
           <Typography variant="body2" sx={{ color: '#7BB3D3' }}>
-            Jira Cloud · Sprint-based WBS Visualization & GPT-4o Risk Analysis
+            Jira Cloud · Sprint-based WBS Visualization & AI Risk Analysis
           </Typography>
         </Box>
       </motion.div>
@@ -127,7 +169,7 @@ export default function DashboardPage() {
               display: 'flex', alignItems: 'center', gap: 2,
             }}>
               <Typography variant="body2" sx={{ color: '#00D4FF', fontWeight: 600 }}>
-                📋 {currentSprint.name}
+                {currentSprint.name}
               </Typography>
               <Divider orientation="vertical" flexItem sx={{ borderColor: 'rgba(0,212,255,0.15)' }} />
               <Typography variant="caption" sx={{ color: '#7BB3D3' }}>
@@ -146,51 +188,53 @@ export default function DashboardPage() {
           )}
 
           {/* Stat Cards */}
-          <Grid container spacing={2} sx={{ mb: 3 }}>
-            {[
-              {
-                title: 'Total Issues', value: stats.total, icon: '📋',
-                color: '#00D4FF', subtitle: `${stats.done} done · ${stats.in_progress} in progress`,
-                progress: stats.completion_rate,
-              },
-              {
-                title: 'Story Points', value: stats.total_story_points,
-                icon: '⚡', color: '#7B61FF',
-                subtitle: `${stats.done_story_points} SP completed`,
-                progress: stats.sp_completion_rate,
-              },
-              {
-                title: 'Completion Rate', value: `${stats.completion_rate}%`,
-                icon: '✅', color: '#00E676',
-                subtitle: `${stats.done} of ${stats.total} issues done`,
-              },
-              {
-                title: 'Bugs', value: stats.bugs,
-                icon: '🐛', color: '#FF4569',
-                subtitle: stats.bugs > 3 ? '⚠ High bug count' : 'Under control',
-              },
-              {
-                title: 'Team Members', value: Object.keys(stats.by_assignee || {}).filter(k => k !== 'Unassigned').length,
-                icon: '👥', color: '#FFB830',
-                subtitle: `${stats.unassigned} unassigned issues`,
-              },
-              {
-                title: 'Unassigned', value: stats.unassigned,
-                icon: '❓', color: stats.unassigned > 0 ? '#FF8C42' : '#00E676',
-                subtitle: stats.unassigned > 0 ? 'Needs attention' : 'All assigned',
-              },
-            ].map((card, idx) => (
-              <Grid item xs={6} sm={4} md={2} key={card.title}>
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.06 }}
-                >
-                  <StatCard {...card} />
-                </motion.div>
-              </Grid>
-            ))}
-          </Grid>
+          {stats && (
+            <Grid container spacing={2} sx={{ mb: 3 }}>
+              {[
+                {
+                  title: 'Total Issues', value: stats.total, icon: '📋',
+                  color: '#00D4FF', subtitle: `${stats.done} done · ${stats.in_progress} in progress`,
+                  progress: stats.completion_rate,
+                },
+                {
+                  title: 'Story Points', value: stats.total_story_points,
+                  icon: '⚡', color: '#7B61FF',
+                  subtitle: `${stats.done_story_points} SP completed`,
+                  progress: stats.sp_completion_rate,
+                },
+                {
+                  title: 'Completion Rate', value: `${stats.completion_rate}%`,
+                  icon: '✅', color: '#00E676',
+                  subtitle: `${stats.done} of ${stats.total} issues done`,
+                },
+                {
+                  title: 'Bugs', value: stats.bugs,
+                  icon: '🐛', color: '#FF4569',
+                  subtitle: stats.bugs > 3 ? '⚠ High bug count' : 'Under control',
+                },
+                {
+                  title: 'Team Members', value: Object.keys(stats.by_assignee || {}).filter(k => k !== 'Unassigned').length,
+                  icon: '👥', color: '#FFB830',
+                  subtitle: `${stats.unassigned} unassigned issues`,
+                },
+                {
+                  title: 'Unassigned', value: stats.unassigned,
+                  icon: '❓', color: stats.unassigned > 0 ? '#FF8C42' : '#00E676',
+                  subtitle: stats.unassigned > 0 ? 'Needs attention' : 'All assigned',
+                },
+              ].map((card, idx) => (
+                <Grid item xs={6} sm={4} md={2} key={card.title}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.06 }}
+                  >
+                    <StatCard {...card} />
+                  </motion.div>
+                </Grid>
+              ))}
+            </Grid>
+          )}
 
           {/* Tabs */}
           <Box sx={{ mb: 2.5 }}>
@@ -209,13 +253,19 @@ export default function DashboardPage() {
                 },
               }}
             >
-              {TABS.map((t, i) => (
+              {TABS.map((t) => (
                 <Tab
                   key={t.label}
                   label={
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8 }}>
                       {t.icon}{t.label}
                       {t.label === 'AI Risk Analysis' && analysisData && (
+                        <Chip label="Ready" size="small" sx={{
+                          height: 16, fontSize: '0.6rem', fontWeight: 700,
+                          background: 'rgba(0,230,118,0.12)', color: '#00E676',
+                        }} />
+                      )}
+                      {t.label === 'Quality Insights' && qualityData && (
                         <Chip label="Ready" size="small" sx={{
                           height: 16, fontSize: '0.6rem', fontWeight: 700,
                           background: 'rgba(0,230,118,0.12)', color: '#00E676',
@@ -255,28 +305,38 @@ export default function DashboardPage() {
                       <Box sx={{ textAlign: 'center' }}>
                         <CircularProgress sx={{ color: '#7B61FF', mb: 2 }} />
                         <Typography variant="body2" sx={{ color: '#7BB3D3' }}>
-                          GPT-4o is analyzing your sprint data...
+                          AI가 스프린트 데이터를 분석하고 있습니다...
                         </Typography>
                         <Typography variant="caption" sx={{ color: '#7BB3D3' }}>
-                          This may take 10-30 seconds
+                          10-30초 정도 소요됩니다
                         </Typography>
                       </Box>
                     </Box>
                   )}
                   {!analyzing && analysisData && (
-                    <RiskAnalysis analysis={analysisData.ai_analysis} />
+                    <RiskAnalysis analysis={analysisData.analysis} />
                   )}
                   {!analyzing && !analysisData && (
                     <Box sx={{ textAlign: 'center', py: 8 }}>
                       <Typography variant="h4" sx={{ color: '#7BB3D3', mb: 1 }}>
-                        No analysis yet
+                        아직 분석이 실행되지 않았습니다
                       </Typography>
                       <Typography variant="body2" sx={{ color: '#7BB3D3' }}>
-                        Click "AI Analyze" to run GPT-4o risk analysis on this sprint
+                        상단의 "AI Analyze" 버튼을 클릭하여 AI 리스크 분석을 실행하세요
                       </Typography>
                     </Box>
                   )}
                 </>
+              )}
+
+              {tab === 3 && (
+                <QualityInsights
+                  qualityData={qualityData?.quality}
+                  loading={analyzingQuality}
+                  onAnalyze={handleQualityAnalyze}
+                  hasSprintData={!!sprintData}
+                  llmConnected={llmStatus?.connected}
+                />
               )}
             </motion.div>
           </AnimatePresence>

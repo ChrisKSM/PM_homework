@@ -249,6 +249,7 @@ def compute_sprint_stats(sprint: dict, issues: list) -> dict:
 
     total_sp = sum(i.get("story_points") or 0 for i in issues)
     done_sp = sum(i.get("story_points") or 0 for i in issues if i["status_category"] == "done")
+    in_progress_sp = sum(i.get("story_points") or 0 for i in issues if i["status_category"] == "indeterminate")
 
     by_type: dict = {}
     by_priority: dict = {}
@@ -256,7 +257,16 @@ def compute_sprint_stats(sprint: dict, issues: list) -> dict:
     for i in issues:
         by_type[i["issue_type"]] = by_type.get(i["issue_type"], 0) + 1
         by_priority[i["priority"]] = by_priority.get(i["priority"], 0) + 1
-        by_assignee[i["assignee"]] = by_assignee.get(i["assignee"], 0) + 1
+
+        assignee = i["assignee"]
+        if assignee not in by_assignee:
+            by_assignee[assignee] = {"total": 0, "done": 0, "story_points": 0}
+        by_assignee[assignee]["total"] += 1
+        if i["status_category"] == "done":
+            by_assignee[assignee]["done"] += 1
+        by_assignee[assignee]["story_points"] += i.get("story_points") or 0
+
+    issues_by_assignee_counts = {k: v["total"] for k, v in by_assignee.items()}
 
     return {
         "sprint": sprint,
@@ -266,11 +276,22 @@ def compute_sprint_stats(sprint: dict, issues: list) -> dict:
         "todo_count": todo,
         "total_story_points": total_sp,
         "done_story_points": done_sp,
+        "in_progress_story_points": in_progress_sp,
         "completion_rate": round((done / total) * 100, 1) if total else 0,
         "sp_completion_rate": round((done_sp / total_sp) * 100, 1) if total_sp else 0,
         "issues_by_type": by_type,
         "issues_by_priority": by_priority,
-        "issues_by_assignee": by_assignee,
+        "issues_by_assignee": issues_by_assignee_counts,
         "bugs_count": by_type.get("Bug", 0),
-        "unassigned_count": by_assignee.get("Unassigned", 0),
+        "unassigned_count": issues_by_assignee_counts.get("Unassigned", 0),
+        # Frontend-compatible aliases
+        "total": total,
+        "done": done,
+        "in_progress": in_progress,
+        "todo": todo,
+        "bugs": by_type.get("Bug", 0),
+        "unassigned": issues_by_assignee_counts.get("Unassigned", 0),
+        "by_type": by_type,
+        "by_priority": by_priority,
+        "by_assignee": by_assignee,
     }
