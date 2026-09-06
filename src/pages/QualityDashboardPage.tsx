@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import { AlertCircle, Bug, Clock, ShieldAlert } from 'lucide-react'
 import Header from '../components/layout/Header'
 import KpiCard from '../components/cards/KpiCard'
@@ -11,12 +11,14 @@ import {
   QualityAvgResolveChart,
 } from '../components/quality/QualityAgingCharts'
 import QualityIssueTable from '../components/quality/QualityIssueTable'
+import QualityAiCard from '../components/quality/QualityAiCard'
 import {
   useQualityDashboard,
   useQualityFilters,
   USE_QUALITY_MOCK,
 } from '../hooks/useQualityData'
-import type { QualityCategory, QualityEventGroup } from '../types/quality'
+import { qualityApi } from '../api/qualityApi'
+import type { QualityCategory, QualityEventGroup, QualityAiAnalysis } from '../types/quality'
 import { CHART } from '../theme/colors'
 
 function LoadingBlock() {
@@ -77,6 +79,8 @@ export default function QualityDashboardPage() {
   const [eventGroup, setEventGroup] = useState<QualityEventGroup>('DEV')
   const [phase, setPhase] = useState('1')
   const [category, setCategory] = useState<QualityCategory>('all')
+  const [aiData, setAiData] = useState<QualityAiAnalysis | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
 
   const filterParams = useMemo(
     () => ({ event: eventGroup, phase, category }),
@@ -89,7 +93,20 @@ export default function QualityDashboardPage() {
   const handleEventChange = (event: QualityEventGroup) => {
     setEventGroup(event)
     setPhase('1')
+    setAiData(null)
   }
+
+  const handleAiAnalysis = useCallback(async () => {
+    setAiLoading(true)
+    try {
+      const result = await qualityApi.getAiAnalysis({ event: eventGroup, phase, category })
+      setAiData(result)
+    } catch {
+      setAiData(null)
+    } finally {
+      setAiLoading(false)
+    }
+  }, [eventGroup, phase, category])
 
   return (
     <>
@@ -147,6 +164,13 @@ export default function QualityDashboardPage() {
               resolved={data.kpi.resolved}
               open={data.kpi.open}
               rate={data.kpi.resolveRatePct}
+            />
+
+            {/* AI 품질 분석 */}
+            <QualityAiCard
+              data={aiData}
+              loading={aiLoading}
+              onGenerate={handleAiAnalysis}
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

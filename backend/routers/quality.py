@@ -34,3 +34,22 @@ async def quality_dashboard(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+
+
+@router.post("/ai-analysis")
+async def quality_ai_analysis(
+    event: str = Query("DEV", description="DEV | FC | PV | AUTO"),
+    phase: str = Query("1", description="차수 (1~4)"),
+    category: str | None = Query(None, description="all | bug | function | auto"),
+):
+    """품질 이슈 LLM AI 분석 — 이슈 패턴·편중·개선 권고를 LLM으로 생성."""
+    try:
+        return await quality_service.get_quality_ai_analysis(
+            event=event,
+            phase=phase,
+            category=category,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"AI 분석 오류: {e}")

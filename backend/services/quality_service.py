@@ -485,7 +485,7 @@ async def get_quality_dashboard(
 
     resolve_rate = round(resolved / discovered * 100) if discovered else 0
 
-    return {
+    return {  # noqa: C901
         "meta": {
             "event": event.upper(),
             "phase": str(phase),
@@ -532,3 +532,213 @@ async def get_quality_dashboard(
         "p1p2OpenIssues": p0p1p2_rows,
         "openIssues": open_rows,
     }
+
+
+# ── LLM 품질 분석 ────────────────────────────────────────────────────────────
+
+_QUALITY_SYSTEM_PROMPT = (
+    "너는 소프트웨어 품질 분석 전문가야. "
+    "주어진 품질 이슈 데이터를 분석해서, 이슈가 어디에 치우쳐 있는지, "
+    "어떤 패턴이 보이는지, 어떻게 개선하면 좋을지를 한국어 실무 말투(~해요/~네요체)로 분석해. "
+    "과장/추측 금지, 숫자 근거 중심. "
+    "반드시 아래 JSON 형식만 출력해(코드펜스·설명 금지):\n"
+    '{"executive_summary": "전체 현황 2-3문장 요약", '
+    '"concentration_analysis": "이슈가 어디에 편중되어 있는지 분석 2-3문장", '
+    '"risk_patterns": [{"pattern": "패턴명", "detail": "설명", "severity": "High|Medium|Low"}], '
+    '"improvements": [{"action": "개선 조치", "expected_impact": "예상 효과", "priority": 1}], '
+    '"prediction": "향후 예측 1-2문장"}'
+)
+
+
+def _build_quality_user_prompt(dashboard: dict[str, Any]) -> str:
+    kpi = dashboard["kpi"]
+    meta = dashboard["meta"]
+    aging = dashboard.get("agingKpi", {})
+    by_pri = dashboard.get("byPriority", [])
+    by_cat = dashboard.get("byCategory", [])
+    open_issues = dashboard.get("openIssues", [])
+
+    pri_text = "\n".join(
+        f"  {p['priority']}: 발견 {p['discovered']}건, 처리 {p['resolved']}건, 미결 {p['open']}건"
+        for p in by_pri if p["discovered"] > 0
+    )
+    cat_text = "\n".join(
+        f"  {c['category']}: {c['count']}건"
+        for c in by_cat if c["count"] > 0
+    )
+    open_text = "\n".join(
+        f"  - [{i['priority']}] {i['issueKey']}: {i['summary']} (담당: {i['assignee']}, {i['ageDays']}일)"
+        for i in open_issues[:15]
+    )
+
+    return (
+        f"이벤트: {meta['event']} {meta['phaseLabel']}\n"
+        f"발견 전체: {kpi['discovered']}건 | 처리 완료: {kpi['resolved']}건 | 미결: {kpi['open']}건\n"
+        f"처리율: {kpi['resolveRatePct']}%\n"
+        f"P0/P1/P2 미결: {kpi['p0p1p2Open']}건\n"
+        f"평균 처리 소요일: {aging.get('avgResolveDays', 0)}일\n"
+        f"미결 평균 체류일: {aging.get('avgOpenAgeDays', 0)}일\n"
+        f"P0/P1/P2 평균 처리 소요일: {aging.get('p0p1p2AvgResolveDays', 0)}일\n\n"
+        f"Priority별 현황:\n{pri_text or '  (없음)'}\n\n"
+        f"분류(카테고리)별 건수:\n{cat_text or '  (없음)'}\n\n"
+        f"미결 이슈 (최대 15건):\n{open_text or '  (없음)'}\n"
+    )
+
+
+def _quality_rule_based(dashboard: dict[str, Any]) -> dict[str, Any]:
+    """LLM 불가 시 규칙기반 품질 분석."""
+    kpi = dashboard["kpi"]
+    aging = dashboard.get("agingKpi", {})
+    by_pri = dashboard.get("byPriority", [])
+    by_cat = dashboard.get("byCategory", [])
+    meta = dashboard["meta"]
+
+    rate = kpi["resolveRatePct"]
+    total = kpi["discovered"]
+    open_count = kpi["open"]
+    p0p1p2 = kpi["p0p1p2Open"]
+
+    # 편중 분석
+    cat_sorted = sorted(by_cat, key=lambda c: c["count"], reverse=True)
+    top_cat = cat_sorted[0] if cat_sorted else None
+    concentration = ""
+    if top_cat and total > 0:
+        pct = round(top_cat["count"] / total * 100)
+        if pct >= 40:
+            concentration = f"{top_cat['category']} 영역에 전체의 {pct}%가 집중되어 있어요. 해당 모듈 집중 검토가 필요해요."
+        elif pct >= 25:
+            concentration = f"{top_cat['category']} 영역이 {pct}%로 가장 많지만 심각한 편중은 아니에요."
+        else:
+            concentration = "이슈가 카테고리별로 비교적 균등하게 분포되어 있어요."
+    else:
+        concentration = "이슈 데이터가 부족하여 편중 분석이 어려워요."
+
+    summary = (
+        f"{meta['event']} {meta['phaseLabel']} 기준 발견 {total}건 중 {kpi['resolved']}건 처리 (처리율 {rate}%). "
+        f"미결 {open_count}건, P0/P1/P2 미결 {p0p1p2}건이에요."
+    )
+
+    patterns: list[dict[str, str]] = []
+    if p0p1p2 > 0:
+        patterns.append({
+            "pattern": "고우선순위 미결 잔여",
+            "detail": f"P0/P1/P2 미결 {p0p1p2}건이 남아 있어요",
+            "severity": "High" if p0p1p2 >= 3 else "Medium",
+        })
+    avg_open = aging.get("avgOpenAgeDays", 0)
+    if avg_open > 7:
+        patterns.append({
+            "pattern": "미결 이슈 장기 체류",
+            "detail": f"미결 이슈 평균 체류 {avg_open}일로 1주일 초과",
+            "severity": "High" if avg_open > 14 else "Medium",
+        })
+    if rate < 80 and total >= 5:
+        patterns.append({
+            "pattern": "처리율 저조",
+            "detail": f"처리율 {rate}%로 80% 미달",
+            "severity": "High" if rate < 50 else "Medium",
+        })
+
+    improvements: list[dict[str, Any]] = []
+    if p0p1p2 > 0:
+        improvements.append({
+            "action": "P0/P1/P2 미결 이슈 우선 해결 — 담당자 지정 및 기한 설정",
+            "expected_impact": "고위험 이슈 해소로 품질 리스크 감소",
+            "priority": 1,
+        })
+    if avg_open > 7:
+        improvements.append({
+            "action": "장기 미결 이슈 스크럼 리뷰에 포함하여 집중 처리",
+            "expected_impact": "미결 체류 시간 단축",
+            "priority": 2,
+        })
+    if not improvements:
+        improvements.append({
+            "action": "현재 품질 관리 프로세스 유지",
+            "expected_impact": "안정적 처리율 지속",
+            "priority": 1,
+        })
+
+    prediction = f"현재 처리 속도 유지 시 미결 {open_count}건은 약 {max(1, round(avg_open))}일 내 해소 가능해요."
+
+    return {
+        "executive_summary": summary,
+        "concentration_analysis": concentration,
+        "risk_patterns": patterns,
+        "improvements": improvements,
+        "prediction": prediction,
+    }
+
+
+def _parse_quality_llm_json(text: str) -> dict[str, Any] | None:
+    """LLM 응답 JSON 파싱."""
+    import re as _re
+    if not text:
+        return None
+    cleaned = _re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=_re.MULTILINE).strip()
+    m = _re.search(r"\{.*\}", cleaned, _re.DOTALL)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(0))
+    except (json.JSONDecodeError, ValueError):
+        return None
+    if not isinstance(data.get("executive_summary"), str):
+        return None
+    return data
+
+
+async def get_quality_ai_analysis(
+    event: str = "DEV",
+    phase: str = "1",
+    category: str | None = None,
+) -> dict[str, Any]:
+    """품질 이슈 AI 분석 — LLM 사용, 실패 시 규칙기반 폴백."""
+    import json
+    dashboard = await get_quality_dashboard(event=event, phase=phase, category=category)
+
+    source = "rule"
+    content = _quality_rule_based(dashboard)
+    llm_debug: dict[str, Any] | None = None
+
+    from services import llm_client
+    diag = llm_client.diagnostics()
+    if not diag["enabled"]:
+        failed = [c for c in diag["checks"] if not c["ok"]]
+        llm_debug = {
+            "phase": "not_enabled",
+            "reason": "; ".join(f"{c['id']}: {c['detail']}" for c in failed),
+        }
+    else:
+        try:
+            raw = await llm_client.chat(
+                _QUALITY_SYSTEM_PROMPT,
+                _build_quality_user_prompt(dashboard),
+            )
+            parsed = _parse_quality_llm_json(raw)
+            if parsed:
+                content = parsed
+                source = "llm"
+            else:
+                llm_debug = {
+                    "phase": "parse_failed",
+                    "reason": "LLM 응답 JSON 파싱 실패",
+                    "rawPreview": (raw or "")[:500],
+                }
+        except Exception as exc:
+            llm_debug = {
+                "phase": "call_failed",
+                "reason": f"{type(exc).__name__}: {exc}",
+            }
+
+    result: dict[str, Any] = {
+        "source": source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "event": event.upper(),
+        "phaseLabel": dashboard["meta"]["phaseLabel"],
+        **content,
+        "kpi_snapshot": dashboard["kpi"],
+    }
+    if llm_debug:
+        result["llmDebug"] = llm_debug
+    return result

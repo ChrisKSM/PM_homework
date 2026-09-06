@@ -98,3 +98,33 @@ export interface QualityQueryParams {
   phase?: string
   category?: QualityCategory
 }
+
+// LLM 품질 분석
+export interface QualityAiRiskPattern {
+  pattern: string
+  detail: string
+  severity: 'High' | 'Medium' | 'Low'
+}
+
+export interface QualityAiImprovement {
+  action: string
+  expected_impact: string
+  priority: number
+}
+
+export interface QualityAiAnalysis {
+  source: 'llm' | 'rule'
+  generated_at: string
+  event: string
+  phaseLabel: string
+  executive_summary: string
+  concentration_analysis: string
+  risk_patterns: QualityAiRiskPattern[]
+  improvements: QualityAiImprovement[]
+  prediction: string
+  kpi_snapshot: QualityKpi
+  llmDebug?: {
+    phase: string
+    reason: string
+  }
+}
