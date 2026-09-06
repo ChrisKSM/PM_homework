@@ -16,7 +16,8 @@ export const jiraApi = {
 
 export const sprintApi = {
   getIssues: (sprintId) => api.get(`/sprint/${sprintId}/issues`),
-  getWBS: (sprintId) => api.get(`/sprint/${sprintId}/wbs`),
+  getWbs: (sprintId, boardId) =>
+    api.get(`/sprint/${sprintId}/wbs`, { params: boardId ? { board_id: boardId } : {} }),
   getStats: (sprintId, boardId) =>
     api.get(`/sprint/${sprintId}/stats`, { params: boardId ? { board_id: boardId } : {} }),
 };
@@ -25,4 +26,7 @@ export const analysisApi = {
   analyze: (sprintId, boardId) =>
     api.post(`/analysis/sprint/${sprintId}`, null, { params: boardId ? { board_id: boardId } : {} }),
   quickRisks: (sprintId) => api.post(`/analysis/sprint/${sprintId}/risks`),
+  analyzeQuality: (sprintId, boardId) =>
+    api.post(`/analysis/sprint/${sprintId}/quality`, null, { params: boardId ? { board_id: boardId } : {} }),
+  checkLlmHealth: () => api.get('/analysis/llm/health'),
 };
