@@ -5,7 +5,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from cache import clear_cache
 from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan, mr_quality
 
 app = FastAPI(
