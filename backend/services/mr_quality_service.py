@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from cache import cached
+
 from polarion_client import fetch_all_defects
 
 FIXED_STATUSES = {"fixed", "closed", "resolved", "verified", "done", "완료"}
@@ -45,7 +45,7 @@ def _count_by(items: list[dict], field: str) -> list[dict[str, Any]]:
     )
 
 
-@cached(ttl=300)
+
 async def get_mr_quality_dashboard(model_name: str = "") -> dict[str, Any]:
     """MR 품질 이슈 대시보드 데이터."""
     raw = await fetch_all_defects(model_name=model_name)

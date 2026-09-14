@@ -61,7 +61,14 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.3
 
 
+
+    # Polarion ALM
+    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
+    polarion_project_key: str = "AVSWRelProjMgmt"
+    polarion_pat: str = ""
+    polarion_verify_ssl: bool = False
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings() 
+
