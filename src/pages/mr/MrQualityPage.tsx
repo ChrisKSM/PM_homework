@@ -6,7 +6,6 @@ import { Bug, CheckCircle2, AlertCircle, ShieldAlert, Loader2, RefreshCw } from 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { mrQualityApi } from '../../api/mrQualityApi'
 import type { MrQualityDashboard, ChartDataItem, MrOpenIssue } from '../../api/mrQualityApi'
-import { USE_MOCK } from '../../config/dataSource'
 
 // ── Mock fallback ────────────────────────────────────────────────────────────
 
@@ -86,14 +85,10 @@ export default function MrQualityPage() {
     setLoading(true)
     setError('')
     try {
-      if (USE_MOCK) {
-        await new Promise((r) => setTimeout(r, 500))
-        setData(MOCK_DATA)
-      } else {
-        const result = await mrQualityApi.getDashboard()
-        setData(result)
-      }
+      const result = await mrQualityApi.getDashboard()
+      setData(result)
     } catch (e: any) {
+      console.warn('[MR Quality] API 실패 → Mock fallback:', e?.message)
       setError(e?.response?.data?.detail || e?.message || 'API 호출 실패')
       setData(MOCK_DATA)
     } finally {
