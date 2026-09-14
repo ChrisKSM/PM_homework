@@ -70,6 +70,12 @@ class Settings(BaseSettings):
     smtp_from: str = ""
     smtp_use_tls: bool = True
 
+    # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
+    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
+    polarion_project_key: str = "AVSWRelProjMgmt"
+    polarion_pat: str = ""
+    polarion_verify_ssl: bool = False
+
     # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
     #  ※ URL/API-key 불필요. SDK가 내부에서 dej 플랫폼 연결을 처리.
     llm_enabled: bool = False
