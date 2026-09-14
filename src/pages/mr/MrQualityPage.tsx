@@ -6,6 +6,7 @@ import { Bug, CheckCircle2, AlertCircle, ShieldAlert, Loader2, RefreshCw } from 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import { mrQualityApi } from '../../api/mrQualityApi'
 import type { MrQualityDashboard, ChartDataItem, MrOpenIssue } from '../../api/mrQualityApi'
+import { USE_MOCK } from '../../config/dataSource'
 
 // ── Mock fallback ────────────────────────────────────────────────────────────
 
@@ -31,9 +32,6 @@ const MOCK_DATA: MrQualityDashboard = {
   ],
   modelFilter: 'all',
 }
-
-const USE_MOCK = (typeof import.meta !== 'undefined' && import.meta.env?.REACT_APP_USE_MOCK !== 'false'
-  && import.meta.env?.REACT_APP__USE_MOCK !== 'false')
 
 // ── 스타일 상수 ──────────────────────────────────────────────────────────────
 
