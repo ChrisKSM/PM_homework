@@ -64,8 +64,8 @@ class Settings(BaseSettings):
 
     # Polarion ALM
     polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
-    polarion_project_key: str = "AVSWRelProjMgmt"
-    polarion_pat: str = "eyJraWQiOiIzNTBjMjJkMy0wYTAxOWIwYS0wNmYyY2RjNS1kNTFmOTRjYiIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhcGktdGVzdC1tcy13ZWJvcyIsImlkIjoiYTdlZmY3MmEtMGEwMTliMDgtN2UxMmU5NGUtNTk1MmJlYjYiLCJleHAiOjE3OTIwNzY0MDAsImlhdCI6MTc4OTUyMzkxNn0.gH4nbtX9cAeRXTTew0WNTuZWs1gHkCvPp6DdVVPEUjJUgziU2WVGkgp6kKCNv6oBMDkafqW65PzPLuImnsh7-QYRUEVV1LfRPCwF5SYRox2BcqrIhB0CuP80-2kzxYO4tn1teSAm4R3tSAY8okXAy5BpSItVOlaWvRwhnhc90aXpUtv8husiu_M_INQxo3aPu9ZRY0gXBmvTxaI6gbjgRCB6xkiwLsMXhzMHq2haSxo_-ErgDJVreTF3D_2kh0WomBlXLo0h4zp5hMqVjKNcIrgUhYOAQRJ-jpd101A8cVPaBUrk3f5U645yHTU4IGxpnVpfwY8QDIJ3qZZahzQYuA"
+    polarion_project_key: str = "eyJraWQiOiI4YzMwOWFkZi0wYTAxYWIxMC01M2Q4YmIyNS05NDNkMzQ0NSIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJzZW9rbWluLmtvaCIsImlkIjoiYWZiNTk0MzItMGEwMWFiNzItNzFhNzdhMmItNDM5ODliNjciLCJleHAiOjE3OTc0MzAzMDcsImlhdCI6MTc4OTY1NDMwN30.M2rwkwwjMCBhd81aIP3Qimttr_rxlWKcn7WMqne_IPEq6AxSNqL35cZDs4cODRLvKQKNwfBSAGfKKfN1NIwbvfqNuGj1H5Tjc9B8HCvG6uxJGJqhN0RW_eBrpYoh6M9k4DxPdhz1amjFeSWN4U6cYBiUbDsBrJL20ZydlBZ5sBP8C9TMRpMaon1c-jS-36j6UA53PIGtNowncTXIyKt3vvG-clHxcfk-tjonj_W8cnb8b2UDJgB8Kqk9p9YhaG_6JFECDrQqBNLWr9kj5ZqH-RL6B605oWqiY92rLjH_FH_WXv7w76429btHqsioRYrLJsNxD42S-0kHyZM0qNNTag"
+    polarion_pat: str = ""
     polarion_verify_ssl: bool = False
     model_config = {"env_file": ".env", "extra": "ignore"}
 
