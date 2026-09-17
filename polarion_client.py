@@ -20,8 +20,9 @@ SLEEP_BETWEEN = 0.05
 
 
 def _headers() -> dict[str, str]:
+    pat = settings.polarion_pat or "eyJraWQiOiI4YzMwOWFkZi0wYTAxYWIxMC01M2Q4YmIyNS05NDNkMzQ0NSIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJzZW9rbWluLmtvaCIsImlkIjoiYWZiNTk0MzItMGEwMWFiNzItNzFhNzdhMmItNDM5ODliNjciLCJleHAiOjE3OTc0MzAzMDcsImlhdCI6MTc4OTY1NDMwN30.M2rwkwwjMCBhd81aIP3Qimttr_rxlWKcn7WMqne_IPEq6AxSNqL35cZDs4cODRLvKQKNwfBSAGfKKfN1NIwbvfqNuGj1H5Tjc9B8HCvG6uxJGJqhN0RW_eBrpYoh6M9k4DxPdhz1amjFeSWN4U6cYBiUbDsBrJL20ZydlBZ5sBP8C9TMRpMaon1c-jS-36j6UA53PIGtNowncTXIyKt3vvG-clHxcfk-tjonj_W8cnb8b2UDJgB8Kqk9p9YhaG_6JFECDrQqBNLWr9kj5ZqH-RL6B605oWqiY92rLjH_FH_WXv7w76429btHqsioRYrLJsNxD42S-0kHyZM0qNNTag"
     return {
-        "Authorization": f"Bearer {settings.polarion_pat}",
+        "Authorization": f"Bearer {pat}",
         "Accept": "application/json",
     }
 
