@@ -73,7 +73,7 @@ class Settings(BaseSettings):
     # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
     polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
     polarion_project_key: str = "AVSWRelProjMgmt"
-    polarion_pat: str = ""
+    polarion_pat: str = "eyJraWQiOiI4YzMwOWFkZi0wYTAxYWIxMC01M2Q4YmIyNS05NDNkMzQ0NSIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJzZW9rbWluLmtvaCIsImlkIjoiYmQwMjk3NDYtMGEwMWFiNzEtMWEzNWJiNjktMjkyNjNhYmMiLCJleHAiOjE3OTc2NTM0NTgsImlhdCI6MTc4OTg3NzQ1OH0.JOniYpEMcW_jB3HNuNtoqZIDYPPfs8AjdbpqIxoe8QXG3XkDXkQTjI5dnVGzej3J1ABCXUe0QxURKHPyT8npNZ3IY1IFCNg3hZSaZOI2oOkaznG4xvXN5wPUSNE9pdR4l-FiZU2OBHuHf-XGgo1WOaDEn8qUE3hhfkJHNB6a8jo7ZJEaPY8PSHKbwYFCgvfnvbs_CHKKn1nCYBK67zmavwiDsGe6rlImgnZyaVQ_GdGZQRk27cKXAuT6g92UDCFXV_F689I3Ofpi7AXSg_PuLoEuIQicWxjfpA4Do7D6TXWm-BF0Uf6oKuBO5xyiq7MY1ZijxzjP3o3N6uRCBRzyzg"
     polarion_verify_ssl: bool = False
 
     # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
