@@ -1,7 +1,7 @@
 """H7/M7/W7 MR 품질 이슈 API — Polarion testDefect 연동."""
 from fastapi import APIRouter, HTTPException, Query
 
-from polarion_client import normalize_project_names
+from polarion_client import fetch_list_page, normalize_project_names
 from services import mr_quality_service
 
 router = APIRouter(prefix="/api/mr/quality", tags=["mr-quality"])
@@ -16,6 +16,20 @@ NO_PROJECT_DETAIL = (
 async def mr_quality_ping():
     """배포 확인용."""
     return {"ok": True, "service": "mr-quality"}
+
+
+@router.get("/raw")
+async def mr_quality_raw(
+    query: str = Query(..., description="Polarion query 원문 (예: project_name:(\"A\" OR \"B\") AND created:[20260909 TO 20260926])"),
+):
+    """Polarion에 query를 그대로 보내 totalCount와 첫 row를 확인 (디버그용)."""
+    if "project_name" not in query:
+        raise HTTPException(status_code=400, detail=NO_PROJECT_DETAIL)
+    try:
+        rows, total = await fetch_list_page(page=1, query=query, page_size=5)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Polarion API 오류: {e}")
+    return {"query": query, "totalCount": total, "sample": rows[:2]}
 
 
 @router.get("/sequences")

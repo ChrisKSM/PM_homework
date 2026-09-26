@@ -190,23 +190,20 @@ def build_query(
     created_to: str = "",
 ) -> str:
     """
-    Polarion testDefect 검색 query 조합.
+    Polarion 검색 query 조합.
     - project_name: OR
-    - eventSequence / created: AND
+    - eventSequence(1~5차) / created: AND, ALL이면 차수 조건 없음
     """
-    parts = ["type:testDefect"]
+    parts: list[str] = []
 
     names = normalize_project_names(project_name)
     if names:
         joined = " OR ".join(_quote_polarion_value(name) for name in names)
         parts.append(f"project_name:({joined})")
 
-    if event_sequence:
-        seq = event_sequence.strip()
-        if seq.upper() == "ALL":
-            parts.append("eventSequence.1:[00000000001 TO 00000000005]")
-        else:
-            parts.append(f"eventSequence.KEY:{seq}")
+    seq = (event_sequence or "").strip()
+    if seq and seq.upper() != "ALL":
+        parts.append(f"eventSequence.KEY:{seq}")
 
     from_d = to_polarion_date(created_from)
     to_d = to_polarion_date(created_to)
@@ -220,34 +217,40 @@ def build_query(
     if model_name:
         parts.append(f"model_name:{_quote_polarion_value(model_name)}")
 
-    return " AND ".join(parts)
+    return " AND ".join(parts) if parts else "type:testDefect"
 
 
-async def _fetch_detail_batch(self_urls: list[str]) -> list[dict[str, Any]]:
-    """여러 workitem 상세를 동시 조회 (concurrent)."""
+def _row_attrs(row: dict[str, Any]) -> dict[str, Any]:
+    attrs = row.get("attributes")
+    return attrs if isinstance(attrs, dict) else row
+
+
+async def _fetch_detail_batch(self_urls: list[str]) -> list[dict[str, Any] | None]:
+    """여러 workitem 상세를 동시 조회. 실패한 항목은 None (순서 유지)."""
     sem = asyncio.Semaphore(CONCURRENT_DETAIL)
 
     async def _get(url: str) -> dict[str, Any] | None:
+        if not url:
+            return None
         async with sem:
             try:
                 return await fetch_detail(url)
             except Exception:
                 return None
 
-    tasks = [_get(url) for url in self_urls]
-    results = await asyncio.gather(*tasks)
-    return [r for r in results if r is not None]
+    return list(await asyncio.gather(*[_get(url) for url in self_urls]))
 
 
-async def fetch_all_defects(
+async def fetch_all_defects_with_stats(
     project_name: str | list[str] = "",
     event_sequence: str = "",
     model_name: str = "",
     created_from: str = "",
     created_to: str = "",
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
     """
-    testDefect 목록 조회 → 상세 동시 조회 → 정규화.
+    목록 조회 → 상세 동시 조회 → 정규화.
+    상세가 없거나 실패하면 목록 row 속성으로 대체한다.
     """
     query = build_query(
         project_name=project_name,
@@ -258,35 +261,54 @@ async def fetch_all_defects(
     )
 
     all_rows: list[dict] = []
+    polarion_total = 0
     for page in range(1, MAX_PAGES + 1):
         rows, total = await fetch_list_page(page=page, query=query)
+        polarion_total = max(polarion_total, total or 0)
         if not rows:
             break
         all_rows.extend(rows)
         if len(all_rows) >= total:
             break
 
-    # self link 수집
-    detail_urls: list[str] = []
-    locations: list[str] = []
-    for row in all_rows:
-        self_url = (row.get("links") or {}).get("self", "")
-        location = row.get("location", "")
-        if self_url:
-            detail_urls.append(self_url)
-            locations.append(location)
-
-    if not detail_urls:
-        return []
-
-    # 동시 상세 조회
-    details = await _fetch_detail_batch(detail_urls)
+    self_urls = [(row.get("links") or {}).get("self", "") for row in all_rows]
+    details = await _fetch_detail_batch(self_urls)
 
     results: list[dict[str, Any]] = []
-    for i, attrs in enumerate(details):
-        loc = locations[i] if i < len(locations) else ""
-        item = normalize_workitem(attrs, loc)
+    detail_ok = 0
+    for row, detail in zip(all_rows, details):
+        if detail:
+            detail_ok += 1
+            attrs = {**_row_attrs(row), **detail}
+        else:
+            attrs = _row_attrs(row)
+        item = normalize_workitem(attrs, row.get("location", ""))
+        if not item.get("id"):
+            item["id"] = str(row.get("id") or "")
         if item.get("id") or item.get("title"):
             results.append(item)
 
+    stats = {
+        "polarionTotal": polarion_total,
+        "listed": len(all_rows),
+        "detailOk": detail_ok,
+        "normalized": len(results),
+    }
+    return results, stats
+
+
+async def fetch_all_defects(
+    project_name: str | list[str] = "",
+    event_sequence: str = "",
+    model_name: str = "",
+    created_from: str = "",
+    created_to: str = "",
+) -> list[dict[str, Any]]:
+    results, _ = await fetch_all_defects_with_stats(
+        project_name=project_name,
+        event_sequence=event_sequence,
+        model_name=model_name,
+        created_from=created_from,
+        created_to=created_to,
+    )
     return results
