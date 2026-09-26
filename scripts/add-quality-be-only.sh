@@ -27,7 +27,12 @@ for f in \
   backend/services/planning_service.py:services/planning_service.py \
   backend/routers/quality.py:routers/quality.py \
   backend/services/quality_service.py:services/quality_service.py \
+  backend/polarion_client.py:polarion_client.py \
+  backend/routers/mr_quality.py:routers/mr_quality.py \
+  backend/services/mr_quality_service.py:services/mr_quality_service.py \
   scripts/patch-be-main-quality.sh:scripts/patch-be-main-quality.sh \
+  scripts/patch-be-main-mr-quality.sh:scripts/patch-be-main-mr-quality.sh \
+  scripts/patch-config-polarion.sh:scripts/patch-config-polarion.sh \
   scripts/patch-be-main-optional-report.sh:scripts/patch-be-main-optional-report.sh
 do
   src="${f%%:*}"
@@ -37,6 +42,8 @@ do
 done
 
 sh scripts/patch-be-main-quality.sh
+[ -f scripts/patch-be-main-mr-quality.sh ] && sh scripts/patch-be-main-mr-quality.sh
+[ -f scripts/patch-config-polarion.sh ] && sh scripts/patch-config-polarion.sh
 [ -f scripts/patch-be-main-optional-report.sh ] && sh scripts/patch-be-main-optional-report.sh
 
 echo ""

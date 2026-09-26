@@ -26,7 +26,7 @@ echo ""
 mkdir -p \
   src/types src/mocks src/api src/hooks src/pages src/config \
   src/components/planning src/components/quality src/components/procurement \
-  src/components/risk \
+  src/components/risk src/components/mr src/pages/mr src/utils \
   src/components/charts src/components/cards \
   src/components/layout
 
@@ -61,6 +61,13 @@ QUALITY_FILES="
   src/components/quality/QualityCategoryChart.tsx
   src/components/quality/QualityAgingCharts.tsx
   src/components/quality/QualityIssueTable.tsx
+"
+
+MR_QUALITY_FILES="
+  src/api/mrQualityApi.ts
+  src/pages/mr/MrQualityPage.tsx
+  src/components/mr/DatePickerField.tsx
+  src/utils/polarionQuery.ts
 "
 
 PROCUREMENT_FILES="
@@ -108,7 +115,7 @@ CORE_FILES="
   src/components/charts/WorkloadChart.tsx
 "
 
-for f in $PLANNING_FILES $QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES $CORE_FILES src/config/dataSource.ts; do
+for f in $PLANNING_FILES $QUALITY_FILES $MR_QUALITY_FILES $PROCUREMENT_FILES $RISK_FILES $CORE_FILES src/config/dataSource.ts; do
   show "$f" > "$f"
   echo "  + $f"
 done
@@ -189,6 +196,18 @@ def patch_app():
                     '<Route path="devteam" element={<DevTeamDashboard />} />\n          <Route path="procurement" element={<ProcurementDashboardPage />} />',
                 )
 
+    if "MrQualityPage" not in t:
+        if "QualityDashboardPage" in t and "import MrQualityPage" not in t:
+            t = t.replace(
+                "import QualityDashboardPage from './pages/QualityDashboardPage'",
+                "import QualityDashboardPage from './pages/QualityDashboardPage'\nimport MrQualityPage from './pages/mr/MrQualityPage'",
+            )
+        if 'path="mr-quality"' not in t:
+            t = t.replace(
+                '<Route path="quality" element={<QualityDashboardPage />} />',
+                '<Route path="quality" element={<QualityDashboardPage />} />\n          <Route path="mr-quality" element={<MrQualityPage />} />',
+            )
+
     if "RiskDashboardPage" not in t:
         if "ProcurementDashboardPage" in t and "import RiskDashboardPage" not in t:
             t = t.replace(
@@ -233,6 +252,12 @@ def patch_sidebar():
             "ShieldAlert, ShieldCheck, Users",
         )
 
+    if "/mr-quality" not in t:
+        t = t.replace(
+            "{ to: '/quality', icon: ShieldCheck, label: '품질 이슈' },",
+            "{ to: '/quality', icon: ShieldCheck, label: '품질 이슈' },\n  { to: '/mr-quality', icon: ShieldCheck, label: 'MR 품질 이슈' },",
+        )
+
     if "/risk" not in t:
         t = t.replace(
             "{ to: '/procurement', icon: Package, label: '조달 KPI' },",
@@ -253,7 +278,7 @@ PY
 echo ""
 echo "=== 검증 ==="
 ERR=0
-for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "ProcurementDashboardPage" "RiskDashboardPage" "/planning" "/quality" "/procurement" "/risk" "계획 추적성" "품질 이슈" "조달 KPI" "리스크 관리"; do
+for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "MrQualityPage" "ProcurementDashboardPage" "RiskDashboardPage" "/planning" "/quality" "/mr-quality" "/procurement" "/risk" "계획 추적성" "품질 이슈" "MR 품질 이슈" "조달 KPI" "리스크 관리"; do
   if grep -rq "$needle" src/App.tsx src/components/layout/Sidebar.tsx 2>/dev/null; then
     echo "  OK $needle"
   else

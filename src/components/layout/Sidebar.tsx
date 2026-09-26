@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/sprint-plan', icon: CalendarRange, label: '릴리즈/스프린트 계획' },
   { to: '/planning', icon: GitBranch, label: '계획 추적성' },
   { to: '/quality', icon: ShieldCheck, label: '품질 이슈' },
+  { to: '/mr-quality', icon: ShieldCheck, label: 'MR 품질 이슈' },
   { to: '/procurement', icon: Package, label: '조달 KPI' },
   { to: '/risk', icon: ShieldAlert, label: '리스크 관리' },
 ]

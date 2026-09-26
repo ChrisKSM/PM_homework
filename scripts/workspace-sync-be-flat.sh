@@ -31,10 +31,16 @@ show "$PREFIX/routers/planning.py"            > routers/planning.py
 show "$PREFIX/services/planning_service.py"   > services/planning_service.py
 show "$PREFIX/routers/quality.py"             > routers/quality.py
 show "$PREFIX/services/quality_service.py"    > services/quality_service.py
+show "$PREFIX/polarion_client.py"             > polarion_client.py
+show "$PREFIX/routers/mr_quality.py"          > routers/mr_quality.py
+show "$PREFIX/services/mr_quality_service.py" > services/mr_quality_service.py
 echo "  + routers/planning.py"
 echo "  + services/planning_service.py"
 echo "  + routers/quality.py"
 echo "  + services/quality_service.py"
+echo "  + polarion_client.py"
+echo "  + routers/mr_quality.py"
+echo "  + services/mr_quality_service.py"
 
 # ── FULL_SYNC=1 일 때만 기존 파일 덮어쓰기 (회사 config 깨질 수 있음) ─────
 if [ "${FULL_SYNC:-0}" = "1" ]; then
@@ -76,6 +82,12 @@ echo ""
 echo "=== main.py 패치 ==="
 if [ -f scripts/patch-be-main-quality.sh ]; then
   sh scripts/patch-be-main-quality.sh
+fi
+if [ -f scripts/patch-be-main-mr-quality.sh ]; then
+  sh scripts/patch-be-main-mr-quality.sh
+fi
+if [ -f scripts/patch-config-polarion.sh ]; then
+  sh scripts/patch-config-polarion.sh
 fi
 if [ -f scripts/patch-be-main-optional-report.sh ]; then
   sh scripts/patch-be-main-optional-report.sh
