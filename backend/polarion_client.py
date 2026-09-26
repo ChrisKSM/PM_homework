@@ -14,9 +14,11 @@ from config import settings
 if not settings.polarion_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
+import asyncio
+
 TIMEOUT = 120.0
 MAX_PAGES = 50
-SLEEP_BETWEEN = 0.05
+CONCURRENT_DETAIL = 10
 
 
 def _headers() -> dict[str, str]:
@@ -50,8 +52,8 @@ async def fetch_list_page(
     page: int = 1,
     query: str = "type:testDefect",
     page_size: int = 100,
-) -> list[dict[str, Any]]:
-    """Polarion workitem 목록 페이지 조회."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
     params: dict[str, Any] = {
         "query": query,
         "page": page,
@@ -65,7 +67,18 @@ async def fetch_list_page(
         resp = await client.get(_list_endpoint(), params=params)
         resp.raise_for_status()
         data = resp.json()
-    return data if isinstance(data, list) else data.get("data", data.get("workitems", []))
+
+    # 응답 구조: [{"page":1, "totalCount":N, "workitems":[...]}] 또는 {"workitems":[...]}
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        obj = data[0]
+    elif isinstance(data, dict):
+        obj = data
+    else:
+        return [], 0
+
+    workitems = obj.get("workitems", [])
+    total_count = obj.get("totalCount", len(workitems))
+    return workitems, total_count
 
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:
@@ -152,14 +165,29 @@ def build_query(
     return " AND ".join(parts)
 
 
+async def _fetch_detail_batch(self_urls: list[str]) -> list[dict[str, Any]]:
+    """여러 workitem 상세를 동시 조회 (concurrent)."""
+    sem = asyncio.Semaphore(CONCURRENT_DETAIL)
+
+    async def _get(url: str) -> dict[str, Any] | None:
+        async with sem:
+            try:
+                return await fetch_detail(url)
+            except Exception:
+                return None
+
+    tasks = [_get(url) for url in self_urls]
+    results = await asyncio.gather(*tasks)
+    return [r for r in results if r is not None]
+
+
 async def fetch_all_defects(
     project_name: str = "",
     event_sequence: str = "",
     model_name: str = "",
 ) -> list[dict[str, Any]]:
     """
-    testDefect 목록 조회 → 정규화.
-    상세 API 호출 없이 목록 데이터만으로 처리 (성능 최적화).
+    testDefect 목록 조회 → 상세 동시 조회 → 정규화.
     """
     query = build_query(
         project_name=project_name,
@@ -169,16 +197,33 @@ async def fetch_all_defects(
 
     all_rows: list[dict] = []
     for page in range(1, MAX_PAGES + 1):
-        rows = await fetch_list_page(page=page, query=query)
+        rows, total = await fetch_list_page(page=page, query=query)
         if not rows:
             break
         all_rows.extend(rows)
+        if len(all_rows) >= total:
+            break
+
+    # self link 수집
+    detail_urls: list[str] = []
+    locations: list[str] = []
+    for row in all_rows:
+        self_url = (row.get("links") or {}).get("self", "")
+        location = row.get("location", "")
+        if self_url:
+            detail_urls.append(self_url)
+            locations.append(location)
+
+    if not detail_urls:
+        return []
+
+    # 동시 상세 조회
+    details = await _fetch_detail_batch(detail_urls)
 
     results: list[dict[str, Any]] = []
-    for row in all_rows:
-        location = row.get("location", "")
-        attrs = row.get("attributes", row)
-        item = normalize_workitem(attrs, location)
+    for i, attrs in enumerate(details):
+        loc = locations[i] if i < len(locations) else ""
+        item = normalize_workitem(attrs, loc)
         if item.get("id") or item.get("title"):
             results.append(item)
 
