@@ -155,9 +155,7 @@ def build_query(
         parts.append(f"project_name:({escaped})")
 
     if event_sequence and event_sequence.upper() != "ALL":
-        parts.append(f'eventSequence:"{event_sequence}"')
-    elif project_name:
-        parts.append("HAS_VALUE:eventSequence")
+        parts.append(f"eventSequence.KEY:{event_sequence}")
 
     if model_name:
         parts.append(f'model_name:"{model_name}"')

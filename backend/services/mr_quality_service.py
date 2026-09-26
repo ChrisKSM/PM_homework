@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from cache import cached
-from polarion_client import fetch_all_defects
+from polarion_client import fetch_all_defects, build_query, fetch_list_page
 
 FIXED_STATUSES = {"fixed", "closed", "resolved", "verified", "done", "완료"}
 CRITICAL_SEVERITIES = {"critical", "major", "blocker"}
@@ -120,3 +120,16 @@ async def get_mr_quality_dashboard(
         "projectName": project_name or "",
         "eventSequence": event_sequence or "ALL",
     }
+
+
+@cached(ttl=600)
+async def get_event_sequences(project_name: str = "") -> list[str]:
+    """project_name에 해당하는 eventSequence 목록 추출."""
+    raw = await fetch_all_defects(project_name=project_name)
+    sequences: set[str] = set()
+    for item in raw:
+        seq = item.get("eventSequence", "").strip()
+        if seq:
+            sequences.add(seq)
+    sorted_seqs = sorted(sequences)
+    return sorted_seqs

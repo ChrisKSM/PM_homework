@@ -43,7 +43,17 @@ export interface MrQualityParams {
   model?: string
 }
 
+export interface MrSequencesResponse {
+  sequences: string[]
+  projectName: string
+}
+
 export const mrQualityApi = {
+  getSequences: (projectName: string) =>
+    client
+      .get<MrSequencesResponse>('/mr/quality/sequences', { params: { project_name: projectName } })
+      .then((r) => r.data),
+
   getDashboard: (params?: MrQualityParams) => {
     const q: Record<string, string> = {}
     if (params?.project_name) q.project_name = params.project_name
