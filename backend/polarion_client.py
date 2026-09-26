@@ -4,6 +4,7 @@ PAT Bearer 토큰 인증, testDefect workitem 조회 전용.
 """
 from __future__ import annotations
 
+import re
 import warnings
 from typing import Any
 
@@ -61,7 +62,8 @@ def _base_url() -> str:
 
 
 def _list_endpoint() -> str:
-    return f"{_base_url()}/projects/{settings.polarion_project_key}/workitems"
+    path = (getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
+    return f"{_base_url()}/projects/{settings.polarion_project_key}/{path}"
 
 
 def _safe_text(attrs: dict, key: str) -> str:
@@ -155,8 +157,13 @@ def normalize_workitem(attrs: dict[str, Any], location: str = "") -> dict[str, A
     }
 
 
+_PLAIN_VALUE = re.compile(r"^[A-Za-z0-9_.\-]+$")
+
+
 def _quote_polarion_value(value: str) -> str:
-    """Polarion Lucene 값 인용 — 공백/[]() 는 따옴표로 보호."""
+    """영문/숫자/_.- 만 있으면 그대로, 공백·[]() 등이 있으면 따옴표로 감싼다."""
+    if _PLAIN_VALUE.match(value):
+        return value
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
 
@@ -190,20 +197,11 @@ def build_query(
     created_to: str = "",
 ) -> str:
     """
-    Polarion 검색 query 조합.
-    - project_name: OR
-    - eventSequence(1~5차) / created: AND, ALL이면 차수 조건 없음
+    Polarion 검색 query 조합. Polarion 링크와 같은 형태:
+      created:[F TO T] AND eventSequence.KEY:N AND (project_name:"A" OR project_name:B)
+    - project_name: OR, eventSequence(1~5차) / created: AND, ALL이면 차수 조건 없음
     """
     parts: list[str] = []
-
-    names = normalize_project_names(project_name)
-    if names:
-        joined = " OR ".join(_quote_polarion_value(name) for name in names)
-        parts.append(f"project_name:({joined})")
-
-    seq = (event_sequence or "").strip()
-    if seq and seq.upper() != "ALL":
-        parts.append(f"eventSequence.KEY:{seq}")
 
     from_d = to_polarion_date(created_from)
     to_d = to_polarion_date(created_to)
@@ -213,6 +211,15 @@ def build_query(
         parts.append(f"created:[{from_d} TO *]")
     elif to_d:
         parts.append(f"created:[* TO {to_d}]")
+
+    seq = (event_sequence or "").strip()
+    if seq and seq.upper() != "ALL":
+        parts.append(f"eventSequence.KEY:{seq}")
+
+    names = normalize_project_names(project_name)
+    if names:
+        clauses = [f"project_name:{_quote_polarion_value(name)}" for name in names]
+        parts.append(clauses[0] if len(clauses) == 1 else f"({' OR '.join(clauses)})")
 
     if model_name:
         parts.append(f"model_name:{_quote_polarion_value(model_name)}")

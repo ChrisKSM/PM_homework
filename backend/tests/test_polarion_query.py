@@ -8,9 +8,12 @@ from polarion_client import build_query, normalize_project_names, to_polarion_da
 
 H7 = "[MR_Minor] 26년 Sound Suite H7 정기 MR8 (9월)"
 M7 = "2025_M7_NA_B_HW"
-TARGET_103 = (
-    f'project_name:("{H7}" OR "{M7}") '
-    "AND created:[20260909 TO 20260926]"
+PROJECTS = f'(project_name:"{H7}" OR project_name:{M7})'
+TARGET_103 = f"created:[20260909 TO 20260926] AND {PROJECTS}"
+# 사용자가 Polarion 링크로 확인한 1차 쿼리 (URL decode)
+LINK_1CHA = (
+    'created:[20260909 TO 20260926] AND eventSequence.KEY:1 AND '
+    '(project_name:"[MR_Minor] 26년 Sound Suite H7 정기 MR8 (9월)" OR project_name:2025_M7_NA_B_HW)'
 )
 
 
@@ -34,14 +37,17 @@ class PolarionQueryTests(unittest.TestCase):
         )
         self.assertEqual(query, TARGET_103)
 
-    def test_specific_sequence_is_and(self):
+    def test_1cha_matches_polarion_link(self):
         query = build_query(
             project_name=[H7, M7],
-            event_sequence="3",
-            created_from="20260909",
-            created_to="20260926",
+            event_sequence="1",
+            created_from="2026-09-09",
+            created_to="2026-09-26",
         )
-        self.assertEqual(query, f"{TARGET_103.split(' AND created')[0]} AND eventSequence.KEY:3 AND created:[20260909 TO 20260926]")
+        self.assertEqual(query, LINK_1CHA)
+
+    def test_single_project_has_no_parentheses(self):
+        self.assertEqual(build_query(project_name=[M7]), f"project_name:{M7}")
 
     def test_empty_project_name_omits_clause(self):
         self.assertNotIn("project_name:", build_query(project_name="", event_sequence="1"))

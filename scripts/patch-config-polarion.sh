@@ -40,4 +40,14 @@ else:
         )
     p.write_text(t, encoding="utf-8")
     print("  + polarion fields added to config.py")
+
+t = p.read_text(encoding="utf-8")
+if "polarion_list_path" not in t:
+    t = t.replace(
+        "    polarion_verify_ssl: bool = False\n",
+        "    polarion_verify_ssl: bool = False\n    polarion_list_path: str = \"workitems\"\n",
+        1,
+    )
+    p.write_text(t, encoding="utf-8")
+    print("  + polarion_list_path added to config.py")
 PY
