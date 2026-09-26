@@ -3,7 +3,6 @@ import Layout from './components/layout/Layout'
 import ManagerDashboard from './pages/ManagerDashboard'
 import DevTeamDashboard from './pages/DevTeamDashboard'
 import PlanningTraceabilityPage from './pages/PlanningTraceabilityPage'
-import QualityDashboardPage from './pages/QualityDashboardPage'
 import ProcurementDashboardPage from './pages/ProcurementDashboardPage'
 import ReleaseSprintPlanPage from './pages/ReleaseSprintPlanPage'
 import RiskDashboardPage from './pages/RiskDashboardPage'
@@ -19,8 +18,8 @@ export default function App() {
           <Route path="devteam" element={<DevTeamDashboard />} />
           <Route path="sprint-plan" element={<ReleaseSprintPlanPage />} />
           <Route path="planning" element={<PlanningTraceabilityPage />} />
-          <Route path="quality" element={<QualityDashboardPage />} />
-          <Route path="mr-quality" element={<MrQualityPage />} />
+          <Route path="quality" element={<MrQualityPage />} />
+          <Route path="mr-quality" element={<Navigate to="/quality" replace />} />
           <Route path="procurement" element={<ProcurementDashboardPage />} />
           <Route path="risk" element={<RiskDashboardPage />} />
         </Route>
