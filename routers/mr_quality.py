@@ -1,7 +1,7 @@
 """H7/M7/W7 MR 품질 이슈 API — Polarion testDefect 연동."""
 from fastapi import APIRouter, HTTPException, Query
 
-from polarion_client import fetch_list_page, normalize_project_names
+from polarion_client import fetch_list_page, flatten_workitem, normalize_project_names
 from services import mr_quality_service
 
 router = APIRouter(prefix="/api/mr/quality", tags=["mr-quality"])
@@ -29,7 +29,12 @@ async def mr_quality_raw(
         rows, total = await fetch_list_page(page=1, query=query, page_size=5)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Polarion API 오류: {e}")
-    return {"query": query, "totalCount": total, "sample": rows[:2]}
+    return {
+        "query": query,
+        "totalCount": total,
+        "sample": rows[:2],
+        "sampleFlattened": [flatten_workitem(r) for r in rows[:2]],
+    }
 
 
 @router.get("/sequences")

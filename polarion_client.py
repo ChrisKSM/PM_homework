@@ -116,14 +116,56 @@ async def fetch_list_page(
 async def fetch_detail(self_url: str) -> dict[str, Any]:
     """workitem 상세 조회 (self link 사용)."""
     resp = await _get_with_retry(self_url)
-    data = resp.json()
-    attrs = data.get("attributes", data) if isinstance(data, dict) else data
-    return attrs
+    return flatten_workitem(resp.json())
+
+
+_WRAPPER_KEYS = ("data", "workitem", "workItem", "workitems", "workItems", "attributes", "fields")
+
+
+def flatten_workitem(obj: Any, _depth: int = 0) -> dict[str, Any]:
+    """
+    Polarion 응답의 감싸는 층({"data": [{"workitem": {...}}]}, attributes 등)을 벗겨
+    한 단계 dict로 합친다. 안쪽 값이 바깥 값을 덮어쓴다.
+    """
+    if _depth > 6:
+        return {}
+    if isinstance(obj, list):
+        return flatten_workitem(obj[0], _depth + 1) if obj else {}
+    if not isinstance(obj, dict):
+        return {}
+    flat = {k: v for k, v in obj.items() if k not in _WRAPPER_KEYS}
+    for key in _WRAPPER_KEYS:
+        inner = obj.get(key)
+        if isinstance(inner, (dict, list)) and inner:
+            flat.update(flatten_workitem(inner, _depth + 1))
+    return flat
+
+
+def _last_segment(url: str) -> str:
+    return url.rstrip("/").rsplit("/", 1)[-1] if url else ""
+
+
+def workitem_id(attrs: dict[str, Any], row: dict[str, Any] | None = None) -> str:
+    for key in ("id", "workitemId", "workItemId", "workitem_id", "key"):
+        val = _safe_text(attrs, key)
+        if val:
+            return val
+    for src in (attrs, row or {}):
+        uri = src.get("uri") or (src.get("links") or {}).get("self", "")
+        if isinstance(uri, str) and uri:
+            return _last_segment(uri)
+    return ""
 
 
 def normalize_workitem(attrs: dict[str, Any], location: str = "") -> dict[str, Any]:
     """Polarion workitem 속성을 대시보드용 flat dict로 정규화."""
-    title = _safe_text(attrs, "title") or _safe_text(attrs, "name") or _safe_text(attrs, "id")
+    item_id = workitem_id(attrs)
+    title = (
+        _safe_text(attrs, "title")
+        or _safe_text(attrs, "summary")
+        or _safe_text(attrs, "name")
+        or item_id
+    )
 
     tc_package = attrs.get("TCPackage")
     test_class = attrs.get("TestClass")
@@ -132,7 +174,7 @@ def normalize_workitem(attrs: dict[str, Any], location: str = "") -> dict[str, A
     defect_cat_raw = attrs.get("defectCategory")
 
     return {
-        "id": _safe_text(attrs, "id"),
+        "id": item_id,
         "title": title,
         "status": _safe_text(attrs, "status"),
         "assignee": _safe_text(attrs, "assignee"),
@@ -228,8 +270,7 @@ def build_query(
 
 
 def _row_attrs(row: dict[str, Any]) -> dict[str, Any]:
-    attrs = row.get("attributes")
-    return attrs if isinstance(attrs, dict) else row
+    return flatten_workitem(row)
 
 
 async def _fetch_detail_batch(self_urls: list[str]) -> list[dict[str, Any] | None]:
@@ -254,7 +295,7 @@ async def fetch_all_defects_with_stats(
     model_name: str = "",
     created_from: str = "",
     created_to: str = "",
-) -> tuple[list[dict[str, Any]], dict[str, int]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """
     목록 조회 → 상세 동시 조회 → 정규화.
     상세가 없거나 실패하면 목록 row 속성으로 대체한다.
@@ -283,23 +324,25 @@ async def fetch_all_defects_with_stats(
 
     results: list[dict[str, Any]] = []
     detail_ok = 0
-    for row, detail in zip(all_rows, details):
+    sample_keys: list[str] = []
+    for idx, (row, detail) in enumerate(zip(all_rows, details)):
+        attrs = _row_attrs(row)
         if detail:
             detail_ok += 1
-            attrs = {**_row_attrs(row), **detail}
-        else:
-            attrs = _row_attrs(row)
-        item = normalize_workitem(attrs, row.get("location", ""))
+            attrs = {**attrs, **detail}
+        if not sample_keys:
+            sample_keys = sorted(attrs.keys())[:60]
+        item = normalize_workitem(attrs, str(row.get("location", "") or ""))
         if not item.get("id"):
-            item["id"] = str(row.get("id") or "")
-        if item.get("id") or item.get("title"):
-            results.append(item)
+            item["id"] = workitem_id(attrs, row) or f"row-{idx + 1}"
+        results.append(item)
 
     stats = {
         "polarionTotal": polarion_total,
         "listed": len(all_rows),
         "detailOk": detail_ok,
         "normalized": len(results),
+        "sampleKeys": sample_keys,
     }
     return results, stats
 
