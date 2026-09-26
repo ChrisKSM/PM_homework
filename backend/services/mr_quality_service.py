@@ -7,7 +7,12 @@ from __future__ import annotations
 from typing import Any
 
 from cache import cached
-from polarion_client import fetch_all_defects, build_query, normalize_project_names
+from polarion_client import (
+    build_query,
+    fetch_all_defects,
+    fetch_all_defects_with_stats,
+    normalize_project_names,
+)
 
 FIXED_STATUSES = {"fixed", "closed", "resolved", "verified", "done", "완료"}
 CRITICAL_SEVERITIES = {"critical", "major", "blocker"}
@@ -62,7 +67,7 @@ async def get_mr_quality_dashboard(
         created_from=created_from,
         created_to=created_to,
     )
-    raw = await fetch_all_defects(
+    raw, stats = await fetch_all_defects_with_stats(
         project_name=names,
         event_sequence=event_sequence,
         model_name=model_name,
@@ -135,6 +140,7 @@ async def get_mr_quality_dashboard(
         "createdFrom": created_from or "",
         "createdTo": created_to or "",
         "query": query,
+        "stats": stats,
     }
 
 

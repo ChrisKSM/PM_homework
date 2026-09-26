@@ -32,7 +32,7 @@ export interface PolarionQueryInput {
 }
 
 export function buildPolarionQuery(input: PolarionQueryInput): string {
-  const parts = ['type:testDefect']
+  const parts: string[] = []
   const names = normalizeProjectNames(input.projectNames)
 
   if (names.length) {
@@ -40,12 +40,8 @@ export function buildPolarionQuery(input: PolarionQueryInput): string {
   }
 
   const seq = (input.eventSequence || '').trim()
-  if (seq) {
-    if (seq.toUpperCase() === 'ALL') {
-      parts.push('eventSequence.1:[00000000001 TO 00000000005]')
-    } else {
-      parts.push(`eventSequence.KEY:${seq}`)
-    }
+  if (seq && seq.toUpperCase() !== 'ALL') {
+    parts.push(`eventSequence.KEY:${seq}`)
   }
 
   const fromD = toPolarionDate(input.createdFrom || '')
@@ -58,5 +54,5 @@ export function buildPolarionQuery(input: PolarionQueryInput): string {
     parts.push(`model_name:${quotePolarionValue(input.modelName)}`)
   }
 
-  return parts.join(' AND ')
+  return parts.length ? parts.join(' AND ') : 'type:testDefect'
 }
