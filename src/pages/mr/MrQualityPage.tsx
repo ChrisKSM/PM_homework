@@ -9,6 +9,8 @@ import { mrQualityApi } from '../../api/mrQualityApi'
 import type { MrQualityDashboard, ChartDataItem, MrOpenIssue } from '../../api/mrQualityApi'
 
 const MR_PROJECT = '[MR_Minor] 26년 Sound Suite H7 정기 MR8 (9월)'
+const EVENT_SEQUENCES = ['ALL', '1', '2', '3', '4', '5']
+const SEQ_LABELS: Record<string, string> = { ALL: 'ALL', '1': '1차', '2': '2차', '3': '3차', '4': '4차', '5': '5차' }
 
 // ── Mock fallback ────────────────────────────────────────────────────────────
 
@@ -84,15 +86,6 @@ export default function MrQualityPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [eventSeq, setEventSeq] = useState('ALL')
-  const [sequences, setSequences] = useState<string[]>([])
-  const [seqLoading, setSeqLoading] = useState(true)
-
-  useEffect(() => {
-    mrQualityApi.getSequences(MR_PROJECT)
-      .then((res) => setSequences(res.sequences))
-      .catch(() => setSequences([]))
-      .finally(() => setSeqLoading(false))
-  }, [])
 
   const loadData = useCallback(async (seq?: string) => {
     setLoading(true)
@@ -146,39 +139,22 @@ export default function MrQualityPage() {
               <Filter size={14} />
               <span className="font-medium">차수</span>
             </div>
-            {seqLoading ? (
-              <div className="flex items-center gap-2 text-xs text-gray-400">
-                <Loader2 size={12} className="animate-spin" /> 차수 로딩 중...
-              </div>
-            ) : (
-              <div className="flex gap-1.5">
+            <div className="flex gap-1.5">
+              {EVENT_SEQUENCES.map((seq) => (
                 <button
-                  onClick={() => handleSeqChange('ALL')}
+                  key={seq}
+                  onClick={() => handleSeqChange(seq)}
                   className={clsx(
                     'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border',
-                    eventSeq === 'ALL'
+                    eventSeq === seq
                       ? 'bg-lg-red text-white border-lg-red'
                       : 'bg-white text-gray-600 border-surface-border hover:bg-surface-page'
                   )}
                 >
-                  ALL
+                  {SEQ_LABELS[seq] || seq}
                 </button>
-                {sequences.map((seq) => (
-                  <button
-                    key={seq}
-                    onClick={() => handleSeqChange(seq)}
-                    className={clsx(
-                      'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border',
-                      eventSeq === seq
-                        ? 'bg-lg-red text-white border-lg-red'
-                        : 'bg-white text-gray-600 border-surface-border hover:bg-surface-page'
-                    )}
-                  >
-                    {seq}
-                  </button>
-                ))}
-              </div>
-            )}
+              ))}
+            </div>
             <div className="ml-auto text-xs text-gray-400 truncate max-w-md">
               {MR_PROJECT}
             </div>

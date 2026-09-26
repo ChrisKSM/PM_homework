@@ -154,8 +154,12 @@ def build_query(
         escaped = _escape_polarion_value(project_name)
         parts.append(f"project_name:({escaped})")
 
-    if event_sequence and event_sequence.upper() != "ALL":
-        parts.append(f"eventSequence.KEY:{event_sequence}")
+    if event_sequence:
+        seq = event_sequence.strip()
+        if seq.upper() == "ALL":
+            parts.append("eventSequence.1:[00000000001 TO 00000000005]")
+        else:
+            parts.append(f"eventSequence.KEY:{seq}")
 
     if model_name:
         parts.append(f'model_name:"{model_name}"')
