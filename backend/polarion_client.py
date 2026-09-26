@@ -14,7 +14,7 @@ from config import settings
 if not settings.polarion_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
 
-TIMEOUT = 60.0
+TIMEOUT = 120.0
 MAX_PAGES = 50
 SLEEP_BETWEEN = 0.05
 
