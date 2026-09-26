@@ -86,5 +86,33 @@ class FetchFallbackTests(unittest.TestCase):
         self.assertEqual(stats["normalized"], 1)
 
 
+    def test_nested_detail_and_row_without_id_are_kept(self):
+        rows = [
+            {"links": {"self": "http://x/workitems/AVS-101"}},
+            {"links": {"self": "http://x/workitems/AVS-102"}},
+        ]
+        nested = {
+            "http://x/workitems/AVS-101": {"data": [{"workitem": {"attributes": {
+                "title": "BT 끊김", "status": {"id": "open"}, "model_name": "H7"}}}]},
+            "http://x/workitems/AVS-102": {"data": {"attributes": {"title": "팝노이즈", "status": "fixed"}}},
+        }
+
+        async def fake_page(page=1, query="", page_size=100):
+            return (rows, 2) if page == 1 else ([], 2)
+
+        async def fake_detail(url):
+            return pc.flatten_workitem(nested[url])
+
+        with mock.patch.object(pc, "fetch_list_page", fake_page), mock.patch.object(pc, "fetch_detail", fake_detail):
+            items, stats = asyncio.run(pc.fetch_all_defects_with_stats(project_name=[H7]))
+
+        self.assertEqual(stats["normalized"], 2)
+        self.assertEqual([i["id"] for i in items], ["AVS-101", "AVS-102"])
+        self.assertEqual(items[0]["title"], "BT 끊김")
+        self.assertEqual(items[0]["status"], "open")
+        self.assertEqual(items[0]["model"], "H7")
+        self.assertEqual(items[1]["status"], "fixed")
+
+
 if __name__ == "__main__":
     unittest.main()
