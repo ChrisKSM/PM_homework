@@ -158,8 +158,8 @@ async def fetch_all_defects(
     model_name: str = "",
 ) -> list[dict[str, Any]]:
     """
-    testDefect 조회 → 정규화.
-    project_name, eventSequence, model_name으로 필터 가능.
+    testDefect 목록 조회 → 정규화.
+    상세 API 호출 없이 목록 데이터만으로 처리 (성능 최적화).
     """
     query = build_query(
         project_name=project_name,
@@ -176,17 +176,8 @@ async def fetch_all_defects(
 
     results: list[dict[str, Any]] = []
     for row in all_rows:
-        self_url = (row.get("links") or {}).get("self", "")
         location = row.get("location", "")
-
-        if self_url:
-            try:
-                attrs = await fetch_detail(self_url)
-            except Exception:
-                attrs = row.get("attributes", row)
-        else:
-            attrs = row.get("attributes", row)
-
+        attrs = row.get("attributes", row)
         item = normalize_workitem(attrs, location)
         if item.get("id") or item.get("title"):
             results.append(item)
