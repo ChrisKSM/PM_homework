@@ -115,6 +115,10 @@ export default function MrQualityPage() {
     const names = overrides?.names ?? projectNames
     const from = overrides?.from ?? createdFrom
     const to = overrides?.to ?? createdTo
+    if (names.length === 0) {
+      setError('프로젝트 이름을 1개 이상 입력하세요')
+      return
+    }
     setLoading(true)
     setError('')
     try {

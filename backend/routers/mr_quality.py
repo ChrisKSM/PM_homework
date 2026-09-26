@@ -6,6 +6,11 @@ from services import mr_quality_service
 
 router = APIRouter(prefix="/api/mr/quality", tags=["mr-quality"])
 
+NO_PROJECT_DETAIL = (
+    "project_name을 1개 이상 지정하세요. "
+    "프로젝트 없이 조회하면 Polarion 전체 testDefect를 긁어 503이 납니다."
+)
+
 
 @router.get("/ping")
 async def mr_quality_ping():
@@ -19,6 +24,8 @@ async def mr_quality_sequences(
 ):
     """project_name에 해당하는 eventSequence 차수 목록 반환."""
     names = normalize_project_names(project_name)
+    if not names:
+        raise HTTPException(status_code=400, detail=NO_PROJECT_DETAIL)
     try:
         sequences = await mr_quality_service.get_event_sequences(project_name=names)
         return {"sequences": sequences, "projectNames": names}
@@ -35,9 +42,12 @@ async def mr_quality_dashboard(
     created_to: str = Query("", description="생성일 To (YYYY-MM-DD 또는 YYYYMMDD, AND)"),
 ):
     """MR 품질 이슈 대시보드 — KPI, 차트 데이터, 미결 이슈 목록."""
+    names = normalize_project_names(project_name)
+    if not names:
+        raise HTTPException(status_code=400, detail=NO_PROJECT_DETAIL)
     try:
         return await mr_quality_service.get_mr_quality_dashboard(
-            project_name=normalize_project_names(project_name),
+            project_name=names,
             event_sequence=event_sequence,
             model_name=model,
             created_from=created_from,

@@ -18,7 +18,35 @@ import asyncio
 
 TIMEOUT = 120.0
 MAX_PAGES = 50
-CONCURRENT_DETAIL = 20
+# Polarion gateway가 동시 요청이 많으면 503을 반환함
+CONCURRENT_DETAIL = 5
+RETRY_STATUSES = {429, 502, 503, 504}
+RETRY_DELAYS = (1.0, 3.0, 6.0)
+
+
+async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> httpx.Response:
+    """429/502/503/504 · 네트워크 오류 시 backoff 재시도."""
+    last_exc: Exception | None = None
+    async with httpx.AsyncClient(
+        headers=_headers(),
+        verify=settings.polarion_verify_ssl,
+        timeout=TIMEOUT,
+    ) as client:
+        for attempt in range(len(RETRY_DELAYS) + 1):
+            try:
+                resp = await client.get(url, params=params)
+                if resp.status_code in RETRY_STATUSES and attempt < len(RETRY_DELAYS):
+                    await asyncio.sleep(RETRY_DELAYS[attempt])
+                    continue
+                resp.raise_for_status()
+                return resp
+            except httpx.TransportError as exc:
+                last_exc = exc
+                if attempt < len(RETRY_DELAYS):
+                    await asyncio.sleep(RETRY_DELAYS[attempt])
+                    continue
+                raise
+    raise last_exc or RuntimeError("Polarion request failed")
 
 
 def _headers() -> dict[str, str]:
@@ -59,14 +87,8 @@ async def fetch_list_page(
         "page": page,
         "pageSize": page_size,
     }
-    async with httpx.AsyncClient(
-        headers=_headers(),
-        verify=settings.polarion_verify_ssl,
-        timeout=TIMEOUT,
-    ) as client:
-        resp = await client.get(_list_endpoint(), params=params)
-        resp.raise_for_status()
-        data = resp.json()
+    resp = await _get_with_retry(_list_endpoint(), params=params)
+    data = resp.json()
 
     # 응답 구조: {"data": [{"page":1, "totalCount":N, "workitems":[...]}]}
     #         또는 [{"page":1, ...}]
@@ -91,14 +113,8 @@ async def fetch_list_page(
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:
     """workitem 상세 조회 (self link 사용)."""
-    async with httpx.AsyncClient(
-        headers=_headers(),
-        verify=settings.polarion_verify_ssl,
-        timeout=TIMEOUT,
-    ) as client:
-        resp = await client.get(self_url)
-        resp.raise_for_status()
-        data = resp.json()
+    resp = await _get_with_retry(self_url)
+    data = resp.json()
     attrs = data.get("attributes", data) if isinstance(data, dict) else data
     return attrs
 
