@@ -35,32 +35,57 @@ export interface MrQualityDashboard {
   }
   openIssues: MrOpenIssue[]
   modelFilter: string
+  projectName?: string
+  projectNames?: string[]
+  eventSequence?: string
+  createdFrom?: string
+  createdTo?: string
+  query?: string
 }
 
 export interface MrQualityParams {
-  project_name?: string
+  project_names?: string[]
   event_sequence?: string
   model?: string
+  created_from?: string
+  created_to?: string
 }
 
 export interface MrSequencesResponse {
   sequences: string[]
-  projectName: string
+  projectNames?: string[]
+  projectName?: string
+}
+
+function toSearchParams(params?: MrQualityParams): URLSearchParams {
+  const search = new URLSearchParams()
+  for (const name of params?.project_names ?? []) {
+    const trimmed = name.trim()
+    if (trimmed) search.append('project_name', trimmed)
+  }
+  if (params?.event_sequence) search.set('event_sequence', params.event_sequence)
+  if (params?.model) search.set('model', params.model)
+  if (params?.created_from) search.set('created_from', params.created_from)
+  if (params?.created_to) search.set('created_to', params.created_to)
+  return search
 }
 
 export const mrQualityApi = {
-  getSequences: (projectName: string) =>
-    client
-      .get<MrSequencesResponse>('/mr/quality/sequences', { params: { project_name: projectName } })
-      .then((r) => r.data),
+  getSequences: (projectNames: string[]) => {
+    const search = new URLSearchParams()
+    for (const name of projectNames) {
+      if (name.trim()) search.append('project_name', name.trim())
+    }
+    return client
+      .get<MrSequencesResponse>(`/mr/quality/sequences?${search.toString()}`)
+      .then((r) => r.data)
+  },
 
   getDashboard: (params?: MrQualityParams) => {
-    const q: Record<string, string> = {}
-    if (params?.project_name) q.project_name = params.project_name
-    if (params?.event_sequence) q.event_sequence = params.event_sequence
-    if (params?.model) q.model = params.model
+    const search = toSearchParams(params)
+    const qs = search.toString()
     return client
-      .get<MrQualityDashboard>('/mr/quality/dashboard', { params: Object.keys(q).length ? q : undefined })
+      .get<MrQualityDashboard>(`/mr/quality/dashboard${qs ? `?${qs}` : ''}`)
       .then((r) => r.data)
   },
 }

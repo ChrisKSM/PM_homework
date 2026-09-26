@@ -139,28 +139,51 @@ def normalize_workitem(attrs: dict[str, Any], location: str = "") -> dict[str, A
     }
 
 
-def _escape_polarion_value(value: str) -> str:
-    """Polarion query 특수문자 이스케이프 — [] () 등."""
-    return (
-        value
-        .replace("[", "\\[")
-        .replace("]", "\\]")
-        .replace("(", "\\(")
-        .replace(")", "\\)")
-    )
+def _quote_polarion_value(value: str) -> str:
+    """Polarion Lucene 값 인용 — 공백/[]() 는 따옴표로 보호."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def normalize_project_names(project_name: str | list[str] | None) -> list[str]:
+    """단일/복수 project_name 입력을 중복 없는 리스트로 정규화."""
+    if project_name is None:
+        return []
+    items = [project_name] if isinstance(project_name, str) else list(project_name)
+    seen: set[str] = set()
+    names: list[str] = []
+    for item in items:
+        name = (item or "").strip()
+        if name and name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
+def to_polarion_date(value: str) -> str:
+    """YYYY-MM-DD / YYYYMMDD → Polarion YYYYMMDD."""
+    digits = "".join(ch for ch in (value or "") if ch.isdigit())
+    return digits[:8] if len(digits) >= 8 else ""
 
 
 def build_query(
-    project_name: str = "",
+    project_name: str | list[str] = "",
     event_sequence: str = "",
     model_name: str = "",
+    created_from: str = "",
+    created_to: str = "",
 ) -> str:
-    """Polarion testDefect 검색 query 조합."""
+    """
+    Polarion testDefect 검색 query 조합.
+    - project_name: OR
+    - eventSequence / created: AND
+    """
     parts = ["type:testDefect"]
 
-    if project_name:
-        escaped = _escape_polarion_value(project_name)
-        parts.append(f"project_name:({escaped})")
+    names = normalize_project_names(project_name)
+    if names:
+        joined = " OR ".join(_quote_polarion_value(name) for name in names)
+        parts.append(f"project_name:({joined})")
 
     if event_sequence:
         seq = event_sequence.strip()
@@ -169,8 +192,17 @@ def build_query(
         else:
             parts.append(f"eventSequence.KEY:{seq}")
 
+    from_d = to_polarion_date(created_from)
+    to_d = to_polarion_date(created_to)
+    if from_d and to_d:
+        parts.append(f"created:[{from_d} TO {to_d}]")
+    elif from_d:
+        parts.append(f"created:[{from_d} TO *]")
+    elif to_d:
+        parts.append(f"created:[* TO {to_d}]")
+
     if model_name:
-        parts.append(f'model_name:"{model_name}"')
+        parts.append(f"model_name:{_quote_polarion_value(model_name)}")
 
     return " AND ".join(parts)
 
@@ -192,9 +224,11 @@ async def _fetch_detail_batch(self_urls: list[str]) -> list[dict[str, Any]]:
 
 
 async def fetch_all_defects(
-    project_name: str = "",
+    project_name: str | list[str] = "",
     event_sequence: str = "",
     model_name: str = "",
+    created_from: str = "",
+    created_to: str = "",
 ) -> list[dict[str, Any]]:
     """
     testDefect 목록 조회 → 상세 동시 조회 → 정규화.
@@ -203,6 +237,8 @@ async def fetch_all_defects(
         project_name=project_name,
         event_sequence=event_sequence,
         model_name=model_name,
+        created_from=created_from,
+        created_to=created_to,
     )
 
     all_rows: list[dict] = []

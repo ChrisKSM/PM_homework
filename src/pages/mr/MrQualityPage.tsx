@@ -1,14 +1,21 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type FormEvent, type KeyboardEvent } from 'react'
 import Header from '../../components/layout/Header'
 import SectionCard from '../../components/cards/SectionCard'
 import KpiCard from '../../components/cards/KpiCard'
-import { Bug, CheckCircle2, AlertCircle, ShieldAlert, Loader2, RefreshCw, Filter } from 'lucide-react'
+import DatePickerField from '../../components/mr/DatePickerField'
+import { Bug, CheckCircle2, AlertCircle, ShieldAlert, Loader2, RefreshCw, Filter, Plus, X, Search } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
 import clsx from 'clsx'
 import { mrQualityApi } from '../../api/mrQualityApi'
-import type { MrQualityDashboard, ChartDataItem, MrOpenIssue } from '../../api/mrQualityApi'
+import type { MrQualityDashboard, ChartDataItem } from '../../api/mrQualityApi'
+import { buildPolarionQuery } from '../../utils/polarionQuery'
 
-const MR_PROJECT = '[MR_Minor] 26년 Sound Suite H7 정기 MR8 (9월)'
+const DEFAULT_PROJECTS = [
+  '[MR_Minor] 26년 Sound Suite H7 정기 MR8 (9월)',
+  '2025_M7_NA_B_HW',
+]
+const DEFAULT_FROM = '2026-09-09'
+const DEFAULT_TO = '2026-09-26'
 const EVENT_SEQUENCES = ['ALL', '1', '2', '3', '4', '5']
 const SEQ_LABELS: Record<string, string> = { ALL: 'ALL', '1': '1차', '2': '2차', '3': '3차', '4': '4차', '5': '5차' }
 
@@ -86,79 +93,213 @@ export default function MrQualityPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [eventSeq, setEventSeq] = useState('ALL')
+  const [projectNames, setProjectNames] = useState<string[]>(DEFAULT_PROJECTS)
+  const [projectDraft, setProjectDraft] = useState('')
+  const [createdFrom, setCreatedFrom] = useState(DEFAULT_FROM)
+  const [createdTo, setCreatedTo] = useState(DEFAULT_TO)
 
-  const loadData = useCallback(async (seq?: string) => {
+  const previewQuery = buildPolarionQuery({
+    projectNames,
+    eventSequence: eventSeq,
+    createdFrom,
+    createdTo,
+  })
+
+  const loadData = useCallback(async (overrides?: {
+    eventSequence?: string
+    names?: string[]
+    from?: string
+    to?: string
+  }) => {
+    const seq = overrides?.eventSequence ?? eventSeq
+    const names = overrides?.names ?? projectNames
+    const from = overrides?.from ?? createdFrom
+    const to = overrides?.to ?? createdTo
     setLoading(true)
     setError('')
     try {
       const result = await mrQualityApi.getDashboard({
-        project_name: MR_PROJECT,
-        event_sequence: seq ?? eventSeq,
+        project_names: names,
+        event_sequence: seq,
+        created_from: from,
+        created_to: to,
       })
       setData(result)
     } catch (e: any) {
       console.warn('[MR Quality] API 실패 → Mock fallback:', e?.message)
       setError(e?.response?.data?.detail || e?.message || 'API 호출 실패')
-      setData(MOCK_DATA)
+      setData({
+        ...MOCK_DATA,
+        query: buildPolarionQuery({
+          projectNames: names,
+          eventSequence: seq,
+          createdFrom: from,
+          createdTo: to,
+        }),
+        projectNames: names,
+        createdFrom: from,
+        createdTo: to,
+        eventSequence: seq,
+      })
     } finally {
       setLoading(false)
     }
-  }, [eventSeq])
+  }, [eventSeq, projectNames, createdFrom, createdTo])
 
   useEffect(() => { loadData() }, [])
 
-  const handleSeqChange = (seq: string) => {
-    setEventSeq(seq)
-    loadData(seq)
+  const addProjectName = () => {
+    const name = projectDraft.trim()
+    if (!name || projectNames.includes(name)) {
+      setProjectDraft('')
+      return
+    }
+    setProjectNames([...projectNames, name])
+    setProjectDraft('')
   }
 
-  if (loading) {
-    return (
-      <>
-        <Header title="품질 이슈 현황" subtitle="H7/M7/W7 9월 MR — Defect 현황 및 미결 이슈 추적" />
-        <div className="pt-16 p-6 flex items-center justify-center h-64">
-          <Loader2 size={24} className="text-lg-red animate-spin" />
-        </div>
-      </>
-    )
+  const removeProjectName = (name: string) => {
+    setProjectNames(projectNames.filter((item) => item !== name))
+  }
+
+  const handleDraftKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      addProjectName()
+    }
+  }
+
+  const handleApply = (e?: FormEvent) => {
+    e?.preventDefault()
+    const nextNames = [...projectNames]
+    const draft = projectDraft.trim()
+    if (draft && !nextNames.includes(draft)) nextNames.push(draft)
+    if (draft) {
+      setProjectNames(nextNames)
+      setProjectDraft('')
+    }
+    loadData({ names: nextNames })
+  }
+
+  const handleSeqChange = (seq: string) => {
+    setEventSeq(seq)
+    loadData({ eventSequence: seq })
   }
 
   const kpi = data?.kpi || MOCK_DATA.kpi
   const charts = data?.charts || MOCK_DATA.charts
   const openIssues = data?.openIssues || MOCK_DATA.openIssues
+  const appliedQuery = previewQuery
 
   return (
     <>
       <Header title="품질 이슈 현황" subtitle="H7/M7/W7 9월 MR — Defect 현황 및 미결 이슈 추적" />
 
       <div className="pt-16 p-6 space-y-6">
-        {/* 필터 */}
-        <SectionCard title="이벤트 차수 필터">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5 text-sm text-gray-500">
-              <Filter size={14} />
-              <span className="font-medium">차수</span>
-            </div>
-            <div className="flex gap-1.5">
-              {EVENT_SEQUENCES.map((seq) => (
+        <SectionCard
+          title="조회 필터"
+          subtitle="프로젝트 이름 OR · 차수 AND · 생성일 AND"
+        >
+          <form onSubmit={handleApply} className="space-y-4">
+            <div>
+              <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                <Filter size={14} />
+                <span className="font-medium">프로젝트 이름</span>
+                <span className="text-xs text-gray-400">OR 조건 · 다른 모델도 추가 가능</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {projectNames.map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 max-w-full px-2.5 py-1 rounded-lg bg-lg-red-light text-gray-800 text-xs font-medium border border-red-100"
+                  >
+                    <span className="truncate">{name}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeProjectName(name)}
+                      className="text-gray-500 hover:text-lg-red"
+                      aria-label={`${name} 제거`}
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+                {projectNames.length === 0 && (
+                  <span className="text-xs text-amber-600">프로젝트 이름이 없으면 전체 모델이 조회됩니다</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={projectDraft}
+                  onChange={(e) => setProjectDraft(e.target.value)}
+                  onKeyDown={handleDraftKey}
+                  placeholder="프로젝트 이름 입력 후 Enter / 추가"
+                  className="flex-1 min-w-[220px] px-3 py-2 rounded-lg border border-surface-border text-sm text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-lg-red"
+                />
                 <button
-                  key={seq}
-                  onClick={() => handleSeqChange(seq)}
-                  className={clsx(
-                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border',
-                    eventSeq === seq
-                      ? 'bg-lg-red text-white border-lg-red'
-                      : 'bg-white text-gray-600 border-surface-border hover:bg-surface-page'
-                  )}
+                  type="button"
+                  onClick={addProjectName}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-surface-border text-sm font-medium text-gray-700 hover:bg-surface-page"
                 >
-                  {SEQ_LABELS[seq] || seq}
+                  <Plus size={14} />
+                  추가
                 </button>
-              ))}
+              </div>
             </div>
-            <div className="ml-auto text-xs text-gray-400 truncate max-w-md">
-              {MR_PROJECT}
+
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-1.5 text-sm text-gray-500">
+                <span className="font-medium">차수</span>
+                <span className="text-xs text-gray-400">AND</span>
+              </div>
+              <div className="flex gap-1.5 flex-wrap">
+                {EVENT_SEQUENCES.map((seq) => (
+                  <button
+                    key={seq}
+                    type="button"
+                    onClick={() => handleSeqChange(seq)}
+                    className={clsx(
+                      'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border',
+                      eventSeq === seq
+                        ? 'bg-lg-red text-white border-lg-red'
+                        : 'bg-white text-gray-600 border-surface-border hover:bg-surface-page'
+                    )}
+                  >
+                    {SEQ_LABELS[seq] || seq}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+
+            <div className="flex items-end gap-4 flex-wrap">
+              <DatePickerField
+                label="From (AND)"
+                value={createdFrom}
+                onChange={setCreatedFrom}
+                max={createdTo || undefined}
+              />
+              <span className="text-gray-400 pb-2">~</span>
+              <DatePickerField
+                label="To (AND)"
+                value={createdTo}
+                onChange={setCreatedTo}
+                min={createdFrom || undefined}
+              />
+              <button
+                type="submit"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-lg-red text-white text-sm font-semibold hover:bg-lg-red-mid"
+              >
+                <Search size={14} />
+                조회
+              </button>
+            </div>
+
+            <div className="rounded-lg bg-surface-page border border-surface-border px-3 py-2">
+              <p className="text-[11px] font-semibold text-gray-500 mb-1">Polarion query</p>
+              <p className="text-xs font-mono text-gray-700 break-all">{appliedQuery}</p>
+            </div>
+          </form>
         </SectionCard>
 
         {error && (
@@ -168,6 +309,21 @@ export default function MrQualityPage() {
           </div>
         )}
 
+        {loading && !data && (
+          <div className="flex items-center justify-center h-48">
+            <Loader2 size={24} className="text-lg-red animate-spin" />
+          </div>
+        )}
+
+        {loading && data && (
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Loader2 size={14} className="text-lg-red animate-spin" />
+            Polarion 조회 중...
+          </div>
+        )}
+
+        {data && (
+        <>
         {/* Row 1: KPI */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard label="전체 이슈" value={kpi.total} icon={<Bug size={16} />} />
@@ -190,7 +346,7 @@ export default function MrQualityPage() {
         >
           <div className="flex justify-end mb-3">
             <button
-              onClick={loadData}
+              onClick={() => loadData()}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 bg-surface-page border border-surface-border rounded-lg hover:bg-gray-100 transition-colors"
             >
               <RefreshCw size={12} />
@@ -241,6 +397,8 @@ export default function MrQualityPage() {
             </table>
           </div>
         </SectionCard>
+        </>
+        )}
       </div>
     </>
   )

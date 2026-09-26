@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from cache import cached
-from polarion_client import fetch_all_defects, build_query, fetch_list_page
+from polarion_client import fetch_all_defects, build_query, normalize_project_names
 
 FIXED_STATUSES = {"fixed", "closed", "resolved", "verified", "done", "완료"}
 CRITICAL_SEVERITIES = {"critical", "major", "blocker"}
@@ -47,15 +47,27 @@ def _count_by(items: list[dict], field: str) -> list[dict[str, Any]]:
 
 @cached(ttl=300)
 async def get_mr_quality_dashboard(
-    project_name: str = "",
+    project_name: str | list[str] = "",
     event_sequence: str = "",
     model_name: str = "",
+    created_from: str = "",
+    created_to: str = "",
 ) -> dict[str, Any]:
     """MR 품질 이슈 대시보드 데이터."""
-    raw = await fetch_all_defects(
-        project_name=project_name,
+    names = normalize_project_names(project_name)
+    query = build_query(
+        project_name=names,
         event_sequence=event_sequence,
         model_name=model_name,
+        created_from=created_from,
+        created_to=created_to,
+    )
+    raw = await fetch_all_defects(
+        project_name=names,
+        event_sequence=event_sequence,
+        model_name=model_name,
+        created_from=created_from,
+        created_to=created_to,
     )
 
     for item in raw:
@@ -117,15 +129,19 @@ async def get_mr_quality_dashboard(
         },
         "openIssues": open_rows,
         "modelFilter": model_name or "all",
-        "projectName": project_name or "",
+        "projectName": names[0] if names else "",
+        "projectNames": names,
         "eventSequence": event_sequence or "ALL",
+        "createdFrom": created_from or "",
+        "createdTo": created_to or "",
+        "query": query,
     }
 
 
 @cached(ttl=600)
-async def get_event_sequences(project_name: str = "") -> list[str]:
+async def get_event_sequences(project_name: str | list[str] = "") -> list[str]:
     """project_name에 해당하는 eventSequence 목록 추출."""
-    raw = await fetch_all_defects(project_name=project_name)
+    raw = await fetch_all_defects(project_name=normalize_project_names(project_name))
     sequences: set[str] = set()
     for item in raw:
         seq = item.get("eventSequence", "").strip()
