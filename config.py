@@ -67,6 +67,7 @@ class Settings(BaseSettings):
     polarion_project_key: str = "AVSWRelProjMgmt"
     polarion_pat: str = "eyJraWQiOiI4YzMwOWFkZi0wYTAxYWIxMC01M2Q4YmIyNS05NDNkMzQ0NSIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJzZW9rbWluLmtvaCIsImlkIjoiYmQwMjk3NDYtMGEwMWFiNzEtMWEzNWJiNjktMjkyNjNhYmMiLCJleHAiOjE3OTc2NTM0NTgsImlhdCI6MTc4OTg3NzQ1OH0.JOniYpEMcW_jB3HNuNtoqZIDYPPfs8AjdbpqIxoe8QXG3XkDXkQTjI5dnVGzej3J1ABCXUe0QxURKHPyT8npNZ3IY1IFCNg3hZSaZOI2oOkaznG4xvXN5wPUSNE9pdR4l-FiZU2OBHuHf-XGgo1WOaDEn8qUE3hhfkJHNB6a8jo7ZJEaPY8PSHKbwYFCgvfnvbs_CHKKn1nCYBK67zmavwiDsGe6rlImgnZyaVQ_GdGZQRk27cKXAuT6g92UDCFXV_F689I3Ofpi7AXSg_PuLoEuIQicWxjfpA4Do7D6TXWm-BF0Uf6oKuBO5xyiq7MY1ZijxzjP3o3N6uRCBRzyzg"
     polarion_verify_ssl: bool = False
+    polarion_list_path: str = "workitems"
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
