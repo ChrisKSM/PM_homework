@@ -18,7 +18,7 @@ import asyncio
 
 TIMEOUT = 120.0
 MAX_PAGES = 50
-CONCURRENT_DETAIL = 10
+CONCURRENT_DETAIL = 20
 
 
 def _headers() -> dict[str, str]:
@@ -68,12 +68,20 @@ async def fetch_list_page(
         resp.raise_for_status()
         data = resp.json()
 
-    # 응답 구조: [{"page":1, "totalCount":N, "workitems":[...]}] 또는 {"workitems":[...]}
-    if isinstance(data, list) and data and isinstance(data[0], dict):
+    # 응답 구조: {"data": [{"page":1, "totalCount":N, "workitems":[...]}]}
+    #         또는 [{"page":1, ...}]
+    #         또는 {"workitems":[...]}
+    if isinstance(data, dict) and "data" in data:
+        inner = data["data"]
+        obj = inner[0] if isinstance(inner, list) and inner else inner
+    elif isinstance(data, list) and data and isinstance(data[0], dict):
         obj = data[0]
     elif isinstance(data, dict):
         obj = data
     else:
+        return [], 0
+
+    if not isinstance(obj, dict):
         return [], 0
 
     workitems = obj.get("workitems", [])
