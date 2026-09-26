@@ -118,12 +118,54 @@ def normalize_workitem(attrs: dict[str, Any], location: str = "") -> dict[str, A
     }
 
 
-async def fetch_all_defects(model_name: str = "") -> list[dict[str, Any]]:
+def _escape_polarion_value(value: str) -> str:
+    """Polarion query 특수문자 이스케이프 — [] () 등."""
+    return (
+        value
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+    )
+
+
+def build_query(
+    project_name: str = "",
+    event_sequence: str = "",
+    model_name: str = "",
+) -> str:
+    """Polarion testDefect 검색 query 조합."""
+    parts = ["type:testDefect"]
+
+    if project_name:
+        escaped = _escape_polarion_value(project_name)
+        parts.append(f"project_name:({escaped})")
+
+    if event_sequence and event_sequence.upper() != "ALL":
+        parts.append(f'eventSequence:"{event_sequence}"')
+    elif project_name:
+        parts.append("HAS_VALUE:eventSequence")
+
+    if model_name:
+        parts.append(f'model_name:"{model_name}"')
+
+    return " AND ".join(parts)
+
+
+async def fetch_all_defects(
+    project_name: str = "",
+    event_sequence: str = "",
+    model_name: str = "",
+) -> list[dict[str, Any]]:
     """
-    testDefect 전체 조회 → 정규화.
-    model_name이 지정되면 해당 모델만 필터.
+    testDefect 조회 → 정규화.
+    project_name, eventSequence, model_name으로 필터 가능.
     """
-    query = f'type:testDefect AND model_name:"{model_name}"' if model_name else "type:testDefect"
+    query = build_query(
+        project_name=project_name,
+        event_sequence=event_sequence,
+        model_name=model_name,
+    )
 
     all_rows: list[dict] = []
     for page in range(1, MAX_PAGES + 1):

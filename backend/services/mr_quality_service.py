@@ -46,9 +46,17 @@ def _count_by(items: list[dict], field: str) -> list[dict[str, Any]]:
 
 
 @cached(ttl=300)
-async def get_mr_quality_dashboard(model_name: str = "") -> dict[str, Any]:
+async def get_mr_quality_dashboard(
+    project_name: str = "",
+    event_sequence: str = "",
+    model_name: str = "",
+) -> dict[str, Any]:
     """MR 품질 이슈 대시보드 데이터."""
-    raw = await fetch_all_defects(model_name=model_name)
+    raw = await fetch_all_defects(
+        project_name=project_name,
+        event_sequence=event_sequence,
+        model_name=model_name,
+    )
 
     for item in raw:
         item["source"] = _guess_source(item)
@@ -109,4 +117,6 @@ async def get_mr_quality_dashboard(model_name: str = "") -> dict[str, Any]:
         },
         "openIssues": open_rows,
         "modelFilter": model_name or "all",
+        "projectName": project_name or "",
+        "eventSequence": event_sequence or "ALL",
     }

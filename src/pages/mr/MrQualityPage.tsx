@@ -2,10 +2,14 @@ import { useState, useEffect, useCallback } from 'react'
 import Header from '../../components/layout/Header'
 import SectionCard from '../../components/cards/SectionCard'
 import KpiCard from '../../components/cards/KpiCard'
-import { Bug, CheckCircle2, AlertCircle, ShieldAlert, Loader2, RefreshCw } from 'lucide-react'
+import { Bug, CheckCircle2, AlertCircle, ShieldAlert, Loader2, RefreshCw, Filter } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from 'recharts'
+import clsx from 'clsx'
 import { mrQualityApi } from '../../api/mrQualityApi'
 import type { MrQualityDashboard, ChartDataItem, MrOpenIssue } from '../../api/mrQualityApi'
+
+const MR_PROJECT = '[MR_Minor] 26년 Sound Suite H7 정기 MR8 (9월)'
+const EVENT_SEQUENCES = ['ALL', '1차', '2차', '3차']
 
 // ── Mock fallback ────────────────────────────────────────────────────────────
 
@@ -80,12 +84,16 @@ export default function MrQualityPage() {
   const [data, setData] = useState<MrQualityDashboard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [eventSeq, setEventSeq] = useState('ALL')
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (seq?: string) => {
     setLoading(true)
     setError('')
     try {
-      const result = await mrQualityApi.getDashboard()
+      const result = await mrQualityApi.getDashboard({
+        project_name: MR_PROJECT,
+        event_sequence: seq ?? eventSeq,
+      })
       setData(result)
     } catch (e: any) {
       console.warn('[MR Quality] API 실패 → Mock fallback:', e?.message)
@@ -94,9 +102,14 @@ export default function MrQualityPage() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [eventSeq])
 
-  useEffect(() => { loadData() }, [loadData])
+  useEffect(() => { loadData() }, [])
+
+  const handleSeqChange = (seq: string) => {
+    setEventSeq(seq)
+    loadData(seq)
+  }
 
   if (loading) {
     return (
@@ -118,6 +131,35 @@ export default function MrQualityPage() {
       <Header title="품질 이슈 현황" subtitle="H7/M7/W7 9월 MR — Defect 현황 및 미결 이슈 추적" />
 
       <div className="pt-16 p-6 space-y-6">
+        {/* 필터 */}
+        <SectionCard title="이벤트 차수 필터">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-1.5 text-sm text-gray-500">
+              <Filter size={14} />
+              <span className="font-medium">차수</span>
+            </div>
+            <div className="flex gap-1.5">
+              {EVENT_SEQUENCES.map((seq) => (
+                <button
+                  key={seq}
+                  onClick={() => handleSeqChange(seq)}
+                  className={clsx(
+                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors border',
+                    eventSeq === seq
+                      ? 'bg-lg-red text-white border-lg-red'
+                      : 'bg-white text-gray-600 border-surface-border hover:bg-surface-page'
+                  )}
+                >
+                  {seq}
+                </button>
+              ))}
+            </div>
+            <div className="ml-auto text-xs text-gray-400 truncate max-w-md">
+              {MR_PROJECT}
+            </div>
+          </div>
+        </SectionCard>
+
         {error && (
           <div className="flex items-center gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
             <AlertCircle size={16} className="shrink-0" />

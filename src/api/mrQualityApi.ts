@@ -37,9 +37,20 @@ export interface MrQualityDashboard {
   modelFilter: string
 }
 
+export interface MrQualityParams {
+  project_name?: string
+  event_sequence?: string
+  model?: string
+}
+
 export const mrQualityApi = {
-  getDashboard: (model?: string) =>
-    client
-      .get<MrQualityDashboard>('/mr/quality/dashboard', { params: model ? { model } : {} })
-      .then((r) => r.data),
+  getDashboard: (params?: MrQualityParams) => {
+    const q: Record<string, string> = {}
+    if (params?.project_name) q.project_name = params.project_name
+    if (params?.event_sequence) q.event_sequence = params.event_sequence
+    if (params?.model) q.model = params.model
+    return client
+      .get<MrQualityDashboard>('/mr/quality/dashboard', { params: Object.keys(q).length ? q : undefined })
+      .then((r) => r.data)
+  },
 }

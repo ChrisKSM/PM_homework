@@ -14,10 +14,16 @@ async def mr_quality_ping():
 
 @router.get("/dashboard")
 async def mr_quality_dashboard(
+    project_name: str = Query("", description="Polarion project_name 필터"),
+    event_sequence: str = Query("ALL", description="차수 필터 (ALL, 1차, 2차, 3차)"),
     model: str = Query("", description="모델명 필터 (빈값이면 전체)"),
 ):
     """MR 품질 이슈 대시보드 — KPI, 차트 데이터, 미결 이슈 목록."""
     try:
-        return await mr_quality_service.get_mr_quality_dashboard(model_name=model)
+        return await mr_quality_service.get_mr_quality_dashboard(
+            project_name=project_name,
+            event_sequence=event_sequence,
+            model_name=model,
+        )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Polarion API 오류: {e}")
