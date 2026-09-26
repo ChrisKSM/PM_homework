@@ -7,6 +7,7 @@ import QualityDashboardPage from './pages/QualityDashboardPage'
 import ProcurementDashboardPage from './pages/ProcurementDashboardPage'
 import ReleaseSprintPlanPage from './pages/ReleaseSprintPlanPage'
 import RiskDashboardPage from './pages/RiskDashboardPage'
+import MrQualityPage from './pages/mr/MrQualityPage'
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
           <Route path="sprint-plan" element={<ReleaseSprintPlanPage />} />
           <Route path="planning" element={<PlanningTraceabilityPage />} />
           <Route path="quality" element={<QualityDashboardPage />} />
+          <Route path="mr-quality" element={<MrQualityPage />} />
           <Route path="procurement" element={<ProcurementDashboardPage />} />
           <Route path="risk" element={<RiskDashboardPage />} />
         </Route>
