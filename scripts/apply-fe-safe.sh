@@ -28,11 +28,14 @@ mkdir -p \
   src/components/planning src/components/quality src/components/procurement \
   src/components/risk src/components/mr src/pages/mr src/utils \
   src/components/charts src/components/cards \
-  src/components/layout
+  src/components/layout src/store
 
 LAYOUT_FILES="
   src/App.tsx
   src/components/layout/Sidebar.tsx
+  src/store/dashboardStore.ts
+  src/pages/mr/MrSchedulePage.tsx
+  src/pages/mr/MrBuildPlanPage.tsx
 "
 
 PLANNING_FILES="
@@ -196,22 +199,6 @@ def patch_app():
                     '<Route path="devteam" element={<DevTeamDashboard />} />\n          <Route path="procurement" element={<ProcurementDashboardPage />} />',
                 )
 
-    if "MrQualityPage" not in t:
-        if "import MrQualityPage" not in t:
-            t = t.replace(
-                "import QualityDashboardPage from './pages/QualityDashboardPage'",
-                "import MrQualityPage from './pages/mr/MrQualityPage'",
-            )
-        t = t.replace(
-            '<Route path="quality" element={<QualityDashboardPage />} />',
-            '<Route path="quality" element={<MrQualityPage />} />',
-        )
-    elif 'element={<QualityDashboardPage />}' in t:
-        t = t.replace(
-            '<Route path="quality" element={<QualityDashboardPage />} />',
-            '<Route path="quality" element={<MrQualityPage />} />',
-        )
-
     if "RiskDashboardPage" not in t:
         if "ProcurementDashboardPage" in t and "import RiskDashboardPage" not in t:
             t = t.replace(
@@ -276,8 +263,8 @@ PY
 echo ""
 echo "=== 검증 ==="
 ERR=0
-for needle in "PlanningTraceabilityPage" "MrQualityPage" "ProcurementDashboardPage" "RiskDashboardPage" "/planning" "/quality" "/procurement" "/risk" "계획 추적성" "품질 이슈" "조달 KPI" "리스크 관리"; do
-  if grep -rq "$needle" src/App.tsx src/components/layout/Sidebar.tsx 2>/dev/null; then
+for needle in "PlanningTraceabilityPage" "QualityDashboardPage" "MrQualityPage" "ProcurementDashboardPage" "RiskDashboardPage" "/planning" "/quality" "/procurement" "/risk" "계획 추적성" "품질 이슈" "조달 KPI" "리스크 관리"; do
+  if grep -rq "$needle" src/App.tsx src/components/layout/Sidebar.tsx src/store/dashboardStore.ts 2>/dev/null; then
     echo "  OK $needle"
   else
     echo "  MISSING $needle"
