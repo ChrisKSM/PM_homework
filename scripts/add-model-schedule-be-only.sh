@@ -40,9 +40,9 @@ do
 done
 
 # requirements.txt — pymilvus + setuptools (pkg_resources)
-grep -q pymilvus requirements.txt 2>/dev/null || echo "pymilvus==2.4.10" >> requirements.txt
-grep -q setuptools requirements.txt 2>/dev/null || echo "setuptools>=69.0.0" >> requirements.txt
-echo "  + requirements.txt (pymilvus, setuptools)"
+grep -q pymilvus requirements.txt 2>/dev/null || echo "pymilvus==2.5.8" >> requirements.txt
+grep -q setuptools requirements.txt 2>/dev/null || echo "setuptools>=69.0.0,<82" >> requirements.txt
+echo "  + requirements.txt (pymilvus 2.5+, setuptools<82)"
 
 sh scripts/patch-be-main-model-schedule.sh
 

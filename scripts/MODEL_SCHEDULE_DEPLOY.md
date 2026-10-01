@@ -102,7 +102,7 @@ curl -s -X POST http://127.0.0.1:8000/api/model-schedule/save \
 ### MongoDB 저장 실패 — 연결 진단
 
 ```bash
-pip install "setuptools>=69.0.0" pymilvus==2.4.10
+pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0"
 sh scripts/verify-model-schedule-mongo.sh
 curl -s http://127.0.0.1:8000/api/model-schedule/diagnose | python3 -m json.tool
 ```

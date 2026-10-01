@@ -40,7 +40,8 @@ fi
 
 echo ""
 echo "--- deps (같은 venv에 setuptools + pymilvus) ---"
-"$PY" -m pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q
+# setuptools 82+ 는 pkg_resources 제거 → pymilvus 2.4.x import 실패
+"$PY" -m pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0" -q
 
 echo ""
 echo "--- pkg_resources 확인 ---"
