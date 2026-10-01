@@ -1,4 +1,5 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import Header from '../components/layout/Header'
 import { Download, Pencil, Check, ChevronLeft, ChevronRight, Filter, X, Plus, Trash2, Undo2, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
@@ -169,19 +170,28 @@ export default function ModelSchedulePage(){
   const [editing,setEditing]=useState(false)
   const [saving,setSaving]=useState(false)
   const [loading,setLoading]=useState(true)
+  const [saveMessage,setSaveMessage]=useState<{type:'success'|'warn';text:string}|null>(null)
+  const [dataSource,setDataSource]=useState<'mongo'|'local'|'default'>('default')
+  const location=useLocation()
   const [startDate,setStartDate]=useState(new Date('2026-09-15'))
   const scrollRef=useRef<HTMLDivElement>(null)
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentLabel:string}|null>(null)
   const [changesPopup,setChangesPopup]=useState<{model:string;cat:string}|null>(null)
 
-  // MongoDB 로드
+  // MongoDB / localStorage 로드 (페이지 진입 시마다)
   useEffect(()=>{
+    let cancelled=false
+    setLoading(true)
     modelScheduleApi.load()
-      .then(res=>{if(res.rows&&res.rows.length>0)setData(res.rows as ModelRow[])})
-      .catch(()=>{})
-      .finally(()=>setLoading(false))
-  },[])
+      .then(res=>{
+        if(cancelled)return
+        if(res.rows.length>0)setData(res.rows as ModelRow[])
+        setDataSource(res.source)
+      })
+      .finally(()=>{if(!cancelled)setLoading(false)})
+    return()=>{cancelled=true}
+  },[location.pathname])
 
   const hasFilter=!!(fCat||fModel||fStatus)
   const filtered=useMemo(()=>data.filter(r=>(!fCat||r.category===fCat)&&(!fModel||r.model===fModel)&&(!fStatus||r.status===fStatus)),[data,fCat,fModel,fStatus])
@@ -201,9 +211,18 @@ export default function ModelSchedulePage(){
   const cancelEdit=()=>{if(snapshot)setData(snapshot);setSnapshot(null);setEditing(false);setPicker(null)}
   const finishEdit=async()=>{
     setEditing(false);setPicker(null);setSnapshot(null)
-    setSaving(true)
-    try{await modelScheduleApi.save(data)}catch(e){console.warn('MongoDB save failed:',e)}
-    finally{setSaving(false)}
+    setSaving(true);setSaveMessage(null)
+    try{
+      const res=await modelScheduleApi.save(data)
+      setDataSource(res.source)
+      setSaveMessage({
+        type:res.source==='mongo'?'success':'warn',
+        text:res.source==='mongo'?'저장되었습니다.':'브라우저에 저장됨 (서버 연결 실패)',
+      })
+    }catch(e){
+      console.warn('Save failed:',e)
+      setSaveMessage({type:'warn',text:'저장에 실패했습니다.'})
+    }finally{setSaving(false)}
   }
 
   const updateField=(id:string,f:keyof ModelRow,v:string)=>setData(p=>p.map(r=>r.id===id?{...r,[f]:v}:r))
@@ -268,6 +287,12 @@ export default function ModelSchedulePage(){
           </div>
           <div className="flex-1"/>
           {saving&&<span className="text-[10px] text-gray-400 flex items-center gap-1"><Loader2 size={12} className="animate-spin"/>저장 중...</span>}
+          {!saving&&saveMessage&&(
+            <span className={clsx('text-[10px] font-medium',saveMessage.type==='success'?'text-emerald-600':'text-amber-600')}>{saveMessage.text}</span>
+          )}
+          {!saving&&!saveMessage&&dataSource!=='default'&&(
+            <span className="text-[10px] text-gray-400">{dataSource==='mongo'?'MongoDB':'브라우저'}에서 불러옴</span>
+          )}
           {editing&&<button onClick={addModel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-600 border border-blue-200"><Plus size={14}/>모델 추가</button>}
           {editing?(
             <>
