@@ -47,16 +47,16 @@ sh scripts/patch-be-main-model-schedule.sh
 
 grep -q MONGO_HOST .env 2>/dev/null || cat >> .env <<'EOF'
 
-# ── MongoDB (모델 현황) ──────────────────────────────────────────────────────
+# ── Milvus (모델 현황) ───────────────────────────────────────────────────────
 MONGO_HOST=dify-mv-audiojdmtask-milvus.milvus.svc
-MONGO_PORT=27017
+MONGO_PORT=19530
 MONGO_USER=dify-mv-audiojdmtask-admin
 MONGO_PASSWORD=
 MONGO_DB=dify-mv-audiojdmtask
 EOF
 
 echo ""
-pip install pymongo==4.7.2 -q 2>/dev/null || pip install pymongo==4.7.2 -q || true
+pip install pymilvus==2.4.10 -q 2>/dev/null || pip install pymilvus==2.4.10 -q || true
 
 echo ""
 echo "  config.py / jira_client.py / .env 기존 Jira 값은 유지"

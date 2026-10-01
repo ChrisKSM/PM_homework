@@ -1,88 +1,108 @@
-"""MongoDB direct connection — pymongo (모델 현황 저장)."""
+"""모델 현황 저장소 — Milvus (pymilvus) 직접 연결.
+
+포털 DB 정보(host *.milvus.svc, port 19530)는 Milvus 벡터 DB입니다.
+MongoDB(pymongo, 27017)가 아닙니다.
+"""
 from __future__ import annotations
 
 import logging
 import os
 from typing import Any
-from urllib.parse import quote_plus
-
-from pymongo import MongoClient
-from pymongo.errors import PyMongoError
+from pymilvus import DataType, MilvusClient
 
 logger = logging.getLogger(__name__)
 
-_client: MongoClient | None = None
+COLLECTION_VECTOR_DIM = 2
+DUMMY_VECTOR = [0.0, 0.0]
+
+_client: MilvusClient | None = None
 
 
-def _mongo_db_name() -> str:
-    return os.getenv("MONGO_DB", "dify-mv-audiojdmtask")
+def _host() -> str:
+    return os.getenv("MILVUS_HOST") or os.getenv("MONGO_HOST", "dify-mv-audiojdmtask-milvus.milvus.svc")
 
 
-def _mongo_uri() -> str:
-    uri = os.getenv("MONGO_URI", "").strip()
-    if uri:
-        if uri.startswith("http://"):
-            uri = "mongodb://" + uri[len("http://") :]
-        elif uri.startswith("https://"):
-            uri = "mongodb://" + uri[len("https://") :]
-        return uri
+def _port() -> str:
+    return os.getenv("MILVUS_PORT") or os.getenv("MONGO_PORT", "19530")
 
-    host = os.getenv("MONGO_HOST", "dify-mv-audiojdmtask-milvus.milvus.svc")
-    port = os.getenv("MONGO_PORT", "27017")
-    user = os.getenv("MONGO_USER", "")
-    password = os.getenv("MONGO_PASSWORD", "")
-    db = _mongo_db_name()
 
-    if user and password:
-        return (
-            f"mongodb://{quote_plus(user)}:{quote_plus(password)}"
-            f"@{host}:{port}/{db}?authSource=admin"
-        )
-    return f"mongodb://{host}:{port}/{db}"
+def _user() -> str:
+    return os.getenv("MILVUS_USER") or os.getenv("MONGO_USER", "")
+
+
+def _password() -> str:
+    return os.getenv("MILVUS_PASSWORD") or os.getenv("MONGO_PASSWORD", "")
+
+
+def _db_name() -> str:
+    return os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "dify-mv-audiojdmtask")
+
+
+def _uri() -> str:
+    custom = os.getenv("MILVUS_URI") or os.getenv("MONGO_URI", "").strip()
+    if custom:
+        if custom.startswith("mongodb://"):
+            custom = "http://" + custom[len("mongodb://") :]
+        elif custom.startswith("http://") or custom.startswith("https://"):
+            pass
+        else:
+            custom = f"http://{custom}"
+        return custom
+    return f"http://{_host()}:{_port()}"
 
 
 def _safe_uri_for_log() -> str:
-    """비밀번호 마스킹된 URI."""
-    uri = _mongo_uri()
-    if "@" in uri and "://" in uri:
+    uri = _uri()
+    user, password = _user(), _password()
+    if user and password and "@" not in uri:
+        return f"http://{user}:****@{_host()}:{_port()}"
+    if user and "@" in uri:
         prefix, rest = uri.split("://", 1)
         if "@" in rest:
-            creds, hostpart = rest.rsplit("@", 1)
-            if ":" in creds:
-                user = creds.split(":", 1)[0]
-                return f"{prefix}://{user}:****@{hostpart}"
+            creds, hostpart = rest.split("@", 1)
+            u = creds.split(":", 1)[0]
+            return f"{prefix}://{u}:****@{hostpart}"
     return uri
 
 
-def get_client() -> MongoClient:
+def get_client() -> MilvusClient:
     global _client
     if _client is None:
-        _client = MongoClient(_mongo_uri(), serverSelectionTimeoutMS=10000)
+        user, password = _user(), _password()
+        kwargs: dict[str, Any] = {"uri": _uri(), "db_name": _db_name()}
+        if user and password:
+            kwargs["token"] = f"{user}:{password}"
+        _client = MilvusClient(**kwargs)
     return _client
-
-
-def get_db():
-    return get_client()[_mongo_db_name()]
-
-
-def _col(name: str):
-    return get_db()[name]
 
 
 def list_collections() -> list[str]:
     try:
-        return get_db().list_collection_names()
-    except PyMongoError as exc:
+        return list(get_client().list_collections())
+    except Exception as exc:
         logger.error("list_collections failed: %s", exc)
         return []
 
 
+def _create_collection_schema(client: MilvusClient):
+    schema = MilvusClient.create_schema(auto_id=False, enable_dynamic_field=False)
+    schema.add_field("row_id", DataType.VARCHAR, is_primary=True, max_length=256)
+    schema.add_field("payload", DataType.JSON)
+    schema.add_field("_vec", DataType.FLOAT_VECTOR, dim=COLLECTION_VECTOR_DIM)
+    index_params = client.prepare_index_params()
+    index_params.add_index(field_name="_vec", index_type="FLAT", metric_type="L2")
+    return schema, index_params
+
+
 def create_collection(name: str) -> bool:
     try:
-        if name not in list_collections():
-            get_db().create_collection(name)
+        client = get_client()
+        if client.has_collection(name):
+            return True
+        schema, index_params = _create_collection_schema(client)
+        client.create_collection(collection_name=name, schema=schema, index_params=index_params)
         return True
-    except PyMongoError as exc:
+    except Exception as exc:
         logger.error("create_collection failed: %s", exc)
         return False
 
@@ -92,15 +112,24 @@ def ensure_collection(name: str) -> bool:
 
 
 def get_all_documents(collection: str, use_cache: bool = False) -> list[dict]:
-    del use_cache  # direct MongoDB — cache 없음
+    del use_cache
     try:
+        client = get_client()
+        if not client.has_collection(collection):
+            return []
+        rows = client.query(
+            collection_name=collection,
+            filter='row_id != ""',
+            output_fields=["payload"],
+            limit=10000,
+        )
         docs: list[dict] = []
-        for doc in _col(collection).find({}):
-            if "_id" in doc:
-                doc["_id"] = str(doc["_id"])
-            docs.append(doc)
+        for row in rows:
+            payload = row.get("payload")
+            if isinstance(payload, dict):
+                docs.append(payload)
         return docs
-    except PyMongoError as exc:
+    except Exception as exc:
         logger.error("get_all_documents failed: %s", exc)
         return []
 
@@ -109,46 +138,71 @@ def insert_documents(collection: str, documents: list[dict]) -> bool:
     if not documents:
         return True
     try:
-        payload = [{k: v for k, v in doc.items() if k != "_id"} for doc in documents]
-        _col(collection).insert_many(payload, ordered=True)
+        if not ensure_collection(collection):
+            return False
+        client = get_client()
+        batch: list[dict[str, Any]] = []
+        for doc in documents:
+            row_id = str(doc.get("id") or doc.get("row_id") or "").strip()
+            if not row_id:
+                continue
+            payload = {k: v for k, v in doc.items() if k != "_id"}
+            batch.append({"row_id": row_id, "payload": payload, "_vec": DUMMY_VECTOR})
+        if not batch:
+            return True
+        client.insert(collection_name=collection, data=batch)
         return True
-    except PyMongoError as exc:
+    except Exception as exc:
         logger.error("insert_documents failed: %s", exc)
         return False
 
 
 def update_document(collection: str, doc_id: str, updates: dict) -> bool:
     try:
-        from bson import ObjectId
-
-        filt: dict[str, Any]
-        try:
-            filt = {"_id": ObjectId(doc_id)}
-        except Exception:
-            filt = {"_id": doc_id}
-        clean = {k: v for k, v in updates.items() if k != "_id"}
-        result = _col(collection).update_one(filt, {"$set": clean})
-        return result.matched_count > 0
-    except PyMongoError as exc:
+        client = get_client()
+        if not client.has_collection(collection):
+            return False
+        rows = client.query(
+            collection_name=collection,
+            filter=f'row_id == "{doc_id}"',
+            output_fields=["payload"],
+            limit=1,
+        )
+        if not rows:
+            return False
+        payload = rows[0].get("payload") or {}
+        if not isinstance(payload, dict):
+            payload = {}
+        payload.update({k: v for k, v in updates.items() if k != "_id"})
+        client.delete(collection_name=collection, filter=f'row_id == "{doc_id}"')
+        client.insert(
+            collection_name=collection,
+            data=[{"row_id": doc_id, "payload": payload, "_vec": DUMMY_VECTOR}],
+        )
+        return True
+    except Exception as exc:
         logger.error("update_document failed: %s", exc)
         return False
 
 
 def delete_all_documents(collection: str) -> bool:
     try:
-        _col(collection).delete_many({})
+        client = get_client()
+        if not client.has_collection(collection):
+            return True
+        client.delete(collection_name=collection, filter='row_id != ""')
         return True
-    except PyMongoError as exc:
+    except Exception as exc:
         logger.error("delete_all_documents failed: %s", exc)
         return False
 
 
 def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
-    """MongoDB 직접 연결 진단."""
     result: dict[str, Any] = {
-        "mode": "direct",
+        "mode": "milvus",
         "uri": _safe_uri_for_log(),
-        "db": _mongo_db_name(),
+        "db": _db_name(),
+        "port": _port(),
         "collection": collection,
         "steps": [],
     }
@@ -161,31 +215,31 @@ def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
 
     try:
         client = get_client()
-        ping = client.admin.command("ping")
-        step("ping", ping.get("ok", 1) == 1, ping)
+        step("connect", True, {"uri": _safe_uri_for_log(), "db": _db_name()})
 
         names = list_collections()
         step("list_collections", True, names)
         result["collections"] = names
-        result["collection_exists"] = collection in names
 
-        if collection not in names:
+        if not client.has_collection(collection):
             ok = create_collection(collection)
             step("create_collection", ok)
-            result["collection_exists"] = collection in list_collections()
+        else:
+            step("create_collection", True, "already exists")
 
-        count = _col(collection).count_documents({})
+        result["collection_exists"] = client.has_collection(collection)
+        count = len(get_all_documents(collection)) if result["collection_exists"] else 0
         step("count_documents", True, count)
         result["document_count"] = count
         result["ok"] = all(s["ok"] for s in result["steps"])
-    except PyMongoError as exc:
-        step("connection", False, str(exc))
-        result["ok"] = False
-        result["error"] = str(exc)
     except Exception as exc:
         step("connection", False, str(exc))
         result["ok"] = False
         result["error"] = str(exc)
+        if "27017" in str(exc) or "Connection refused" in str(exc):
+            result["hint"] = (
+                "Milvus 서비스는 포트 19530 입니다. .env 에 MONGO_PORT=19530 설정 후 재시도하세요."
+            )
 
     return result
 
@@ -194,17 +248,12 @@ def upsert_by_key(collection: str, key_field: str, documents: list[dict]) -> int
     if not documents:
         return 0
     updated = 0
-    try:
-        col = _col(collection)
-        for doc in documents:
-            key_val = doc.get(key_field)
-            if not key_val:
-                continue
-            clean = {k: v for k, v in doc.items() if k != "_id"}
-            result = col.update_one({key_field: key_val}, {"$set": clean}, upsert=True)
-            if result.modified_count or result.upserted_id:
-                updated += 1
-        return updated
-    except PyMongoError as exc:
-        logger.error("upsert_by_key failed: %s", exc)
-        return 0
+    for doc in documents:
+        key_val = str(doc.get(key_field) or "")
+        if not key_val:
+            continue
+        if update_document(collection, key_val, doc):
+            updated += 1
+        elif insert_documents(collection, [doc]):
+            updated += 1
+    return updated

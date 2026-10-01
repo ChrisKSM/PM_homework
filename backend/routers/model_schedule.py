@@ -1,4 +1,4 @@
-"""모델 현황 일정 저장/로드 API — MongoDB 연동."""
+"""모델 현황 일정 저장/로드 API — Milvus 연동."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Any
@@ -16,7 +16,7 @@ class ScheduleSaveRequest(BaseModel):
 
 @router.get("/diagnose")
 async def diagnose_schedule():
-    """MongoDB API 연결 진단 — BE pod에서 curl 로 확인."""
+    """Milvus DB 연결 진단 — BE pod에서 curl 로 확인."""
     try:
         return mongo_helper.diagnose(COLLECTION)
     except Exception as e:
@@ -25,10 +25,10 @@ async def diagnose_schedule():
 
 @router.get("/load")
 async def load_schedule():
-    """MongoDB에서 일정 데이터 로드."""
+    """Milvus에서 일정 데이터 로드."""
     try:
         if not mongo_helper.ensure_collection(COLLECTION):
-            raise HTTPException(status_code=502, detail="MongoDB collection 준비 실패")
+            raise HTTPException(status_code=502, detail="DB collection 준비 실패")
 
         docs = mongo_helper.get_all_documents(COLLECTION, use_cache=False)
         for doc in docs:
@@ -37,24 +37,24 @@ async def load_schedule():
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"MongoDB 오류: {e}")
+        raise HTTPException(status_code=502, detail=f"DB 오류: {e}")
 
 
 @router.post("/save")
 async def save_schedule(req: ScheduleSaveRequest):
-    """MongoDB에 일정 데이터 저장 (전체 교체)."""
+    """Milvus에 일정 데이터 저장 (전체 교체)."""
     try:
         if not mongo_helper.ensure_collection(COLLECTION):
-            raise HTTPException(status_code=502, detail="MongoDB collection 준비 실패")
+            raise HTTPException(status_code=502, detail="DB collection 준비 실패")
 
         if not mongo_helper.delete_all_documents(COLLECTION):
             raise HTTPException(status_code=502, detail="기존 데이터 삭제 실패")
 
         if req.rows and not mongo_helper.insert_documents(COLLECTION, req.rows):
-            raise HTTPException(status_code=502, detail="MongoDB 저장 실패")
+            raise HTTPException(status_code=502, detail="DB 저장 실패")
 
         return {"saved": len(req.rows), "message": "저장 완료"}
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"MongoDB 저장 오류: {e}")
+        raise HTTPException(status_code=502, detail=f"DB 저장 오류: {e}")
