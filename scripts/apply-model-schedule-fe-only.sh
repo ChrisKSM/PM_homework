@@ -60,7 +60,15 @@ fi
 [ "$ERR" -eq 0 ] || exit 1
 
 echo ""
-echo "  client.ts / .env / Dockerfile / .gitlab-ci.yml 미변경"
+echo "=== client.ts workspace BE 패치 (localhost:8000 연결 거부 방지) ==="
+show scripts/patch-fe-client-workspace-be.sh > scripts/patch-fe-client-workspace-be.sh
+chmod +x scripts/patch-fe-client-workspace-be.sh
+sh scripts/patch-fe-client-workspace-be.sh
+
+echo ""
+echo "  Dockerfile / .gitlab-ci.yml 미변경"
+echo "  localhost npm run dev 시 .env 예시:"
+echo "    REACT_APP_API_BASE_URL=https://be-audio-test.apps.hedej.lge.com/api"
 echo "  화면: 모델 현황 (/model-schedule)"
 echo "  다음: npm install && npm run build  →  git push (GitLab 재배포)"
 echo "=== Done ==="

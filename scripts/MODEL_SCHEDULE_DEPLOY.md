@@ -92,6 +92,47 @@ curl -s -X POST http://127.0.0.1:8000/api/model-schedule/save \
 
 ---
 
+## 트러블슈팅
+
+### `ERR_CONNECTION_REFUSED` / `localhost:8000/api/model-schedule/load`
+
+FE가 BE에 연결하지 못할 때 발생합니다.
+
+**1) FE 최신 반영 확인** (localStorage 폴백 + 저장 메시지)
+
+```bash
+sh scripts/apply-model-schedule-fe-only.sh github/webpack-migration
+npm run build
+```
+
+**2) BE API URL 확인**
+
+| FE 실행 환경 | BE URL |
+|-------------|--------|
+| react-audio (배포) | `https://be-audio-test.apps.hedej.lge.com/api` (자동) |
+| workspace dev | proxy 또는 be-audio-test (자동) |
+| localhost `npm run dev` | `.env`에 명시 필요 |
+
+localhost에서 dev server 실행 시 `.env`:
+
+```env
+REACT_APP_API_BASE_URL=https://be-audio-test.apps.hedej.lge.com/api
+```
+
+**3) BE pod에 model_schedule 배포 + 재시작**
+
+```bash
+sh scripts/add-model-schedule-be-only.sh github/webpack-migration
+# .env MONGO_API_TOKEN 설정 후 uvicorn 재시작
+curl -s https://be-audio-test.apps.hedej.lge.com/api/model-schedule/load
+```
+
+**4) BE 없이 테스트**
+
+최신 FE는 서버 실패 시 **localStorage**에 저장합니다. 콘솔에 Network Error가 보여도 편집 완료 후 **"브라우저에 저장됨"** 메시지가 뜨면 정상입니다.
+
+---
+
 ## 동작 요약
 
 | 단계 | FE | BE |

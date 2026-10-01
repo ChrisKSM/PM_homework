@@ -20,6 +20,8 @@ function resolveApiBaseUrl(): string {
   if (window.location.hostname.includes('workspace')) {
     const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
     if (m) return `${window.location.origin}${m[1]}8000/api`
+    // workspace dev — proxy 경로 없으면 회사 BE 사용 (localhost:8000 연결 거부 방지)
+    return PROD_API_BASE_URL
   }
 
   return 'http://localhost:8000/api'
