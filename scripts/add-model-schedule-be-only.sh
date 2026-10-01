@@ -1,5 +1,5 @@
 #!/bin/sh
-# be-audio-test pod — 모델 현황 MongoDB 직접 연결 API 추가
+# be-audio-test pod — 모델 현황 Milvus(pymilvus) API 추가
 #
 # /workspace/project (be-audio-test):
 #   git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
@@ -8,7 +8,7 @@
 #
 # .env 예시:
 #   MONGO_HOST=dify-mv-audiojdmtask-milvus.milvus.svc
-#   MONGO_PORT=27017
+#   MONGO_PORT=19530
 #   MONGO_USER=dify-mv-audiojdmtask-admin
 #   MONGO_PASSWORD=<비밀번호>
 #   MONGO_DB=dify-mv-audiojdmtask
@@ -24,7 +24,7 @@ fi
 
 show() { git show "$REF:$1"; }
 
-echo "=== Add 모델 현황 MongoDB (pymongo) from $REF ==="
+echo "=== Add 모델 현황 Milvus (pymilvus) from $REF ==="
 mkdir -p routers services scripts
 
 for f in \
@@ -39,9 +39,10 @@ do
   echo "  + $dst"
 done
 
-# requirements.txt 에 pymongo 추가 (없으면)
-grep -q pymongo requirements.txt 2>/dev/null || echo "pymongo==4.7.2" >> requirements.txt
-echo "  + requirements.txt (pymongo)"
+# requirements.txt — pymilvus + setuptools (pkg_resources)
+grep -q pymilvus requirements.txt 2>/dev/null || echo "pymilvus==2.4.10" >> requirements.txt
+grep -q setuptools requirements.txt 2>/dev/null || echo "setuptools>=69.0.0" >> requirements.txt
+echo "  + requirements.txt (pymilvus, setuptools)"
 
 sh scripts/patch-be-main-model-schedule.sh
 
@@ -56,7 +57,7 @@ MONGO_DB=dify-mv-audiojdmtask
 EOF
 
 echo ""
-pip install pymilvus==2.4.10 -q 2>/dev/null || pip install pymilvus==2.4.10 -q || true
+pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q 2>/dev/null || pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q || true
 
 echo ""
 echo "  config.py / jira_client.py / .env 기존 Jira 값은 유지"

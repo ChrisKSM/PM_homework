@@ -28,6 +28,10 @@ if [ -z "$MONGO_PASSWORD" ] && [ -z "$MONGO_URI" ] && [ -z "$MILVUS_URI" ]; then
 fi
 
 echo ""
+echo "--- deps (setuptools → pkg_resources) ---"
+pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q 2>/dev/null || pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q
+
+echo ""
 echo "--- Milvus diagnose (Python) ---"
 python3 -c "
 import sys, json
