@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
+from cache import clear_cache
 from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan, mr_quality
 
 app = FastAPI(
@@ -33,6 +34,12 @@ app.include_router(procurement.router)
 app.include_router(risk.router)
 app.include_router(sprint_plan.router)
 app.include_router(mr_quality.router)
+
+try:
+    from routers import model_schedule
+    app.include_router(model_schedule.router)
+except ImportError:
+    pass
 
 # daily report — jinja2 미설치 환경(prod 이미지 등)에서는 건너뜀
 try:
