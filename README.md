@@ -169,6 +169,20 @@ npm.cmd run build
 
 ---
 
+## 회사 pod 반영 (FE / BE 분리)
+
+기능별로 FE·BE pod에 **각각** 가져다 쓰는 스크립트는 `scripts/` 에 있습니다.
+
+| 기능 | FE | BE |
+|------|----|----|
+| 모델 현황 | `scripts/apply-model-schedule-fe-only.sh` | `scripts/add-model-schedule-be-only.sh` |
+| H7/M7/W7 MR 품질 | `scripts/apply-mr-quality-fe.sh` | `scripts/add-mr-quality-be-only.sh` |
+| planning+quality 등 일괄 | `scripts/apply-fe-safe.sh` | `scripts/add-quality-be-only.sh` |
+
+상세 copy-paste 명령: [`scripts/MODEL_SCHEDULE_DEPLOY.md`](scripts/MODEL_SCHEDULE_DEPLOY.md)
+
+---
+
 ## Daily Report (매일 이메일 스냅샷)
 
 매일 **평일 오전 8시(KST)** 에 책임자·개발팀 대시보드 현황을 HTML 이메일로 발송합니다.
