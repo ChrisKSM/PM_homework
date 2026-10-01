@@ -11,7 +11,7 @@
 #   MONGO_PORT=19530
 #   MONGO_USER=dify-mv-audiojdmtask-admin
 #   MONGO_PASSWORD=<비밀번호>
-#   MONGO_DB=dify-mv-audiojdmtask
+#   MONGO_DB=dify_mv_audiojdmtask
 
 set -e
 cd "$(dirname "$0")/.."
@@ -53,7 +53,7 @@ MONGO_HOST=dify-mv-audiojdmtask-milvus.milvus.svc
 MONGO_PORT=19530
 MONGO_USER=dify-mv-audiojdmtask-admin
 MONGO_PASSWORD=
-MONGO_DB=dify-mv-audiojdmtask
+MONGO_DB=dify_mv_audiojdmtask
 EOF
 
 echo ""
