@@ -29,7 +29,8 @@ mkdir -p routers services scripts
 for f in \
   backend/services/mongo_helper.py:services/mongo_helper.py \
   backend/routers/model_schedule.py:routers/model_schedule.py \
-  scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh
+  scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh \
+  scripts/verify-model-schedule-mongo.sh:scripts/verify-model-schedule-mongo.sh
 do
   src="${f%%:*}"
   dst="${f##*:}"
