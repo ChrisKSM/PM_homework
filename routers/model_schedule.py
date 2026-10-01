@@ -14,6 +14,15 @@ class ScheduleSaveRequest(BaseModel):
     rows: list[dict[str, Any]]
 
 
+@router.get("/diagnose")
+async def diagnose_schedule():
+    """MongoDB API 연결 진단 — BE pod에서 curl 로 확인."""
+    try:
+        return mongo_helper.diagnose(COLLECTION)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"진단 실패: {e}")
+
+
 @router.get("/load")
 async def load_schedule():
     """MongoDB에서 일정 데이터 로드."""
