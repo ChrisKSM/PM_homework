@@ -76,10 +76,11 @@ MONGO_HOST=dify-mv-audiojdmtask-milvus.milvus.svc
 MONGO_PORT=19530
 MONGO_USER=dify-mv-audiojdmtask-admin
 MONGO_PASSWORD=<비밀번호>
-MONGO_DB=dify-mv-audiojdmtask
+MONGO_DB=dify_mv_audiojdmtask
 ```
 
-> `*.milvus.svc` 호스트는 **Milvus**(19530)입니다. MongoDB(27017)가 아닙니다.
+> `*.milvus.svc` 호스트는 **Milvus**(19530)입니다. MongoDB(27017)가 아닙니다.  
+> Milvus DB명은 **하이픈(-) 불가** — `dify-mv-audiojdmtask` → `dify_mv_audiojdmtask` (코드에서 자동 변환)
 
 ### BE 반영 후 확인
 

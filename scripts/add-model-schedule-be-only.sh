@@ -64,7 +64,7 @@ elif [ -x venv/bin/python ]; then
 else
   PY="python3"
 fi
-"$PY" -m pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q
+"$PY" -m pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0" -q
 
 echo ""
 echo "  config.py / jira_client.py / .env 기존 Jira 값은 유지"
