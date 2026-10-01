@@ -8,7 +8,14 @@ from __future__ import annotations
 import logging
 import os
 from typing import Any
-from pymilvus import DataType, MilvusClient
+try:
+    from pymilvus import DataType, MilvusClient
+except ModuleNotFoundError as exc:
+    if "pkg_resources" in str(exc):
+        raise ModuleNotFoundError(
+            "pkg_resources 없음 — BE venv에서: python -m pip install setuptools pymilvus"
+        ) from exc
+    raise
 
 logger = logging.getLogger(__name__)
 

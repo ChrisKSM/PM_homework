@@ -57,12 +57,19 @@ MONGO_DB=dify-mv-audiojdmtask
 EOF
 
 echo ""
-pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q 2>/dev/null || pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q || true
+if [ -x .venv/bin/python ]; then
+  PY=".venv/bin/python"
+elif [ -x venv/bin/python ]; then
+  PY="venv/bin/python"
+else
+  PY="python3"
+fi
+"$PY" -m pip install "setuptools>=69.0.0" pymilvus==2.4.10 -q
 
 echo ""
 echo "  config.py / jira_client.py / .env 기존 Jira 값은 유지"
 echo "  .env 에 MONGO_PASSWORD 설정 후:"
-echo "    pip install -r requirements.txt"
+echo "    $PY -m pip install setuptools pymilvus"
 echo "    sh scripts/verify-model-schedule-mongo.sh"
-echo "    uvicorn main:app 재시작"
+echo "    $PY -m uvicorn main:app --host 0.0.0.0 --port 8000"
 echo "=== Done ==="
