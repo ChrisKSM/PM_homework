@@ -9,6 +9,14 @@ export interface ProjectConfig {
 
 export const PROJECTS: ProjectConfig[] = [
   {
+    id: 'model-schedule',
+    label: '모델 검증 현황',
+    color: '#059669',
+    nav: [
+      { to: '/model-schedule', label: '모델 검증 현황', icon: 'CalendarRange' },
+    ],
+  },
+  {
     id: 's80c',
     label: 'S80C Soundbar',
     color: '#A50034',
@@ -42,7 +50,7 @@ interface DashboardState {
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
-  selectedProject: 's80c',
+  selectedProject: 'model-schedule',
   setSelectedProject: (project) => set({ selectedProject: project }),
   sidebarOpen: true,
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
