@@ -69,12 +69,23 @@ cp backend/routers/model_schedule.py routers/model_schedule.py
 sh scripts/patch-be-main-model-schedule.sh
 ```
 
-### BE `.env` 추가 (최초 1회)
+### BE `.env` 추가 (최초 1회 — pymongo 직접 연결)
 
 ```env
-MONGO_API_BASE=https://delivery-portal-db-watcher.apps.hedej.lge.com
-MONGO_API_TOKEN=<your_token>
+MONGO_HOST=dify-mv-audiojdmtask-milvus.milvus.svc
+MONGO_PORT=27017
+MONGO_USER=dify-mv-audiojdmtask-admin
+MONGO_PASSWORD=<비밀번호>
+MONGO_DB=dify-mv-audiojdmtask
 ```
+
+또는 URI 한 줄:
+
+```env
+MONGO_URI=mongodb://dify-mv-audiojdmtask-admin:<비밀번호>@dify-mv-audiojdmtask-milvus.milvus.svc:27017/dify-mv-audiojdmtask?authSource=admin
+```
+
+> 포털 URI가 `:19530` 이면 Milvus 포트일 수 있습니다. MongoDB 연결은 **`27017`** 부터 시도하세요.
 
 ### BE 반영 후 확인
 
@@ -93,6 +104,22 @@ curl -s -X POST http://127.0.0.1:8000/api/model-schedule/save \
 ---
 
 ## 트러블슈팅
+
+### MongoDB 저장 실패 — 연결 진단
+
+```bash
+pip install pymongo==4.7.2
+sh scripts/verify-model-schedule-mongo.sh
+curl -s http://127.0.0.1:8000/api/model-schedule/diagnose | python3 -m json.tool
+```
+
+| 증상 | 확인 |
+|------|------|
+| connection refused | `MONGO_HOST` / `MONGO_PORT` (27017) |
+| Authentication failed | `MONGO_USER` / `MONGO_PASSWORD` |
+| 502 on load/save | uvicorn 재시작, pymongo 설치 여부 |
+
+---
 
 ### `ERR_CONNECTION_REFUSED` / `localhost:8000/api/model-schedule/load`
 

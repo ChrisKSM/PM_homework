@@ -1,11 +1,12 @@
 #!/bin/sh
-# BE pod — MongoDB API 연결 진단 (be-audio-test / workspace)
+# BE pod — MongoDB 직접 연결 진단
 #
 # 사용법:
 #   cd /workspace/project
 #   sh scripts/verify-model-schedule-mongo.sh
 #
-# .env 에 MONGO_API_BASE, MONGO_API_TOKEN 필요
+# .env: MONGO_HOST / MONGO_PORT / MONGO_USER / MONGO_PASSWORD / MONGO_DB
+#   또는 MONGO_URI
 
 set -e
 cd "$(dirname "$0")/.."
@@ -17,73 +18,41 @@ if [ -f .env ]; then
   set +a
 fi
 
-BASE="${MONGO_API_BASE:-https://delivery-portal-db-watcher.apps.hedej.lge.com}"
-TOKEN="${MONGO_API_TOKEN:-}"
-COL="model_schedule_data"
+echo "=== MongoDB 직접 연결 진단 ==="
+echo "MONGO_DB=${MONGO_DB:-dify-mv-audiojdmtask}"
+echo "MONGO_HOST=${MONGO_HOST:-dify-mv-audiojdmtask-milvus.milvus.svc}"
+echo "MONGO_PORT=${MONGO_PORT:-27017}"
+echo "MONGO_USER=${MONGO_USER:-(미설정)}"
+echo "MONGO_PASSWORD=${MONGO_PASSWORD:+설정됨}${MONGO_PASSWORD:-❌ 미설정}"
 
-echo "=== MongoDB API 진단 ==="
-echo "MONGO_API_BASE=$BASE"
-echo "MONGO_API_TOKEN=${TOKEN:+설정됨 (${#TOKEN} chars)}${TOKEN:-❌ 미설정}"
-
-if [ -z "$TOKEN" ]; then
-  echo "Error: MONGO_API_TOKEN 이 .env 에 없습니다"
+if [ -z "$MONGO_PASSWORD" ] && [ -z "$MONGO_URI" ]; then
+  echo "Error: MONGO_PASSWORD 또는 MONGO_URI 가 .env 에 필요합니다"
   exit 1
 fi
 
 echo ""
-echo "--- JWT api_permissions (토큰 권한 확인) ---"
+echo "--- pymongo ping (Python) ---"
 python3 - <<'PY' 2>/dev/null || python - <<'PY'
-import base64, json, os
-token = os.environ.get("MONGO_API_TOKEN", "")
+import os, sys
+sys.path.insert(0, ".")
 try:
-    payload = token.split(".")[1]
-    payload += "=" * (-len(payload) % 4)
-    data = json.loads(base64.urlsafe_b64decode(payload))
-    perms = data.get("api_permissions") or data.get("permissions") or []
-    print(json.dumps(perms, indent=2, ensure_ascii=False))
-    endpoints = [p.get("endpoint", "") for p in perms if isinstance(p, dict)]
-    mongo_ok = any("mongo" in e for e in endpoints)
-    if perms and not mongo_ok:
-        print("\n⚠️  WARNING: 이 토큰에 mongo-collections / mongo-documents 권한이 없습니다!")
-        print("    delivery-portal-db-watcher MongoDB API용 토큰을 별도 발급받으세요.")
+    from services import mongo_helper
+    d = mongo_helper.diagnose("model_schedule_data")
+    import json
+    print(json.dumps(d, indent=2, ensure_ascii=False))
+    sys.exit(0 if d.get("ok") else 1)
 except Exception as e:
-    print(f"(JWT decode skip: {e})")
+    print(f"FAIL: {e}")
+    sys.exit(1)
 PY
 
 echo ""
-echo "--- 1) GET /api/mongo-collections/ ---"
-curl -s -w "\nHTTP:%{http_code}\n" \
-  "$BASE/api/mongo-collections/" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" | head -40
-
-echo ""
-echo "--- 2) POST /api/mongo-collections/ (create $COL) ---"
-curl -s -w "\nHTTP:%{http_code}\n" -X POST \
-  "$BASE/api/mongo-collections/" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d "{\"collection_name\":\"$COL\"}" | head -20
-
-echo ""
-echo "--- 3) GET /api/mongo-documents/$COL/ ---"
-curl -s -w "\nHTTP:%{http_code}\n" \
-  "$BASE/api/mongo-documents/$COL/?use_cache=false" \
-  -H "Authorization: Bearer $TOKEN" | head -40
-
-echo ""
-echo "--- 4) BE model-schedule API (로컬 uvicorn) ---"
-curl -s -w "\nHTTP:%{http_code}\n" http://127.0.0.1:8000/api/model-schedule/load 2>/dev/null | head -20 || echo "(uvicorn 미실행 — skip)"
-
-echo ""
-echo "--- 5) BE model-schedule API (배포) ---"
-curl -s -w "\nHTTP:%{http_code}\n" https://be-audio-test.apps.hedej.lge.com/api/model-schedule/load 2>/dev/null | head -20 || echo "(외부 접근 불가 — skip)"
+echo "--- BE /api/model-schedule/diagnose (uvicorn) ---"
+curl -s http://127.0.0.1:8000/api/model-schedule/diagnose 2>/dev/null | python3 -m json.tool || echo "(uvicorn 미실행)"
 
 echo ""
 echo "=== 기대 결과 ==="
-echo "  mongo-collections: HTTP 200"
-echo "  mongo-documents:   HTTP 200 (빈 배열 가능)"
-echo "  model-schedule/load: HTTP 200"
-echo "  HTTP 401/403 → 토큰 권한 문제"
-echo "  HTTP 404 → API 경로 또는 collection 미존재"
+echo "  ping: ok true"
+echo "  collection_exists: true"
+echo "  HTTP 502 / connection refused → MONGO_HOST/PORT 확인 (MongoDB 기본 포트 27017)"
 echo "=== Done ==="
