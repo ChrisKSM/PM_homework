@@ -86,7 +86,7 @@ wheels = [
 
 [[package]]
 name = "be-audio-test"
-version = "1.0.87"
+version = "1.0.88"
 source = { virtual = "." }
 dependencies = [
     { name = "dej-sdk" },
