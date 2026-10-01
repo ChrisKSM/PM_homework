@@ -52,9 +52,13 @@ git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null ||
 git fetch github webpack-migration
 
 # 방법 A — 스크립트 (권장)
+# ⚠️ scripts/ 가 pod에 없으면 먼저 checkout (최초 1회)
+git checkout github/webpack-migration -- \
+  scripts/add-model-schedule-be-only.sh \
+  scripts/patch-be-main-model-schedule.sh
 sh scripts/add-model-schedule-be-only.sh github/webpack-migration
 
-# 방법 B — 수동 checkout + flat 복사
+# 방법 B — 수동 checkout + flat 복사 (스크립트 없을 때)
 git checkout github/webpack-migration -- \
   backend/services/mongo_helper.py \
   backend/routers/model_schedule.py \
