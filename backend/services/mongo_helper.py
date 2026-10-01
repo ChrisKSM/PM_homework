@@ -72,13 +72,40 @@ def _safe_uri_for_log() -> str:
     return uri
 
 
+def _client_kwargs() -> dict[str, Any]:
+    user, password = _user(), _password()
+    kwargs: dict[str, Any] = {"uri": _uri()}
+    if user and password:
+        kwargs["token"] = f"{user}:{password}"
+    return kwargs
+
+
+def ensure_database() -> str:
+    """Milvus database 없으면 생성 (default DB는 스킵)."""
+    db = _db_name()
+    if not db or db == "default":
+        return "default"
+
+    bootstrap = MilvusClient(**_client_kwargs())
+    try:
+        databases = bootstrap.list_databases()
+        if db not in databases:
+            bootstrap.create_database(db_name=db)
+            logger.info("Created Milvus database: %s", db)
+    finally:
+        close = getattr(bootstrap, "close", None)
+        if callable(close):
+            close()
+
+    return db
+
+
 def get_client() -> MilvusClient:
     global _client
     if _client is None:
-        user, password = _user(), _password()
-        kwargs: dict[str, Any] = {"uri": _uri(), "db_name": _db_name()}
-        if user and password:
-            kwargs["token"] = f"{user}:{password}"
+        db = ensure_database()
+        kwargs = _client_kwargs()
+        kwargs["db_name"] = db
         _client = MilvusClient(**kwargs)
     return _client
 
@@ -221,8 +248,11 @@ def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
         result["steps"].append(entry)
 
     try:
+        db = ensure_database()
+        step("ensure_database", True, db)
+
         client = get_client()
-        step("connect", True, {"uri": _safe_uri_for_log(), "db": _db_name()})
+        step("connect", True, {"uri": _safe_uri_for_log(), "db": db})
 
         names = list_collections()
         step("list_collections", True, names)
@@ -243,7 +273,12 @@ def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
         step("connection", False, str(exc))
         result["ok"] = False
         result["error"] = str(exc)
-        if "27017" in str(exc) or "Connection refused" in str(exc):
+        if "database not found" in str(exc):
+            result["hint"] = (
+                "Milvus database 가 없습니다. ensure_database() 로 자동 생성 시도 — "
+                "권한 없으면 MONGO_DB=default 로 변경하세요."
+            )
+        elif "27017" in str(exc) or "Connection refused" in str(exc):
             result["hint"] = (
                 "Milvus 서비스는 포트 19530 입니다. .env 에 MONGO_PORT=19530 설정 후 재시도하세요."
             )
