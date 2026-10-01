@@ -18,11 +18,15 @@ class ScheduleSaveRequest(BaseModel):
 async def load_schedule():
     """MongoDB에서 일정 데이터 로드."""
     try:
-        mongo_helper.ensure_collection(COLLECTION)
+        if not mongo_helper.ensure_collection(COLLECTION):
+            raise HTTPException(status_code=502, detail="MongoDB collection 준비 실패")
+
         docs = mongo_helper.get_all_documents(COLLECTION, use_cache=False)
         for doc in docs:
             doc.pop("_id", None)
         return {"rows": docs, "count": len(docs)}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"MongoDB 오류: {e}")
 
@@ -31,10 +35,17 @@ async def load_schedule():
 async def save_schedule(req: ScheduleSaveRequest):
     """MongoDB에 일정 데이터 저장 (전체 교체)."""
     try:
-        mongo_helper.ensure_collection(COLLECTION)
-        mongo_helper.delete_all_documents(COLLECTION)
-        if req.rows:
-            mongo_helper.insert_documents(COLLECTION, req.rows)
+        if not mongo_helper.ensure_collection(COLLECTION):
+            raise HTTPException(status_code=502, detail="MongoDB collection 준비 실패")
+
+        if not mongo_helper.delete_all_documents(COLLECTION):
+            raise HTTPException(status_code=502, detail="기존 데이터 삭제 실패")
+
+        if req.rows and not mongo_helper.insert_documents(COLLECTION, req.rows):
+            raise HTTPException(status_code=502, detail="MongoDB 저장 실패")
+
         return {"saved": len(req.rows), "message": "저장 완료"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"MongoDB 저장 오류: {e}")
