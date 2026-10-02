@@ -129,16 +129,59 @@ def _create_collection_schema(client: MilvusClient):
     return schema, index_params
 
 
+def ensure_collection(name: str) -> bool:
+    return create_collection(name)
+
+
 def create_collection(name: str) -> bool:
     try:
+        logger.info("[DB] create_collection 시작: %s", name)
+
+        # 1. Client 생성
+        logger.info("[DB] get_client 시작")
         client = get_client()
-        if client.has_collection(name):
+        logger.info("[DB] get_client 성공")
+
+        # 2. Collection 존재 여부 확인
+        logger.info("[DB] has_collection 확인: %s", name)
+        exists = client.has_collection(name)
+
+        logger.info(
+            "[DB] has_collection 결과: name=%s, exists=%s",
+            name,
+            exists,
+        )
+
+        if exists:
+            logger.info("[DB] 기존 collection 사용: %s", name)
             return True
+
+        # 3. Schema 생성
+        logger.info("[DB] collection 없음. schema 생성 시작: %s", name)
+
         schema, index_params = _create_collection_schema(client)
-        client.create_collection(collection_name=name, schema=schema, index_params=index_params)
+
+        logger.info("[DB] schema 생성 성공: %s", name)
+
+        # 4. Collection 생성
+        logger.info("[DB] collection 생성 시작: %s", name)
+
+        client.create_collection(
+            collection_name=name,
+            schema=schema,
+            index_params=index_params,
+        )
+
+        logger.info("[DB] collection 생성 성공: %s", name)
+
         return True
+
     except Exception as exc:
-        logger.error("create_collection failed: %s", exc)
+        logger.exception(
+            "[DB] create_collection 실패: name=%s, error=%s",
+            name,
+            exc,
+        )
         return False
 
 
