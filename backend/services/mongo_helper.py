@@ -103,11 +103,40 @@ def ensure_database() -> str:
 
 def get_client() -> MilvusClient:
     global _client
+
     if _client is None:
-        db = ensure_database()
-        kwargs = _client_kwargs()
-        kwargs["db_name"] = db
-        _client = MilvusClient(**kwargs)
+        try:
+            logger.info("[Milvus] get_client 시작")
+
+            logger.info("[Milvus] ensure_database 시작")
+            db = ensure_database()
+            logger.info("[Milvus] ensure_database 성공: db=%s", db)
+
+            logger.info("[Milvus] _client_kwargs 시작")
+            kwargs = _client_kwargs()
+
+            # 비밀번호/token 등이 있을 수 있으므로 kwargs 전체 출력 금지
+            logger.info(
+                "[Milvus] connection 설정: uri=%s, db=%s",
+                kwargs.get("uri", "N/A"),
+                db,
+            )
+
+            kwargs["db_name"] = db
+
+            logger.info("[Milvus] MilvusClient 생성 시작")
+
+            _client = MilvusClient(**kwargs)
+
+            logger.info("[Milvus] MilvusClient 생성 성공")
+
+        except Exception as exc:
+            logger.exception(
+                "[Milvus] get_client 실패: %s",
+                exc,
+            )
+            raise
+
     return _client
 
 
