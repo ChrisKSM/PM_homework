@@ -1,7 +1,6 @@
 """모델 현황 저장소 — Milvus (pymilvus) 직접 연결.
 
 포털 DB 정보(host *.milvus.svc, port 19530)는 Milvus 벡터 DB입니다.
-MongoDB(pymongo, 27017)가 아닙니다.
 """
 from __future__ import annotations
 
@@ -43,7 +42,11 @@ def _password() -> str:
 
 
 def _db_name() -> str:
-    return os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "dify-mv-audiojdmtask")
+    return (
+        os.getenv("MILVUS_DB")
+        or os.getenv("MONGO_DB")
+        or "default"
+    )
 
 
 def _uri() -> str:
@@ -74,29 +77,89 @@ def _safe_uri_for_log() -> str:
 
 
 def _client_kwargs() -> dict[str, Any]:
-    user, password = _user(), _password()
-    kwargs: dict[str, Any] = {"uri": _uri()}
+    user = _user()
+    password = _password()
+    uri = _uri()
+
+    logger.info("[Milvus] uri=%s", uri)
+    logger.info("[Milvus] user configured=%s", bool(user))
+    logger.info("[Milvus] password configured=%s", bool(password))
+
+    kwargs: dict[str, Any] = {
+        "uri": uri
+    }
+
     if user and password:
         kwargs["token"] = f"{user}:{password}"
+
     return kwargs
 
 
 def ensure_database() -> str:
-    """Milvus database 없으면 생성 (default DB는 스킵)."""
+    """Milvus database가 없으면 생성합니다. default DB는 생성을 건너뜁니다."""
+
     db = _db_name()
+    uri = _uri()
+
+    logger.info("[Milvus] ensure_database 시작")
+    logger.info("[Milvus] db_name=%s", db)
+    logger.info("[Milvus] uri=%s", uri)
+
     if not db or db == "default":
+        logger.info("[Milvus] default database 사용")
         return "default"
 
-    bootstrap = MilvusClient(**_client_kwargs())
     try:
-        databases = bootstrap.list_databases()
-        if db not in databases:
-            bootstrap.create_database(db_name=db)
-            logger.info("Created Milvus database: %s", db)
-    finally:
-        close = getattr(bootstrap, "close", None)
-        if callable(close):
-            close()
+        logger.info("[Milvus] bootstrap client 생성 시작")
+
+        bootstrap = MilvusClient(**_client_kwargs())
+
+        logger.info("[Milvus] bootstrap client 생성 성공")
+
+        try:
+            logger.info("[Milvus] list_databases 시작")
+
+            databases = bootstrap.list_databases()
+
+            logger.info(
+                "[Milvus] list_databases 성공: %s",
+                databases,
+            )
+
+            if db not in databases:
+                logger.info(
+                    "[Milvus] database 없음. 생성 시작: %s",
+                    db,
+                )
+
+                bootstrap.create_database(db_name=db)
+
+                logger.info(
+                    "[Milvus] database 생성 성공: %s",
+                    db,
+                )
+            else:
+                logger.info(
+                    "[Milvus] database 존재함: %s",
+                    db,
+                )
+
+        finally:
+            close = getattr(bootstrap, "close", None)
+
+            if callable(close):
+                close()
+                logger.info("[Milvus] bootstrap client close 완료")
+
+    except Exception as exc:
+        logger.exception(
+            "[Milvus] ensure_database 실패: "
+            "db=%s, uri=%s, error=%s",
+            db,
+            uri,
+            exc,
+        )
+        raise
 
     return db
 
