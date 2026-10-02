@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     inprogress_status_category: str = "indeterminate"
 
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.axstudio.lge.com,https://workspace.hedej.lge.com"
 
     # Daily report
     report_enabled: bool = True
