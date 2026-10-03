@@ -76,11 +76,15 @@ function addDays(d:Date,n:number){const r=new Date(d);r.setDate(r.getDate()+n);r
 function fmt(d:Date){return `${d.getMonth()+1}/${d.getDate()}`}
 function diffD(a:Date,b:Date){return Math.round((b.getTime()-a.getTime())/86400000)}
 function toD(s:string){return new Date(s+'T00:00:00')}
+function dayStart(d:Date){const r=new Date(d);r.setHours(0,0,0,0);return r}
 function toISO(d:Date){
-  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0')
+  const x=dayStart(d)
+  const y=x.getFullYear(),m=String(x.getMonth()+1).padStart(2,'0'),day=String(x.getDate()).padStart(2,'0')
   return `${y}-${m}-${day}`
 }
 function normDate(s:string){return String(s||'').slice(0,10)}
+function barCoversDay(bar:ScheduleBar,d:Date){const dk=toISO(d);return dk>=normDate(bar.start)&&dk<=normDate(bar.end)}
+function isBarStartDay(bar:ScheduleBar,d:Date){return toISO(d)===normDate(bar.start)}
 function rowBars(row:ModelRow){return Array.isArray(row.bars)?row.bars:[]}
 
 const TYPE_BY_LABEL=Object.fromEntries(Object.entries(BAR_CONFIG).map(([k,v])=>[v.label,k])) as Record<string,BarType>
@@ -215,7 +219,7 @@ export default function ModelSchedulePage(){
   const [saveMessage,setSaveMessage]=useState<{type:'success'|'warn';text:string}|null>(null)
   const [dataSource,setDataSource]=useState<'mongo'|'local'|'default'>('default')
   const location=useLocation()
-  const [startDate,setStartDate]=useState(new Date('2026-09-15'))
+  const [startDate,setStartDate]=useState(()=>toD('2026-09-15'))
   const scrollRef=useRef<HTMLDivElement>(null)
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
@@ -240,8 +244,8 @@ export default function ModelSchedulePage(){
   const catMerge=useMemo(()=>calcMerge(filtered,r=>r.category),[filtered])
   const modelMerge=useMemo(()=>calcMerge(filtered,r=>`${r.category}|${r.model}`),[filtered])
 
-  const today=new Date();today.setHours(0,0,0,0)
-  const dates=useMemo(()=>Array.from({length:DAYS},(_,i)=>addDays(startDate,i)),[startDate])
+  const today=dayStart(new Date())
+  const dates=useMemo(()=>Array.from({length:DAYS},(_,i)=>dayStart(addDays(startDate,i))),[startDate])
   const todayOff=useMemo(()=>diffD(startDate,today),[startDate,today])
 
   const isModelLast=useCallback((ri:number)=>{
@@ -473,8 +477,8 @@ export default function ModelSchedulePage(){
                       {dates.map((d,di)=>{
                         const isW=d.getDay()===0||d.getDay()===6
                         const bars=rowBars(row)
-                        const bar=bars.find(b=>d>=toD(normDate(b.start))&&d<=toD(normDate(b.end)))
-                        const isBS=bar&&toD(normDate(bar.start)).getTime()===d.getTime()
+                        const bar=bars.find(b=>barCoversDay(b,d))
+                        const isBS=bar&&isBarStartDay(bar,d)
                         const bc=bar?BAR_CONFIG[bar.type]:null
                         const barSpanDays=bar?diffD(toD(normDate(bar.start)),toD(normDate(bar.end)))+1:0
                         const barMinW=barSpanDays*CW-2
