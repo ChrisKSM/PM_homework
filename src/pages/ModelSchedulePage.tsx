@@ -80,6 +80,40 @@ function toISO(d:Date){
   const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0')
   return `${y}-${m}-${day}`
 }
+function normDate(s:string){return String(s||'').slice(0,10)}
+function rowBars(row:ModelRow){return Array.isArray(row.bars)?row.bars:[]}
+
+const TYPE_BY_LABEL=Object.fromEntries(Object.entries(BAR_CONFIG).map(([k,v])=>[v.label,k])) as Record<string,BarType>
+function normBarType(type:unknown):BarType|null{
+  if(typeof type!=='string')return null
+  if(BAR_TYPES.includes(type as BarType))return type as BarType
+  return TYPE_BY_LABEL[type]??null
+}
+function normBar(raw:unknown):ScheduleBar|null{
+  if(!raw||typeof raw!=='object')return null
+  const b=raw as Record<string,unknown>
+  const type=normBarType(b.type)
+  const start=normDate(String(b.start??''))
+  if(!type||!start)return null
+  const end=normDate(String(b.end??start))||start
+  return{start,end,type,label:typeof b.label==='string'?b.label:''}
+}
+function normRow(raw:unknown,index:number):ModelRow|null{
+  if(!raw||typeof raw!=='object')return null
+  const r=raw as Record<string,unknown>
+  const testType=TEST_TYPES.includes(r.testType as TestCategory)?(r.testType as TestCategory):'일반성능'
+  const status=STATUS_LIST.includes(r.status as StatusType)?(r.status as StatusType):'예정'
+  return{
+    id:String(r.id??r.row_id??`row-${index}-${Date.now()}`),
+    category:String(r.category??''),model:String(r.model??''),event:String(r.event??''),
+    variant:String(r.variant??''),manufacturer:String(r.manufacturer??''),soc:String(r.soc??''),
+    staff:String(r.staff??''),testType,changes:String(r.changes??''),status,
+    bars:(Array.isArray(r.bars)?r.bars:[]).map(normBar).filter((b):b is ScheduleBar=>b!==null),
+  }
+}
+function normRows(rows:unknown[]):ModelRow[]{
+  return rows.map((r,i)=>normRow(r,i)).filter((r):r is ModelRow=>r!==null)
+}
 function uniq(data:ModelRow[],f:keyof ModelRow){const s=new Set<string>();data.forEach(r=>{const v=String(r[f]||'').trim();if(v)s.add(v)});return Array.from(s).sort()}
 
 function exportCSV(data:ModelRow[]){
@@ -115,10 +149,12 @@ function BarTypePicker({x,y,currentType,currentLabel,onSelect,onRemove,onClose,o
   const trimmed=label.trim()
   return(
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose}/>
-      <div className="fixed z-50 bg-white border border-surface-border rounded-lg shadow-xl py-1 w-40" style={{left:Math.min(x,window.innerWidth-170),top:Math.min(y,window.innerHeight-320)}}>
+      <div className="fixed inset-0 z-40" onMouseDown={onClose}/>
+      <div className="fixed z-50 bg-white border border-surface-border rounded-lg shadow-xl py-1 w-40"
+        style={{left:Math.min(x,window.innerWidth-170),top:Math.min(y,window.innerHeight-320)}}
+        onMouseDown={e=>e.stopPropagation()}>
         {BAR_TYPES.map(t=>(
-          <button key={t} onClick={()=>onSelect(t,trimmed)} className={clsx('w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-surface-page text-left',currentType===t&&'bg-blue-50 font-semibold')}>
+          <button key={t} type="button" onMouseDown={e=>e.stopPropagation()} onClick={()=>onSelect(t,trimmed)} className={clsx('w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-surface-page text-left',currentType===t&&'bg-blue-50 font-semibold')}>
             <div className="w-4 h-3 rounded-sm shrink-0" style={{backgroundColor:BAR_CONFIG[t].color}}/>{BAR_CONFIG[t].label}
           </button>
         ))}
@@ -127,10 +163,10 @@ function BarTypePicker({x,y,currentType,currentLabel,onSelect,onRemove,onClose,o
           <p className="text-[9px] text-gray-400 mb-1">라벨 (블록 위 글자)</p>
           <input className="w-full px-2 py-1 border border-gray-300 rounded text-[11px]" value={label} placeholder="예: FC1, MR8..."
             onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){onApplyLabel(trimmed);onClose()}}} autoFocus/>
-          <button onClick={()=>{onApplyLabel(trimmed);onClose()}} className="mt-1 w-full text-center text-[10px] text-blue-600 hover:underline">적용</button>
+          <button type="button" onMouseDown={e=>e.stopPropagation()} onClick={()=>{onApplyLabel(trimmed);onClose()}} className="mt-1 w-full text-center text-[10px] text-blue-600 hover:underline">적용</button>
         </div>
         <div className="border-t border-surface-border my-1"/>
-        <button onClick={onRemove} className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-red-50 text-red-500 text-left"><X size={12}/>삭제</button>
+        <button type="button" onMouseDown={e=>e.stopPropagation()} onClick={onRemove} className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-red-50 text-red-500 text-left"><X size={12}/>삭제</button>
       </div>
     </>
   )
@@ -192,7 +228,7 @@ export default function ModelSchedulePage(){
     modelScheduleApi.load()
       .then(res=>{
         if(cancelled)return
-        if(res.rows.length>0)setData(res.rows as ModelRow[])
+        if(res.rows.length>0)setData(normRows(res.rows))
         setDataSource(res.source)
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
@@ -245,48 +281,70 @@ export default function ModelSchedulePage(){
 
   const handleCellClick=(e:React.MouseEvent,rowId:string,date:Date)=>{
     if(!editing)return
+    e.stopPropagation()
     const row=data.find(r=>r.id===rowId);const ds=toISO(date)
-    const bar=row?.bars.find(b=>ds>=b.start&&ds<=b.end)
-    const rect=(e.target as HTMLElement).getBoundingClientRect()
+    const bar=row?rowBars(row).find(b=>ds>=normDate(b.start)&&ds<=normDate(b.end)):undefined
+    const rect=(e.currentTarget as HTMLElement).getBoundingClientRect()
     setPicker({rowId,date:ds,x:rect.left,y:rect.bottom+2,currentType:bar?.type??null,currentLabel:bar?.label||''})
   }
   const upsertBarAtPicker=(type:BarType,label:string)=>{
-    if(!picker)return
-    setData(p=>p.map(r=>{
-      if(r.id!==picker.rowId)return r
-      const ei=r.bars.findIndex(b=>picker.date>=b.start&&picker.date<=b.end)
-      if(ei>=0){
-        const bars=[...r.bars]
-        bars[ei]={...bars[ei],type,label:label||bars[ei].label||''}
+    setPicker(current=>{
+      if(!current)return null
+      const snap=current
+      setData(p=>p.map(r=>{
+        if(r.id!==snap.rowId)return r
+        const bars=[...rowBars(r)]
+        const ei=bars.findIndex(b=>snap.date>=normDate(b.start)&&snap.date<=normDate(b.end))
+        if(ei>=0){
+          bars[ei]={...bars[ei],type,label:label||bars[ei].label||''}
+        }else{
+          bars.push({start:snap.date,end:snap.date,type,label})
+        }
         return{...r,bars}
-      }
-      return{...r,bars:[...r.bars,{start:picker.date,end:picker.date,type,label}]}
-    }))
-    setPicker(p=>p?{...p,currentType:type,currentLabel:label}:null)
+      }))
+      return{...snap,currentType:type,currentLabel:label}
+    })
   }
-  const applyBarType=(type:BarType,label:string)=>{
-    if(!picker)return
-    upsertBarAtPicker(type,label)
-  }
+  const applyBarType=(type:BarType,label:string)=>{upsertBarAtPicker(type,label)}
   const applyBarLabel=(label:string)=>{
-    if(!picker)return
-    if(picker.currentType){
-      upsertBarAtPicker(picker.currentType,label)
-      return
-    }
-    setData(p=>p.map(r=>{
-      if(r.id!==picker.rowId)return r
-      const ei=r.bars.findIndex(b=>picker.date>=b.start&&picker.date<=b.end)
-      if(ei<0)return r
-      const bars=[...r.bars]
-      bars[ei]={...bars[ei],label}
-      return{...r,bars}
-    }))
-    setPicker(p=>p?{...p,currentLabel:label}:null)
+    setPicker(current=>{
+      if(!current)return null
+      const snap=current
+      if(snap.currentType){
+        setData(p=>p.map(r=>{
+          if(r.id!==snap.rowId)return r
+          const bars=[...rowBars(r)]
+          const ei=bars.findIndex(b=>snap.date>=normDate(b.start)&&snap.date<=normDate(b.end))
+          if(ei>=0){
+            bars[ei]={...bars[ei],type:snap.currentType!,label}
+          }else{
+            bars.push({start:snap.date,end:snap.date,type:snap.currentType!,label})
+          }
+          return{...r,bars}
+        }))
+        return{...snap,currentLabel:label}
+      }
+      setData(p=>p.map(r=>{
+        if(r.id!==snap.rowId)return r
+        const bars=[...rowBars(r)]
+        const ei=bars.findIndex(b=>snap.date>=normDate(b.start)&&snap.date<=normDate(b.end))
+        if(ei<0)return r
+        bars[ei]={...bars[ei],label}
+        return{...r,bars}
+      }))
+      return{...snap,currentLabel:label}
+    })
   }
   const removeBar=()=>{
-    if(!picker)return
-    setData(p=>p.map(r=>{if(r.id!==picker.rowId)return r;return{...r,bars:r.bars.filter(b=>!(picker.date>=b.start&&picker.date<=b.end))}}));setPicker(null)
+    setPicker(current=>{
+      if(!current)return null
+      const snap=current
+      setData(p=>p.map(r=>{
+        if(r.id!==snap.rowId)return r
+        return{...r,bars:rowBars(r).filter(b=>!(snap.date>=normDate(b.start)&&snap.date<=normDate(b.end)))}
+      }))
+      return null
+    })
   }
 
   const MergedCell=({ri,children,className=''}:{ri:number;children:React.ReactNode;className?:string})=>{
@@ -414,10 +472,11 @@ export default function ModelSchedulePage(){
 
                       {dates.map((d,di)=>{
                         const isW=d.getDay()===0||d.getDay()===6
-                        const bar=row.bars.find(b=>d>=toD(b.start)&&d<=toD(b.end))
-                        const isBS=bar&&toD(bar.start).getTime()===d.getTime()
+                        const bars=rowBars(row)
+                        const bar=bars.find(b=>d>=toD(normDate(b.start))&&d<=toD(normDate(b.end)))
+                        const isBS=bar&&toD(normDate(bar.start)).getTime()===d.getTime()
                         const bc=bar?BAR_CONFIG[bar.type]:null
-                        const barSpanDays=bar?diffD(toD(bar.start),toD(bar.end))+1:0
+                        const barSpanDays=bar?diffD(toD(normDate(bar.start)),toD(normDate(bar.end)))+1:0
                         const barMinW=barSpanDays*CW-2
                         const barW=bar?.label&&barSpanDays===1
                           ? Math.max(barMinW,bar.label.length*7+10)
