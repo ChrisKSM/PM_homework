@@ -76,7 +76,10 @@ function addDays(d:Date,n:number){const r=new Date(d);r.setDate(r.getDate()+n);r
 function fmt(d:Date){return `${d.getMonth()+1}/${d.getDate()}`}
 function diffD(a:Date,b:Date){return Math.round((b.getTime()-a.getTime())/86400000)}
 function toD(s:string){return new Date(s+'T00:00:00')}
-function toISO(d:Date){return d.toISOString().slice(0,10)}
+function toISO(d:Date){
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0')
+  return `${y}-${m}-${day}`
+}
 function uniq(data:ModelRow[],f:keyof ModelRow){const s=new Set<string>();data.forEach(r=>{const v=String(r[f]||'').trim();if(v)s.add(v)});return Array.from(s).sort()}
 
 function exportCSV(data:ModelRow[]){
@@ -103,16 +106,19 @@ function calcMerge(rows:ModelRow[],key:(r:ModelRow)=>string):Merge[]{
 
 // ── 바 타입 선택 팝업 ────────────────────────────────────────────────────────
 
-function BarTypePicker({x,y,currentLabel,onSelect,onRemove,onClose,onLabelChange}:{
-  x:number;y:number;currentLabel:string;onSelect:(t:BarType)=>void;onRemove:()=>void;onClose:()=>void;onLabelChange:(l:string)=>void
+function BarTypePicker({x,y,currentType,currentLabel,onSelect,onRemove,onClose,onApplyLabel}:{
+  x:number;y:number;currentType:BarType|null;currentLabel:string
+  onSelect:(t:BarType,label:string)=>void;onRemove:()=>void;onClose:()=>void;onApplyLabel:(l:string)=>void
 }){
   const [label,setLabel]=useState(currentLabel)
+  useEffect(()=>{setLabel(currentLabel)},[currentLabel])
+  const trimmed=label.trim()
   return(
     <>
       <div className="fixed inset-0 z-40" onClick={onClose}/>
       <div className="fixed z-50 bg-white border border-surface-border rounded-lg shadow-xl py-1 w-40" style={{left:Math.min(x,window.innerWidth-170),top:Math.min(y,window.innerHeight-320)}}>
         {BAR_TYPES.map(t=>(
-          <button key={t} onClick={()=>onSelect(t)} className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-surface-page text-left">
+          <button key={t} onClick={()=>onSelect(t,trimmed)} className={clsx('w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-surface-page text-left',currentType===t&&'bg-blue-50 font-semibold')}>
             <div className="w-4 h-3 rounded-sm shrink-0" style={{backgroundColor:BAR_CONFIG[t].color}}/>{BAR_CONFIG[t].label}
           </button>
         ))}
@@ -120,8 +126,8 @@ function BarTypePicker({x,y,currentLabel,onSelect,onRemove,onClose,onLabelChange
         <div className="px-3 py-1.5">
           <p className="text-[9px] text-gray-400 mb-1">라벨 (블록 위 글자)</p>
           <input className="w-full px-2 py-1 border border-gray-300 rounded text-[11px]" value={label} placeholder="예: FC1, MR8..."
-            onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){onLabelChange(label);onClose()}}} autoFocus/>
-          <button onClick={()=>{onLabelChange(label);onClose()}} className="mt-1 w-full text-center text-[10px] text-blue-600 hover:underline">적용</button>
+            onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){onApplyLabel(trimmed);onClose()}}} autoFocus/>
+          <button onClick={()=>{onApplyLabel(trimmed);onClose()}} className="mt-1 w-full text-center text-[10px] text-blue-600 hover:underline">적용</button>
         </div>
         <div className="border-t border-surface-border my-1"/>
         <button onClick={onRemove} className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-red-50 text-red-500 text-left"><X size={12}/>삭제</button>
@@ -176,7 +182,7 @@ export default function ModelSchedulePage(){
   const [startDate,setStartDate]=useState(new Date('2026-09-15'))
   const scrollRef=useRef<HTMLDivElement>(null)
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
-  const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentLabel:string}|null>(null)
+  const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
   const [changesPopup,setChangesPopup]=useState<{model:string;cat:string}|null>(null)
 
   // MongoDB / localStorage 로드 (페이지 진입 시마다)
@@ -242,23 +248,41 @@ export default function ModelSchedulePage(){
     const row=data.find(r=>r.id===rowId);const ds=toISO(date)
     const bar=row?.bars.find(b=>ds>=b.start&&ds<=b.end)
     const rect=(e.target as HTMLElement).getBoundingClientRect()
-    setPicker({rowId,date:ds,x:rect.left,y:rect.bottom+2,currentLabel:bar?.label||''})
+    setPicker({rowId,date:ds,x:rect.left,y:rect.bottom+2,currentType:bar?.type??null,currentLabel:bar?.label||''})
   }
-  const applyBarType=(type:BarType)=>{
+  const upsertBarAtPicker=(type:BarType,label:string)=>{
     if(!picker)return
     setData(p=>p.map(r=>{
       if(r.id!==picker.rowId)return r
       const ei=r.bars.findIndex(b=>picker.date>=b.start&&picker.date<=b.end)
-      if(ei>=0){const bars=[...r.bars];bars[ei]={...bars[ei],type};return{...r,bars}}
-      return{...r,bars:[...r.bars,{start:picker.date,end:picker.date,type,label:''}]}
-    }));setPicker(null)
+      if(ei>=0){
+        const bars=[...r.bars]
+        bars[ei]={...bars[ei],type,label:label||bars[ei].label||''}
+        return{...r,bars}
+      }
+      return{...r,bars:[...r.bars,{start:picker.date,end:picker.date,type,label}]}
+    }))
+    setPicker(p=>p?{...p,currentType:type,currentLabel:label}:null)
+  }
+  const applyBarType=(type:BarType,label:string)=>{
+    if(!picker)return
+    upsertBarAtPicker(type,label)
   }
   const applyBarLabel=(label:string)=>{
     if(!picker)return
+    if(picker.currentType){
+      upsertBarAtPicker(picker.currentType,label)
+      return
+    }
     setData(p=>p.map(r=>{
       if(r.id!==picker.rowId)return r
-      return{...r,bars:r.bars.map(b=>(picker.date>=b.start&&picker.date<=b.end)?{...b,label}:b)}
+      const ei=r.bars.findIndex(b=>picker.date>=b.start&&picker.date<=b.end)
+      if(ei<0)return r
+      const bars=[...r.bars]
+      bars[ei]={...bars[ei],label}
+      return{...r,bars}
     }))
+    setPicker(p=>p?{...p,currentLabel:label}:null)
   }
   const removeBar=()=>{
     if(!picker)return
@@ -318,9 +342,9 @@ export default function ModelSchedulePage(){
 
         {editing&&<div className="text-[10px] text-gray-500 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">💡 일정 셀 <b>클릭</b> → 타입+라벨 · <b>변경점</b> 클릭 → 팝업 편집 · <b>취소</b> = 복원 · <b>편집 완료</b> = MongoDB 저장</div>}
 
-        <div className="border border-surface-border rounded-xl overflow-hidden bg-white">
+        <div className="border border-surface-border rounded-xl bg-white">
           <div className="overflow-x-auto" ref={scrollRef}>
-            <table className="text-xs border-collapse" style={{minWidth:`${720+DAYS*CW}px`}}>
+            <table className="text-xs border-collapse" style={{minWidth:`${720+DAYS*CW}px`,overflow:'visible'}}>
               <thead>
                 <tr className="bg-gray-50 border-b-2 border-gray-300">
                   {['카테고리','모델명','이벤트','개발등급','생산업체','SoC','담당','구분','주요 변경점','Status'].map((h,i)=>(
@@ -394,25 +418,33 @@ export default function ModelSchedulePage(){
                         const isBS=bar&&toD(bar.start).getTime()===d.getTime()
                         const bc=bar?BAR_CONFIG[bar.type]:null
                         const barSpanDays=bar?diffD(toD(bar.start),toD(bar.end))+1:0
+                        const barMinW=barSpanDays*CW-2
+                        const barW=bar?.label&&barSpanDays===1
+                          ? Math.max(barMinW,bar.label.length*7+10)
+                          : barMinW
 
                         return(
-                          <td key={di} className={clsx('border-r border-surface-border/40 px-0 py-0 relative',
+                          <td key={di} className={clsx('border-r border-surface-border/40 px-0 py-0 relative overflow-visible',
                             isW&&'bg-gray-50/50',d.getDay()===1&&'border-l-2 border-l-gray-200',
                             editing&&'cursor-pointer hover:bg-blue-50/40'
-                          )} style={{width:CW,minWidth:CW,height:RH}}
+                          )} style={{width:CW,minWidth:CW,height:RH,overflow:'visible'}}
                             onClick={editing?(e)=>handleCellClick(e,row.id,d):undefined}
                           >
-                            {bar&&bc&&(
-                              <div className="absolute inset-y-1 inset-x-0 rounded-sm flex items-center" style={{backgroundColor:bc.color}}>
-                                {isBS&&bar.label&&(
-                                  <span className="absolute left-0.5 text-[7px] font-bold truncate drop-shadow-sm whitespace-nowrap z-10"
-                                    style={{color:bc.textColor,maxWidth:`${barSpanDays*CW-4}px`}}>
+                            {bar&&bc&&isBS&&(
+                              <div className="absolute top-1 left-0 rounded-sm flex items-center z-[5] pointer-events-none overflow-visible"
+                                style={{width:`${barW}px`,minWidth:`${barMinW}px`,height:RH-8,backgroundColor:bc.color}}>
+                                {bar.label?(
+                                  <span className="px-1 text-[8px] font-bold leading-none whitespace-nowrap overflow-visible"
+                                    style={{color:bc.textColor}}>
                                     {bar.label}
                                   </span>
-                                )}
+                                ):null}
                               </div>
                             )}
-                            {di===todayOff&&<div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-20" style={{transform:'translateX(-50%)'}}/>}
+                            {bar&&bc&&!isBS&&(
+                              <div className="absolute inset-y-1 inset-x-0 rounded-sm pointer-events-none" style={{backgroundColor:bc.color}}/>
+                            )}
+                            {di===todayOff&&<div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-20 pointer-events-none" style={{transform:'translateX(-50%)'}}/>}
                           </td>
                         )
                       })}
@@ -426,7 +458,7 @@ export default function ModelSchedulePage(){
         <p className="text-[10px] text-gray-400 mt-2 text-right">빨간 세로선 = 오늘 ({fmt(today)})</p>
       </div>
 
-      {picker&&<BarTypePicker x={picker.x} y={picker.y} currentLabel={picker.currentLabel} onSelect={applyBarType} onRemove={removeBar} onClose={()=>setPicker(null)} onLabelChange={applyBarLabel}/>}
+      {picker&&<BarTypePicker x={picker.x} y={picker.y} currentType={picker.currentType} currentLabel={picker.currentLabel} onSelect={applyBarType} onRemove={removeBar} onClose={()=>setPicker(null)} onApplyLabel={applyBarLabel}/>}
       {changesPopup&&<ChangesPopup value={data.find(r=>r.model===changesPopup.model&&r.category===changesPopup.cat)?.changes||''} onSave={v=>updateGroup(changesPopup.model,changesPopup.cat,'changes',v)} onClose={()=>setChangesPopup(null)}/>}
     </>
   )
