@@ -46,6 +46,34 @@ git add -A && git commit -m "feat: 모델 현황 v7 — 저장/로드 수정" &&
 
 ## BE pod (be-audio-test)
 
+### Snapshot 메일 공유 포함 (권장 — 최신)
+
+```bash
+cd /workspace/project
+git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
+git fetch github cursor/model-schedule-bar-label-fix-b14b
+
+# ⚠️ scripts/ 가 pod에 없으면 먼저 checkout (최초 1회)
+git checkout github/cursor/model-schedule-bar-label-fix-b14b -- \
+  scripts/deploy-model-schedule-share-be.sh
+
+sh scripts/deploy-model-schedule-share-be.sh
+# .env MONGO_PASSWORD 확인 후 uvicorn 재시작
+```
+
+**`.env` SMTP (Audio DL, 무인증):**
+
+```env
+SMTP_HOST=lgesmtp.lge.com
+SMTP_PORT=25
+SMTP_FROM=DL-webOS_PMO-AudioSWPO@lge.com
+SMTP_USE_TLS=true
+SMTP_VERIFY_SSL=false
+MODEL_SCHEDULE_SHARE_RECIPIENTS=seokmin.koh@lge.com
+```
+
+### Milvus load/save 만 (구버전)
+
 ```bash
 cd /workspace/project
 git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
