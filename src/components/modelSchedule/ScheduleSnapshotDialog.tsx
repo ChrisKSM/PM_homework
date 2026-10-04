@@ -1,5 +1,5 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { X } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import clsx from 'clsx'
 import {
   type BarType,
@@ -30,9 +30,10 @@ const STATUS_STYLE = {
   '검증제외': { bg: 'bg-amber-50', text: 'text-amber-600' },
 } as const
 
-const CW = 28
-const RH = 24
-const LEFT_COLS_W = 720
+const CW = 26
+const RH = 28
+const LEFT_COLS_W = 740
+const MIN_SCALE = 0.82
 
 interface Merge {
   rowSpan: number
@@ -51,6 +52,25 @@ function calcMerge(rows: ModelRow[], key: (r: ModelRow) => string): Merge[] {
     i = j
   }
   return res
+}
+
+/** 모델 그룹(4구분) 단위로 2페이지 분할 — 그룹 중간 절단 없음 */
+function splitRowsIntoPages(rows: ModelRow[]): ModelRow[][] {
+  if (rows.length <= 0) return [[]]
+  const groups: ModelRow[][] = []
+  let i = 0
+  while (i < rows.length) {
+    const k = groupKey(rows[i])
+    const g: ModelRow[] = []
+    while (i < rows.length && groupKey(rows[i]) === k) {
+      g.push(rows[i])
+      i++
+    }
+    groups.push(g)
+  }
+  if (groups.length <= 1) return [rows]
+  const mid = Math.ceil(groups.length / 2)
+  return [groups.slice(0, mid).flat(), groups.slice(mid).flat()]
 }
 
 function fmt(d: Date) {
@@ -101,6 +121,195 @@ function isModelAllDone(rows: ModelRow[], model: string, cat: string, event: str
   return group.length > 0 && group.every((r) => r.status === '완료')
 }
 
+function SnapshotTable({
+  rows,
+  dates,
+  today,
+  startDate,
+}: {
+  rows: ModelRow[]
+  dates: Date[]
+  today: Date
+  startDate: Date
+}) {
+  const catMerge = useMemo(() => calcMerge(rows, (r) => r.category), [rows])
+  const modelMerge = useMemo(() => calcMerge(rows, groupKey), [rows])
+  const todayOff = useMemo(() => diffD(startDate, today), [startDate, today])
+
+  const isModelLast = (ri: number) => {
+    if (ri >= rows.length - 1) return true
+    return groupKey(rows[ri]) !== groupKey(rows[ri + 1])
+  }
+
+  if (rows.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-8">표시할 데이터가 없습니다.</p>
+  }
+
+  return (
+    <table className="text-xs border-collapse bg-white border border-surface-border rounded-lg">
+      <thead>
+        <tr className="bg-gray-50 border-b-2 border-gray-300">
+          {['카테고리', '모델명', '이벤트', '개발등급', '생산업체', 'SoC', '담당', '구분', '주요 변경점', 'Status'].map(
+            (h, i) => (
+              <th
+                key={h}
+                className={clsx(
+                  'border-r border-surface-border px-1.5 py-2 text-gray-600 font-semibold text-[10px] whitespace-nowrap',
+                  i === 0 && 'w-[88px]',
+                  i === 1 && 'w-[72px]',
+                  i === 8 && 'min-w-[130px]',
+                )}
+              >
+                {h}
+              </th>
+            ),
+          )}
+          {dates.map((d, i) => (
+            <th
+              key={i}
+              className={clsx(
+                'border-r border-surface-border px-0 py-1 text-center font-medium',
+                d.getTime() === today.getTime()
+                  ? 'bg-red-100 text-red-700'
+                  : d.getDay() === 0 || d.getDay() === 6
+                    ? 'bg-gray-100 text-gray-400'
+                    : 'text-gray-600',
+                d.getDay() === 1 && 'border-l-2 border-l-gray-300',
+              )}
+              style={{ width: CW, minWidth: CW }}
+            >
+              <div className="text-[8px] leading-tight">{fmt(d)}</div>
+              <div className="text-[7px] text-gray-400">{['일', '월', '화', '수', '목', '금', '토'][d.getDay()]}</div>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((row, ri) => {
+          const cm = catMerge[ri]
+          const mm = modelMerge[ri]
+          const borderB = isModelLast(ri) ? 'border-b-2 border-b-gray-400' : 'border-b border-b-surface-border/60'
+          const allDone = isModelAllDone(rows, row.model, row.category, row.event)
+
+          return (
+            <tr key={row.id} className={borderB} style={{ height: RH }}>
+              {!cm.hidden && (
+                <td
+                  rowSpan={cm.rowSpan}
+                  className={clsx(
+                    'border-r border-surface-border px-1.5 text-gray-700 text-[10px] whitespace-nowrap align-middle',
+                    allDone && 'bg-gray-100',
+                  )}
+                >
+                  {row.category}
+                </td>
+              )}
+              {!mm.hidden && (
+                <td
+                  rowSpan={mm.rowSpan}
+                  className={clsx(
+                    'border-r border-surface-border px-1.5 text-gray-900 font-semibold text-[11px] whitespace-nowrap align-middle text-center',
+                    allDone && 'bg-gray-100',
+                  )}
+                >
+                  {row.model}
+                </td>
+              )}
+              {!mm.hidden && (
+                <>
+                  <td rowSpan={mm.rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle', allDone && 'bg-gray-100')}>
+                    {row.event}
+                  </td>
+                  <td rowSpan={mm.rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle', allDone && 'bg-gray-100')}>
+                    {row.variant}
+                  </td>
+                  <td rowSpan={mm.rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle', allDone && 'bg-gray-100')}>
+                    {row.manufacturer}
+                  </td>
+                  <td rowSpan={mm.rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] font-mono text-gray-600 align-middle', allDone && 'bg-gray-100')}>
+                    {row.soc}
+                  </td>
+                  <td rowSpan={mm.rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle', allDone && 'bg-gray-100')}>
+                    {row.staff}
+                  </td>
+                </>
+              )}
+              <td className="border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap">
+                <span className={clsx('px-1 py-0.5 rounded text-[9px] font-bold', TT_STYLE[row.testType])}>{row.testType}</span>
+              </td>
+              {!mm.hidden && (
+                <td
+                  rowSpan={mm.rowSpan}
+                  className={clsx(
+                    'border-r border-surface-border px-1.5 text-[9px] text-gray-600 align-middle min-w-[130px]',
+                    allDone && 'bg-gray-100',
+                  )}
+                >
+                  <span className="whitespace-pre-wrap leading-snug">{row.changes}</span>
+                </td>
+              )}
+              <td className="border-r border-surface-border px-1.5">
+                {(() => {
+                  const s = STATUS_STYLE[row.status]
+                  return (
+                    <span className={`px-1 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${s.bg} ${s.text}`}>
+                      {row.status}
+                    </span>
+                  )
+                })()}
+              </td>
+              {dates.map((d, di) => {
+                const isW = d.getDay() === 0 || d.getDay() === 6
+                const bars = rowBars(row)
+                const bar = bars.find((b) => barCoversDay(b, d))
+                const isBS = bar && isBarStartDay(bar, d)
+                const bc = bar ? BAR_CONFIG[bar.type] : null
+                const barSpanDays = bar ? diffD(toD(normDate(bar.start)), toD(normDate(bar.end))) + 1 : 0
+                const barMinW = barSpanDays * CW - 2
+                const barW = bar?.label ? Math.max(barMinW, bar.label.length * 7 + 10) : barMinW
+
+                return (
+                  <td
+                    key={di}
+                    className={clsx(
+                      'border-r border-surface-border/40 px-0 py-0 relative',
+                      isW && 'bg-gray-50/50',
+                      d.getDay() === 1 && 'border-l-2 border-l-gray-200',
+                    )}
+                    style={{ width: CW, minWidth: CW, height: RH }}
+                  >
+                    {bar && bc && isBS && (
+                      <div
+                        className="absolute top-1 left-0 rounded-sm flex items-center z-[1] pointer-events-none"
+                        style={{ width: `${barW}px`, minWidth: `${barMinW}px`, height: RH - 8, backgroundColor: bc.color }}
+                      >
+                        {bar.label ? (
+                          <span className="px-1 text-[8px] font-bold leading-none whitespace-nowrap" style={{ color: bc.textColor }}>
+                            {bar.label}
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+                    {bar && bc && !isBS && (
+                      <div className="absolute inset-y-1 inset-x-0 rounded-sm pointer-events-none" style={{ backgroundColor: bc.color }} />
+                    )}
+                    {di === todayOff && (
+                      <div
+                        className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-[2] pointer-events-none"
+                        style={{ transform: 'translateX(-50%)' }}
+                      />
+                    )}
+                  </td>
+                )
+              })}
+            </tr>
+          )
+        })}
+      </tbody>
+    </table>
+  )
+}
+
 type Props = {
   open: boolean
   onClose: () => void
@@ -120,18 +329,19 @@ export default function ScheduleSnapshotDialog({
   today,
   startDate,
 }: Props) {
+  const pages = useMemo(() => splitRowsIntoPages(rows), [rows])
+  const pageCount = pages.length
+  const [pageIndex, setPageIndex] = useState(0)
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
-  const [scale, setScale] = useState(0.5)
+  const [scale, setScale] = useState(1)
 
-  const catMerge = useMemo(() => calcMerge(rows, (r) => r.category), [rows])
-  const modelMerge = useMemo(() => calcMerge(rows, groupKey), [rows])
-  const todayOff = useMemo(() => diffD(startDate, today), [startDate, today])
+  const pageRows = pages[pageIndex] ?? []
+  const tableW = LEFT_COLS_W + dates.length * CW
 
-  const isModelLast = (ri: number) => {
-    if (ri >= rows.length - 1) return true
-    return groupKey(rows[ri]) !== groupKey(rows[ri + 1])
-  }
+  useEffect(() => {
+    if (open) setPageIndex(0)
+  }, [open, rows])
 
   useLayoutEffect(() => {
     if (!open) return
@@ -142,35 +352,57 @@ export default function ScheduleSnapshotDialog({
       const cw = content.offsetWidth
       const ch = content.offsetHeight
       if (cw <= 0 || ch <= 0) return
-      const pad = 8
+      const pad = 12
       const sx = (container.clientWidth - pad) / cw
       const sy = (container.clientHeight - pad) / ch
-      setScale(Math.min(sx, sy, 1) * 0.98)
+      setScale(Math.max(Math.min(sx, sy, 1) * 0.98, MIN_SCALE))
     }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [open, rows, dates])
+  }, [open, pageIndex, pageRows, dates])
 
   if (!open) return null
 
-  const tableW = LEFT_COLS_W + dates.length * CW
+  const modelGroupCount = (() => {
+    let n = 0
+    let i = 0
+    while (i < rows.length) {
+      const k = groupKey(rows[i])
+      n++
+      while (i < rows.length && groupKey(rows[i]) === k) i++
+    }
+    return n
+  })()
+
+  const pageGroupCount = (() => {
+    let n = 0
+    let i = 0
+    while (i < pageRows.length) {
+      const k = groupKey(pageRows[i])
+      n++
+      while (i < pageRows.length && groupKey(pageRows[i]) === k) i++
+    }
+    return n
+  })()
 
   return (
     <>
       <div className="fixed inset-0 z-[60] bg-black/45" onClick={onClose} aria-hidden />
       <div
-        className="fixed z-[70] inset-4 md:inset-8 lg:inset-10 flex flex-col bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden"
+        className="fixed z-[70] inset-3 md:inset-6 lg:inset-8 flex flex-col bg-white rounded-xl shadow-2xl border border-surface-border overflow-hidden"
         role="dialog"
         aria-modal
         aria-labelledby="schedule-snapshot-title"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-surface-border shrink-0 bg-gray-50">
           <div>
-            <h2 id="schedule-snapshot-title" className="text-sm font-semibold text-gray-800">
+            <h2 id="schedule-snapshot-title" className="text-base font-semibold text-gray-800">
               일정 Snapshot
             </h2>
-            <p className="text-[11px] text-gray-500 mt-0.5">{periodLabel} · {rows.length}행</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {periodLabel} · 모델 {modelGroupCount}개 · {rows.length}행
+            </p>
           </div>
           <button
             type="button"
@@ -182,20 +414,59 @@ export default function ScheduleSnapshotDialog({
           </button>
         </div>
 
-        <div className="px-4 py-2 border-b border-surface-border shrink-0 flex flex-wrap gap-3 text-[9px] font-medium">
+        <div className="px-4 py-2 border-b border-surface-border shrink-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-medium">
           {Object.entries(BAR_CONFIG).map(([k, c]) => (
             <div key={k} className="flex items-center gap-1">
-              <div className="w-3.5 h-2 rounded-sm" style={{ backgroundColor: c.color }} />
+              <div className="w-4 h-2.5 rounded-sm" style={{ backgroundColor: c.color }} />
               <span className="text-gray-600">{c.label}</span>
             </div>
           ))}
         </div>
 
-        <div ref={containerRef} className="flex-1 min-h-0 flex items-center justify-center p-2 overflow-hidden bg-slate-50/80">
+        {pageCount > 1 && (
+          <div className="px-4 py-2 border-b border-surface-border shrink-0 flex items-center justify-center gap-3 bg-white">
+            <button
+              type="button"
+              disabled={pageIndex <= 0}
+              onClick={() => setPageIndex((p) => Math.max(0, p - 1))}
+              className="p-1.5 rounded-lg border border-surface-border disabled:opacity-30 hover:bg-surface-page"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <div className="flex gap-1">
+              {pages.map((_, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setPageIndex(i)}
+                  className={clsx(
+                    'px-3 py-1 rounded-lg text-xs font-semibold transition-colors',
+                    pageIndex === i ? 'bg-lg-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                  )}
+                >
+                  Page {i + 1}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              disabled={pageIndex >= pageCount - 1}
+              onClick={() => setPageIndex((p) => Math.min(pageCount - 1, p + 1))}
+              className="p-1.5 rounded-lg border border-surface-border disabled:opacity-30 hover:bg-surface-page"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        )}
+
+        <div
+          ref={containerRef}
+          className="flex-1 min-h-0 flex items-center justify-center p-3 overflow-hidden bg-slate-50/80"
+        >
           <div
             style={{
               width: tableW * scale,
-              height: (40 + rows.length * RH) * scale,
+              height: (44 + pageRows.length * RH) * scale,
             }}
           >
             <div
@@ -206,217 +477,16 @@ export default function ScheduleSnapshotDialog({
                 width: tableW,
               }}
             >
-              <table className="text-xs border-collapse bg-white border border-surface-border rounded-lg overflow-hidden">
-                <thead>
-                  <tr className="bg-gray-50 border-b-2 border-gray-300">
-                    {['카테고리', '모델명', '이벤트', '개발등급', '생산업체', 'SoC', '담당', '구분', '주요 변경점', 'Status'].map(
-                      (h, i) => (
-                        <th
-                          key={h}
-                          className={clsx(
-                            'border-r border-surface-border px-1 py-1.5 text-gray-500 font-semibold text-[9px] whitespace-nowrap',
-                            i === 0 && 'w-20',
-                            i === 1 && 'w-16',
-                            i === 8 && 'min-w-[120px]',
-                          )}
-                        >
-                          {h}
-                        </th>
-                      ),
-                    )}
-                    {dates.map((d, i) => (
-                      <th
-                        key={i}
-                        className={clsx(
-                          'border-r border-surface-border px-0 py-0.5 text-center font-medium',
-                          d.getTime() === today.getTime()
-                            ? 'bg-red-100 text-red-700'
-                            : d.getDay() === 0 || d.getDay() === 6
-                              ? 'bg-gray-100 text-gray-400'
-                              : 'text-gray-500',
-                          d.getDay() === 1 && 'border-l-2 border-l-gray-300',
-                        )}
-                        style={{ width: CW, minWidth: CW }}
-                      >
-                        <div className="text-[7px] leading-tight">{fmt(d)}</div>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row, ri) => {
-                    const cm = catMerge[ri]
-                    const mm = modelMerge[ri]
-                    const borderB = isModelLast(ri)
-                      ? 'border-b-2 border-b-gray-400'
-                      : 'border-b border-b-surface-border/60'
-                    const allDone = isModelAllDone(rows, row.model, row.category, row.event)
-
-                    return (
-                      <tr key={row.id} className={borderB} style={{ height: RH }}>
-                        {!cm.hidden && (
-                          <td
-                            rowSpan={cm.rowSpan}
-                            className={clsx(
-                              'border-r border-surface-border px-1 text-gray-600 text-[8px] whitespace-nowrap align-middle',
-                              allDone && 'bg-gray-100',
-                            )}
-                          >
-                            {row.category}
-                          </td>
-                        )}
-                        {!mm.hidden && (
-                          <td
-                            rowSpan={mm.rowSpan}
-                            className={clsx(
-                              'border-r border-surface-border px-1 text-gray-900 font-semibold text-[9px] whitespace-nowrap align-middle text-center',
-                              allDone && 'bg-gray-100',
-                            )}
-                          >
-                            {row.model}
-                          </td>
-                        )}
-                        {!mm.hidden && (
-                          <>
-                            <td
-                              rowSpan={mm.rowSpan}
-                              className={clsx(
-                                'border-r border-surface-border px-1 text-[8px] text-gray-600 align-middle',
-                                allDone && 'bg-gray-100',
-                              )}
-                            >
-                              {row.event}
-                            </td>
-                            <td
-                              rowSpan={mm.rowSpan}
-                              className={clsx(
-                                'border-r border-surface-border px-1 text-[8px] text-gray-600 align-middle',
-                                allDone && 'bg-gray-100',
-                              )}
-                            >
-                              {row.variant}
-                            </td>
-                            <td
-                              rowSpan={mm.rowSpan}
-                              className={clsx(
-                                'border-r border-surface-border px-1 text-[8px] text-gray-600 align-middle',
-                                allDone && 'bg-gray-100',
-                              )}
-                            >
-                              {row.manufacturer}
-                            </td>
-                            <td
-                              rowSpan={mm.rowSpan}
-                              className={clsx(
-                                'border-r border-surface-border px-1 text-[8px] font-mono text-gray-600 align-middle',
-                                allDone && 'bg-gray-100',
-                              )}
-                            >
-                              {row.soc}
-                            </td>
-                            <td
-                              rowSpan={mm.rowSpan}
-                              className={clsx(
-                                'border-r border-surface-border px-1 text-[8px] text-gray-600 align-middle',
-                                allDone && 'bg-gray-100',
-                              )}
-                            >
-                              {row.staff}
-                            </td>
-                          </>
-                        )}
-                        <td className="border-r border-surface-border px-1 text-[8px] whitespace-nowrap">
-                          <span className={clsx('px-0.5 py-0 rounded text-[7px] font-bold', TT_STYLE[row.testType])}>
-                            {row.testType}
-                          </span>
-                        </td>
-                        {!mm.hidden && (
-                          <td
-                            rowSpan={mm.rowSpan}
-                            className={clsx(
-                              'border-r border-surface-border px-1 text-[7px] text-gray-500 align-middle max-w-[120px]',
-                              allDone && 'bg-gray-100',
-                            )}
-                          >
-                            <span className="line-clamp-2 whitespace-pre-wrap">{row.changes}</span>
-                          </td>
-                        )}
-                        <td className="border-r border-surface-border px-1">
-                          {(() => {
-                            const s = STATUS_STYLE[row.status]
-                            return (
-                              <span className={`px-0.5 py-0 rounded text-[7px] font-bold whitespace-nowrap ${s.bg} ${s.text}`}>
-                                {row.status}
-                              </span>
-                            )
-                          })()}
-                        </td>
-                        {dates.map((d, di) => {
-                          const isW = d.getDay() === 0 || d.getDay() === 6
-                          const bars = rowBars(row)
-                          const bar = bars.find((b) => barCoversDay(b, d))
-                          const isBS = bar && isBarStartDay(bar, d)
-                          const bc = bar ? BAR_CONFIG[bar.type] : null
-                          const barSpanDays = bar ? diffD(toD(normDate(bar.start)), toD(normDate(bar.end))) + 1 : 0
-                          const barMinW = barSpanDays * CW - 2
-                          const barW = bar?.label ? Math.max(barMinW, bar.label.length * 6 + 8) : barMinW
-
-                          return (
-                            <td
-                              key={di}
-                              className={clsx(
-                                'border-r border-surface-border/40 px-0 py-0 relative',
-                                isW && 'bg-gray-50/50',
-                                d.getDay() === 1 && 'border-l-2 border-l-gray-200',
-                              )}
-                              style={{ width: CW, minWidth: CW, height: RH }}
-                            >
-                              {bar && bc && isBS && (
-                                <div
-                                  className="absolute top-0.5 left-0 rounded-sm flex items-center z-[1] pointer-events-none"
-                                  style={{
-                                    width: `${barW}px`,
-                                    minWidth: `${barMinW}px`,
-                                    height: RH - 6,
-                                    backgroundColor: bc.color,
-                                  }}
-                                >
-                                  {bar.label ? (
-                                    <span
-                                      className="px-0.5 text-[6px] font-bold leading-none whitespace-nowrap"
-                                      style={{ color: bc.textColor }}
-                                    >
-                                      {bar.label}
-                                    </span>
-                                  ) : null}
-                                </div>
-                              )}
-                              {bar && bc && !isBS && (
-                                <div
-                                  className="absolute inset-y-0.5 inset-x-0 rounded-sm pointer-events-none"
-                                  style={{ backgroundColor: bc.color }}
-                                />
-                              )}
-                              {di === todayOff && (
-                                <div
-                                  className="absolute inset-y-0 left-1/2 w-px bg-red-600 z-[2] pointer-events-none"
-                                  style={{ transform: 'translateX(-50%)' }}
-                                />
-                              )}
-                            </td>
-                          )
-                        })}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              <SnapshotTable rows={pageRows} dates={dates} today={today} startDate={startDate} />
             </div>
           </div>
         </div>
 
-        <div className="px-4 py-2 border-t border-surface-border text-[10px] text-gray-400 text-right shrink-0">
-          축소율 {Math.round(scale * 100)}% · 빨간 세로선 = 오늘 ({fmt(today)})
+        <div className="px-4 py-2 border-t border-surface-border text-[11px] text-gray-500 shrink-0 flex justify-between items-center">
+          <span>
+            Page {pageIndex + 1}/{pageCount} · 이 페이지 모델 {pageGroupCount}개 · {pageRows.length}행
+          </span>
+          <span>빨간 세로선 = 오늘 ({fmt(today)})</span>
         </div>
       </div>
     </>
