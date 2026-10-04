@@ -12,10 +12,7 @@ function resolveApiBaseUrl(): string {
   const env = (window as any).workspace_env ?? {}
   const host = window.location.hostname
 
-  // AX Studio runtime 주입 (최우선)
-  if (env.REACT_APP__API_BASE_URL) return env.REACT_APP__API_BASE_URL
-
-  // 배포 FE hostname → 같은 realm BE ( .env hedej 고정값보다 우선 )
+  // 배포 FE hostname → 같은 realm BE (entrypoint hedej 주입보다 우선)
   if (host === 'react-audio.apps.axstudio.lge.com' || isFeHost(host, 'axstudio')) {
     return BE_AXSTUDIO
   }
@@ -23,6 +20,8 @@ function resolveApiBaseUrl(): string {
     return BE_HEDEJ
   }
 
+  // AX Studio / build-time env (prod hostname 아닐 때만)
+  if (env.REACT_APP__API_BASE_URL) return env.REACT_APP__API_BASE_URL
   if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
   if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
 
