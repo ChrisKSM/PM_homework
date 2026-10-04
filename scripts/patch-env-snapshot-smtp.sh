@@ -1,11 +1,41 @@
 #!/bin/sh
-# .env — Snapshot 메일용 SMTP 항목 개별 추가 (SMTP_FROM만 있어도 HOST 등 보완)
+# .env — Snapshot 메일용 SMTP 항목 개별 추가 + 붙어 있는 줄 분리
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 ENV_FILE="${1:-.env}"
 [ -f "$ENV_FILE" ] || touch "$ENV_FILE"
+
+echo "=== Patch $ENV_FILE for Snapshot SMTP ==="
+
+# SMTP_FROM=...@lge.comSMTP_HOST=... 처럼 한 줄에 붙은 경우 분리
+python3 <<PY
+import re
+from pathlib import Path
+
+p = Path("$ENV_FILE")
+t = p.read_text(encoding="utf-8")
+orig = t
+
+# DL...@lge.com 뒤에 바로 SMTP_ 키가 붙은 패턴
+t = re.sub(
+    r"(SMTP_FROM=([^\s#]+?)(?=SMTP_[A-Z_]+=))",
+    lambda m: f"SMTP_FROM={m.group(2).rstrip()}\n",
+    t,
+)
+# 일반 KEY=valKEY2= 패턴 (SMTP 관련)
+t = re.sub(
+    r"^(SMTP_[A-Z_]+)=([^\n#]+?)(SMTP_[A-Z_]+=)",
+    r"\1=\2\n\3",
+    t,
+    flags=re.M,
+)
+
+if t != orig:
+    p.write_text(t, encoding="utf-8")
+    print("  fixed concatenated SMTP lines in .env")
+PY
 
 ensure_kv() {
   key="$1"
@@ -17,8 +47,6 @@ ensure_kv() {
     echo "  + $key=${val}"
   fi
 }
-
-echo "=== Patch $ENV_FILE for Snapshot SMTP ==="
 
 ensure_kv SMTP_HOST "lgesmtp.lge.com"
 ensure_kv SMTP_PORT "25"
