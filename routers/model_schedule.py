@@ -25,59 +25,22 @@ async def diagnose_schedule():
 
 @router.get("/load")
 async def load_schedule():
-    """MongoDB에서 일정 데이터 로드."""
+    """Milvus에서 일정 데이터 로드."""
     try:
-        print(f"[model-schedule] collection 확인 시작: {COLLECTION}")
-
-        # 1. Collection 준비
-        collection_ready = mongo_helper.ensure_collection(COLLECTION)
-
-        print(
-            f"[model-schedule] ensure_collection 결과: "
-            f"collection={COLLECTION}, ready={collection_ready}"
-        )
-
-        if not collection_ready:
+        if not mongo_helper.ensure_collection(COLLECTION):
             raise HTTPException(
                 status_code=502,
-                detail=f"DB collection 준비 실패: {COLLECTION}"
+                detail=f"DB collection 준비 실패: {COLLECTION} — {mongo_helper.collection_error(COLLECTION)}",
             )
 
-        # 2. 데이터 조회
-        print(f"[model-schedule] 데이터 조회 시작: {COLLECTION}")
-
-        docs = mongo_helper.get_all_documents(
-            COLLECTION,
-            use_cache=False
-        )
-
-        print(
-            f"[model-schedule] 데이터 조회 완료: "
-            f"collection={COLLECTION}, count={len(docs)}"
-        )
-
-        # 3. MongoDB _id 제거
+        docs = mongo_helper.get_all_documents(COLLECTION, use_cache=False)
         for doc in docs:
             doc.pop("_id", None)
-
-        return {
-            "rows": docs,
-            "count": len(docs)
-        }
-
+        return {"rows": docs, "count": len(docs)}
     except HTTPException:
         raise
-
     except Exception as e:
-        print(
-            f"[model-schedule] DB 오류: "
-            f"{type(e).__name__}: {e}"
-        )
-
-        raise HTTPException(
-            status_code=502,
-            detail=f"DB 오류: {type(e).__name__}: {e}"
-        )
+        raise HTTPException(status_code=502, detail=f"DB 오류: {e}")
 
 
 @router.post("/save")
@@ -85,7 +48,10 @@ async def save_schedule(req: ScheduleSaveRequest):
     """Milvus에 일정 데이터 저장 (전체 교체)."""
     try:
         if not mongo_helper.ensure_collection(COLLECTION):
-            raise HTTPException(status_code=502, detail="DB collection 준비 실패")
+            raise HTTPException(
+                status_code=502,
+                detail=f"DB collection 준비 실패: {COLLECTION} — {mongo_helper.collection_error(COLLECTION)}",
+            )
 
         if not mongo_helper.delete_all_documents(COLLECTION):
             raise HTTPException(status_code=502, detail="기존 데이터 삭제 실패")

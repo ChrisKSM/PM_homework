@@ -8,7 +8,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
+
 try:
     from pymilvus import DataType, MilvusClient
 except ModuleNotFoundError as exc:
@@ -20,10 +24,32 @@ except ModuleNotFoundError as exc:
 
 logger = logging.getLogger(__name__)
 
+
+def _load_dotenv() -> None:
+    """uvicorn 은 config.Settings 만 로드 — MONGO_* 는 os.environ 에 직접 넣어야 함."""
+    for path in (Path("/usr/app/src/.env"), Path("/workspace/project/.env"), Path(".env")):
+        if path.is_file():
+            load_dotenv(path, override=False)
+            return
+
+
+_load_dotenv()
+
 COLLECTION_VECTOR_DIM = 2
 DUMMY_VECTOR = [0.0, 0.0]
 
 _client: MilvusClient | None = None
+_last_error: str | None = None
+
+
+def _set_error(msg: str) -> None:
+    global _last_error
+    _last_error = msg
+    logger.error(msg)
+
+
+def last_error() -> str | None:
+    return _last_error
 
 
 def _host() -> str:
@@ -42,8 +68,17 @@ def _password() -> str:
     return os.getenv("MILVUS_PASSWORD") or os.getenv("MONGO_PASSWORD", "")
 
 
+def _normalize_db_name(raw: str) -> str:
+    """Milvus DB명: 하이픈·특수문자 불가 → underscore."""
+    name = (raw or "default").strip()
+    if not name or name.lower() == "default":
+        return "default"
+    return re.sub(r"[^0-9a-zA-Z_]", "_", name.replace("-", "_"))
+
+
 def _db_name() -> str:
-    return os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "dify-mv-audiojdmtask")
+    raw = os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "default")
+    return _normalize_db_name(raw)
 
 
 def _uri() -> str:
@@ -93,6 +128,9 @@ def ensure_database() -> str:
         if db not in databases:
             bootstrap.create_database(db_name=db)
             logger.info("Created Milvus database: %s", db)
+    except Exception as exc:
+        _set_error(f"ensure_database({db}) failed: {exc}")
+        raise
     finally:
         close = getattr(bootstrap, "close", None)
         if callable(close):
@@ -129,64 +167,34 @@ def _create_collection_schema(client: MilvusClient):
     return schema, index_params
 
 
-def ensure_collection(name: str) -> bool:
-    return create_collection(name)
-
-
 def create_collection(name: str) -> bool:
+    global _last_error
+    _last_error = None
     try:
-        logger.info("[DB] create_collection 시작: %s", name)
-
-        # 1. Client 생성
-        logger.info("[DB] get_client 시작")
         client = get_client()
-        logger.info("[DB] get_client 성공")
-
-        # 2. Collection 존재 여부 확인
-        logger.info("[DB] has_collection 확인: %s", name)
-        exists = client.has_collection(name)
-
-        logger.info(
-            "[DB] has_collection 결과: name=%s, exists=%s",
-            name,
-            exists,
-        )
-
-        if exists:
-            logger.info("[DB] 기존 collection 사용: %s", name)
+        if client.has_collection(name):
             return True
-
-        # 3. Schema 생성
-        logger.info("[DB] collection 없음. schema 생성 시작: %s", name)
-
         schema, index_params = _create_collection_schema(client)
-
-        logger.info("[DB] schema 생성 성공: %s", name)
-
-        # 4. Collection 생성
-        logger.info("[DB] collection 생성 시작: %s", name)
-
-        client.create_collection(
-            collection_name=name,
-            schema=schema,
-            index_params=index_params,
-        )
-
-        logger.info("[DB] collection 생성 성공: %s", name)
-
+        client.create_collection(collection_name=name, schema=schema, index_params=index_params)
         return True
-
     except Exception as exc:
-        logger.exception(
-            "[DB] create_collection 실패: name=%s, error=%s",
-            name,
-            exc,
-        )
+        _set_error(f"create_collection({name}) failed: {exc}")
         return False
 
 
 def ensure_collection(name: str) -> bool:
     return create_collection(name)
+
+
+def collection_error(name: str) -> str:
+    """ensure_collection 실패 시 API 응답용 상세 메시지."""
+    if _last_error:
+        return _last_error
+    return (
+        f"Milvus collection '{name}' 준비 실패 — "
+        f"uri={_safe_uri_for_log()} db={_db_name()} "
+        f"(MONGO_PASSWORD·MONGO_PORT=19530·pymilvus 설치 확인)"
+    )
 
 
 def get_all_documents(collection: str, use_cache: bool = False) -> list[dict]:
@@ -276,10 +284,12 @@ def delete_all_documents(collection: str) -> bool:
 
 
 def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
+    raw_db = os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "default")
     result: dict[str, Any] = {
         "mode": "milvus",
         "uri": _safe_uri_for_log(),
         "db": _db_name(),
+        "db_raw": raw_db,
         "port": _port(),
         "collection": collection,
         "steps": [],
