@@ -32,6 +32,7 @@ for f in \
   backend/routers/model_schedule.py:routers/model_schedule.py \
   scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh \
   scripts/patch-config-snapshot-smtp.sh:scripts/patch-config-snapshot-smtp.sh \
+  scripts/patch-env-snapshot-smtp.sh:scripts/patch-env-snapshot-smtp.sh \
   scripts/verify-model-schedule-mongo.sh:scripts/verify-model-schedule-mongo.sh \
   scripts/deploy-model-schedule-share-be.sh:scripts/deploy-model-schedule-share-be.sh
 do
@@ -65,18 +66,9 @@ MONGO_PASSWORD=
 MONGO_DB=dify_mv_audiojdmtask
 EOF
 
-grep -q SMTP_HOST .env 2>/dev/null || cat >> .env <<'EOF'
-
-# ── Snapshot 메일 공유 (LGE 내부 relay, 무인증) ─────────────────────────────
-SMTP_HOST=lgesmtp.lge.com
-SMTP_PORT=25
-SMTP_USER=
-SMTP_PASSWORD=
-SMTP_FROM=DL-webOS_PMO-AudioSWPO@lge.com
-SMTP_USE_TLS=true
-SMTP_VERIFY_SSL=false
-MODEL_SCHEDULE_SHARE_RECIPIENTS=seokmin.koh@lge.com
-EOF
+show scripts/patch-env-snapshot-smtp.sh > scripts/patch-env-snapshot-smtp.sh
+chmod +x scripts/patch-env-snapshot-smtp.sh
+sh scripts/patch-env-snapshot-smtp.sh .env
 
 # python
 if [ -x .venv/bin/python ]; then
