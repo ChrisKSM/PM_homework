@@ -112,10 +112,13 @@ MONGO_DB=dify_mv_audiojdmtask
 
 ### BE 반영 후 확인
 
+> **포트:** BE pod 표준은 **8200** (`uv run ... --port 8200`). 로컬 README/dev 는 8000.
+
 ```bash
-# uvicorn 재시작 후
-curl -s http://127.0.0.1:8000/api/model-schedule/load
-curl -s -X POST http://127.0.0.1:8000/api/model-schedule/save \
+# uvicorn 재시작 후 (8200 먼저, 없으면 8000)
+for p in 8200 8000; do curl -sf "http://127.0.0.1:${p}/health" && BE=$p && break; done
+curl -s "http://127.0.0.1:${BE}/api/model-schedule/load"
+curl -s -X POST "http://127.0.0.1:${BE}/api/model-schedule/save" \
   -H "Content-Type: application/json" \
   -d '{"rows":[]}'
 ```
