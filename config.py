@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_use_tls: bool = True
+    smtp_verify_ssl: bool = False
 
     # LLM — 주간 스프린트 요약(사내 게이트웨이, OpenAI 호환 chat/completions 가정)
     llm_enabled: bool = False

@@ -1,9 +1,14 @@
 """모델 현황 일정 저장/로드 API — Milvus 연동."""
+from datetime import date
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any
 
+from config import settings
 from services import mongo_helper
+from services.email_service import send_html_email
+from services.schedule_snapshot_email import build_snapshot_html, build_snapshot_subject
 
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
 
@@ -12,6 +17,14 @@ COLLECTION = "model_schedule_data"
 
 class ScheduleSaveRequest(BaseModel):
     rows: list[dict[str, Any]]
+
+
+class ScheduleShareRequest(BaseModel):
+    period_label: str = Field(..., description="예: 9/15 ~ 10/26")
+    dates: list[str] = Field(..., description="Gantt 열 날짜 YYYY-MM-DD")
+    rows: list[dict[str, Any]]
+    audiences: list[str] = Field(..., description="DQA, 개발 — 둘 다 필요")
+    recipients: list[str] | None = Field(default=None, description="테스트용 수신자 override")
 
 
 @router.get("/diagnose")
@@ -64,3 +77,50 @@ async def save_schedule(req: ScheduleSaveRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"DB 저장 오류: {e}")
+
+
+def _parse_recipients(raw: str) -> list[str]:
+    return [a.strip() for a in raw.split(",") if a.strip()]
+
+
+@router.post("/share")
+async def share_schedule_snapshot(req: ScheduleShareRequest):
+    """Snapshot HTML 메일 발송 — DQA·개발 모두 선택 시."""
+    aud = {a.strip() for a in req.audiences if a and str(a).strip()}
+    if not {"DQA", "개발"}.issubset(aud):
+        raise HTTPException(status_code=400, detail="DQA 와 개발을 모두 선택해야 발송됩니다.")
+
+    if not req.rows:
+        raise HTTPException(status_code=400, detail="발송할 일정 데이터가 없습니다.")
+
+    if not settings.smtp_host:
+        raise HTTPException(
+            status_code=503,
+            detail="SMTP 미설정 — BE .env 에 SMTP_HOST, SMTP_USER, SMTP_PASSWORD 를 설정하세요.",
+        )
+
+    to_addrs = req.recipients or _parse_recipients(settings.model_schedule_share_recipients)
+    if not to_addrs:
+        to_addrs = ["seokmin.koh@lge.com"]
+
+    subject = build_snapshot_subject(date.today())
+    html = build_snapshot_html(
+        period_label=req.period_label,
+        dates=req.dates,
+        rows=req.rows,
+        audiences=sorted(aud),
+    )
+
+    try:
+        send_html_email(subject=subject, html_body=html, recipients=to_addrs)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"메일 발송 실패: {e}") from e
+
+    return {
+        "message": "메일 발송 완료",
+        "subject": subject,
+        "recipients": to_addrs,
+        "audiences": sorted(aud),
+    }

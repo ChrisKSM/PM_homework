@@ -32,8 +32,10 @@ for f in \
   backend/routers/model_schedule.py:routers/model_schedule.py \
   scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh \
   scripts/patch-config-snapshot-smtp.sh:scripts/patch-config-snapshot-smtp.sh \
+  scripts/patch-env-snapshot-smtp.sh:scripts/patch-env-snapshot-smtp.sh \
   scripts/verify-model-schedule-mongo.sh:scripts/verify-model-schedule-mongo.sh \
-  scripts/deploy-model-schedule-share-be.sh:scripts/deploy-model-schedule-share-be.sh
+  scripts/deploy-model-schedule-share-be.sh:scripts/deploy-model-schedule-share-be.sh \
+  scripts/verify-model-schedule-share-be.sh:scripts/verify-model-schedule-share-be.sh
 do
   src="${f%%:*}"
   dst="${f##*:}"
@@ -65,18 +67,9 @@ MONGO_PASSWORD=
 MONGO_DB=dify_mv_audiojdmtask
 EOF
 
-grep -q SMTP_HOST .env 2>/dev/null || cat >> .env <<'EOF'
-
-# ── Snapshot 메일 공유 (LGE 내부 relay, 무인증) ─────────────────────────────
-SMTP_HOST=lgesmtp.lge.com
-SMTP_PORT=25
-SMTP_USER=
-SMTP_PASSWORD=
-SMTP_FROM=DL-webOS_PMO-AudioSWPO@lge.com
-SMTP_USE_TLS=true
-SMTP_VERIFY_SSL=false
-MODEL_SCHEDULE_SHARE_RECIPIENTS=seokmin.koh@lge.com
-EOF
+show scripts/patch-env-snapshot-smtp.sh > scripts/patch-env-snapshot-smtp.sh
+chmod +x scripts/patch-env-snapshot-smtp.sh
+sh scripts/patch-env-snapshot-smtp.sh .env
 
 # python
 if [ -x .venv/bin/python ]; then
@@ -88,6 +81,10 @@ else
 fi
 
 "$PY" -m pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0" -q 2>/dev/null || true
+
+echo ""
+echo "=== 배포 검증 ==="
+sh scripts/verify-model-schedule-share-be.sh http://127.0.0.1:8000 || true
 
 echo ""
 echo "=== 배포 완료 — 다음 단계 ==="
