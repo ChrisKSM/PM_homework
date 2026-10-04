@@ -53,7 +53,10 @@ class Settings(BaseSettings):
     inprogress_status_category: str = "indeterminate"
 
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.axstudio.lge.com,https://workspace.hedej.lge.com"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
+
+    # 모델 현황 Snapshot 메일 공유 (쉼표 구분)
+    model_schedule_share_recipients: str = "seokmin.koh@lge.com"
 
     # Daily report
     report_enabled: bool = True
@@ -62,19 +65,22 @@ class Settings(BaseSettings):
     report_dashboard_url: str = ""
     report_api_key: str = ""
 
-    # SMTP
-    smtp_host: str = ""
-    smtp_port: int = 587
+    # SMTP — LGE 내부 relay 기본 (lgesmtp.lge.com:25, STARTTLS, 무인증)
+    smtp_host: str = "lgesmtp.lge.com"
+    smtp_port: int = 25
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_from: str = "DL-webOS_PMO-AudioSWPO@lge.com"
     smtp_use_tls: bool = True
+    smtp_verify_ssl: bool = False  # 사내 relay — 인증서 검증 생략
 
     # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
     polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
     polarion_project_key: str = "AVSWRelProjMgmt"
-    polarion_pat: str = "eyJraWQiOiI4YzMwOWFkZi0wYTAxYWIxMC01M2Q4YmIyNS05NDNkMzQ0NSIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJzZW9rbWluLmtvaCIsImlkIjoiYmQwMjk3NDYtMGEwMWFiNzEtMWEzNWJiNjktMjkyNjNhYmMiLCJleHAiOjE3OTc2NTM0NTgsImlhdCI6MTc4OTg3NzQ1OH0.JOniYpEMcW_jB3HNuNtoqZIDYPPfs8AjdbpqIxoe8QXG3XkDXkQTjI5dnVGzej3J1ABCXUe0QxURKHPyT8npNZ3IY1IFCNg3hZSaZOI2oOkaznG4xvXN5wPUSNE9pdR4l-FiZU2OBHuHf-XGgo1WOaDEn8qUE3hhfkJHNB6a8jo7ZJEaPY8PSHKbwYFCgvfnvbs_CHKKn1nCYBK67zmavwiDsGe6rlImgnZyaVQ_GdGZQRk27cKXAuT6g92UDCFXV_F689I3Ofpi7AXSg_PuLoEuIQicWxjfpA4Do7D6TXWm-BF0Uf6oKuBO5xyiq7MY1ZijxzjP3o3N6uRCBRzyzg"
+    polarion_pat: str = ""
     polarion_verify_ssl: bool = False
+    # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
+    polarion_list_path: str = "workitems"
 
     # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
     #  ※ URL/API-key 불필요. SDK가 내부에서 dej 플랫폼 연결을 처리.
