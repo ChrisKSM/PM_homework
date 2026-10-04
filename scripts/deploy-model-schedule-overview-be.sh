@@ -1,8 +1,18 @@
 #!/bin/sh
 # BE pod — 전 모델 일정 overview API + seed
 #
+# ⚠️ scripts/ 가 pod에 없으면 (최초 1회):
+#   git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
 #   git fetch github cursor/model-schedule-bar-label-fix-b14b
+#   git checkout github/cursor/model-schedule-bar-label-fix-b14b -- \
+#     scripts/deploy-model-schedule-overview-be.sh \
+#     scripts/seed-model-schedule-overview-to-db.sh \
+#     scripts/seed-model-schedule-overview.json \
+#     scripts/patch-be-main-model-schedule.sh
+#   chmod +x scripts/*.sh
+#
 #   sh scripts/deploy-model-schedule-overview-be.sh
+#   # uvicorn 8200 재시작
 #   API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh
 
 set -e
