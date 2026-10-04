@@ -8,7 +8,11 @@ from __future__ import annotations
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Any
+
+from dotenv import load_dotenv
+
 try:
     from pymilvus import DataType, MilvusClient
 except ModuleNotFoundError as exc:
@@ -19,6 +23,17 @@ except ModuleNotFoundError as exc:
     raise
 
 logger = logging.getLogger(__name__)
+
+
+def _load_dotenv() -> None:
+    """uvicorn 은 config.Settings 만 로드 — MONGO_* 는 os.environ 에 직접 넣어야 함."""
+    for path in (Path("/usr/app/src/.env"), Path("/workspace/project/.env"), Path(".env")):
+        if path.is_file():
+            load_dotenv(path, override=False)
+            return
+
+
+_load_dotenv()
 
 COLLECTION_VECTOR_DIM = 2
 DUMMY_VECTOR = [0.0, 0.0]
