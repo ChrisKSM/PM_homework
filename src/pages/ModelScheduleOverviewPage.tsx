@@ -94,6 +94,7 @@ export default function ModelScheduleOverviewPage() {
   const location = useLocation()
   const [models, setModels] = useState<OverviewModel[]>(OVERVIEW_MOCK_MODELS)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [dataSource, setDataSource] = useState<'mongo' | 'local' | 'mock'>('mock')
   const [startDate] = useState(() => toD('2026-10-01'))
   const [dayOffset, setDayOffset] = useState(0)
@@ -108,10 +109,19 @@ export default function ModelScheduleOverviewPage() {
         if (res.models.length > 0) {
           setModels(res.models as OverviewModel[])
           setDataSource(res.source === 'default' ? 'mock' : res.source)
+          setLoadError(null)
         } else {
           setModels(OVERVIEW_MOCK_MODELS)
           setDataSource('mock')
+          setLoadError('DB/API 데이터 없음 — mock 데이터 표시')
         }
+      })
+      .catch((err) => {
+        if (cancelled) return
+        console.warn('overview load error:', err)
+        setModels(OVERVIEW_MOCK_MODELS)
+        setDataSource('mock')
+        setLoadError('API 로드 실패 — mock 데이터 표시')
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -202,9 +212,19 @@ export default function ModelScheduleOverviewPage() {
           </span>
         </div>
 
+        {loadError ? (
+          <p className="text-[10px] text-amber-800 mb-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+            {loadError}
+          </p>
+        ) : null}
         <p className="text-[10px] text-gray-500 mb-2 bg-slate-50 border border-surface-border rounded-lg px-3 py-1.5">
           JDM 모델은 <b>2행</b>(1행=메타, 2행=Event 바) · <b>MR_Minor</b>는 1행에 Event 바 표시
         </p>
+        {displayRows.length === 0 ? (
+          <div className="border border-surface-border rounded-xl bg-white p-8 text-center text-gray-500 text-sm">
+            표시할 모델 데이터가 없습니다. BE seed 또는 FE 배포를 확인하세요.
+          </div>
+        ) : (
 
         <div className="border border-surface-border rounded-xl bg-white">
           <div className="overflow-x-auto">
@@ -444,6 +464,7 @@ export default function ModelScheduleOverviewPage() {
             </table>
           </div>
         </div>
+        )}
         <p className="text-[10px] text-gray-400 mt-2 text-right">
           빨간 세로선 = 오늘 ({fmt(today)}) · Event 라벨 = Event명
         </p>

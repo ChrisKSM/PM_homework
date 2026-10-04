@@ -2,7 +2,14 @@
 # react-audio FE — 전 모델 일정 페이지 반영
 #
 # FE pod (/workspace/project):
+#
+# ⚠️ scripts/ 가 pod에 없으면 (최초 1회):
+#   git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
 #   git fetch github cursor/model-schedule-bar-label-fix-b14b
+#   git checkout github/cursor/model-schedule-bar-label-fix-b14b -- \
+#     scripts/apply-model-schedule-overview-fe.sh
+#   chmod +x scripts/apply-model-schedule-overview-fe.sh
+#
 #   sh scripts/apply-model-schedule-overview-fe.sh
 #   npm run build && git add -A && git commit -m "feat: 전 모델 일정 overview" && git push origin master
 

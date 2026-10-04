@@ -25,8 +25,8 @@ export function inferBarType(eventName: string): OverviewBarType {
   return 'default'
 }
 
-export function eventsToBars(events: OverviewEvent[]): OverviewScheduleBar[] {
-  return events.map((e) => ({
+export function eventsToBars(events: OverviewEvent[] | null | undefined): OverviewScheduleBar[] {
+  return (events ?? []).map((e) => ({
     start: e.start.slice(0, 10),
     end: (e.end || e.start).slice(0, 10),
     label: e.name,

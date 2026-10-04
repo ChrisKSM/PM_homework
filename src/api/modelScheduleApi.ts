@@ -4,6 +4,41 @@ import { prepareModelScheduleRows } from '../utils/modelScheduleRows'
 const STORAGE_KEY = 'model-schedule-data'
 const OVERVIEW_STORAGE_KEY = 'model-schedule-overview-data'
 
+function normalizeOverviewModel(raw: any): any | null {
+  if (!raw || typeof raw !== 'object') return null
+  const model = String(raw.model ?? raw.model_name ?? '').trim()
+  if (!model) return null
+  const events = Array.isArray(raw.events) ? raw.events : []
+  return {
+    id: String(raw.id ?? raw.row_id ?? model),
+    category: raw.category ?? raw.product_group ?? '',
+    model,
+    variant: raw.variant ?? raw.dev_grade ?? '',
+    manufacturer: raw.manufacturer ?? raw.production ?? '',
+    soc: raw.soc ?? '',
+    hwPm: raw.hwPm ?? raw.hw_pm ?? '',
+    swPo: raw.swPo ?? raw.sw_po ?? '',
+    swPm: raw.swPm ?? raw.sw_pm ?? '',
+    spec: raw.spec ?? '',
+    pv: raw.pv ?? '',
+    mp: raw.mp ?? '',
+    ats: raw.ats ?? '',
+    events: events
+      .filter((e: any) => e && (e.start || e.end))
+      .map((e: any) => ({
+        name: String(e.name ?? e.event ?? ''),
+        start: String(e.start ?? '').slice(0, 10),
+        end: String(e.end ?? e.start ?? '').slice(0, 10),
+        barType: e.barType,
+      })),
+  }
+}
+
+function normalizeOverviewModels(raw: any[] | null | undefined): any[] {
+  if (!Array.isArray(raw)) return []
+  return raw.map(normalizeOverviewModel).filter(Boolean) as any[]
+}
+
 export type ModelScheduleLoadResult = {
   rows: any[]
   count: number
@@ -113,9 +148,10 @@ export const modelScheduleApi = {
       const res = await client
         .get<{ models: any[]; count: number }>('/model-schedule/overview/load')
         .then((r) => r.data)
-      if (res.models?.length > 0) {
-        localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), models: res.models }))
-        return { models: res.models, count: res.models.length, source: 'mongo' }
+      const models = normalizeOverviewModels(res.models)
+      if (models.length > 0) {
+        localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), models }))
+        return { models, count: models.length, source: 'mongo' }
       }
     } catch (e) {
       console.warn('overview load failed, trying localStorage:', e)
@@ -124,8 +160,8 @@ export const modelScheduleApi = {
       const raw = localStorage.getItem(OVERVIEW_STORAGE_KEY)
       if (raw) {
         const parsed = JSON.parse(raw)
-        const models = parsed?.models ?? parsed
-        if (Array.isArray(models) && models.length > 0) {
+        const models = normalizeOverviewModels(parsed?.models ?? parsed)
+        if (models.length > 0) {
           return { models, count: models.length, source: 'local' }
         }
       }
