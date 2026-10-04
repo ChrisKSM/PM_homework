@@ -65,13 +65,14 @@ class Settings(BaseSettings):
     report_dashboard_url: str = ""
     report_api_key: str = ""
 
-    # SMTP
-    smtp_host: str = ""
-    smtp_port: int = 587
+    # SMTP — LGE 내부 relay 기본 (lgesmtp.lge.com:25, STARTTLS, 무인증)
+    smtp_host: str = "lgesmtp.lge.com"
+    smtp_port: int = 25
     smtp_user: str = ""
     smtp_password: str = ""
     smtp_from: str = ""
     smtp_use_tls: bool = True
+    smtp_verify_ssl: bool = False  # 사내 relay — 인증서 검증 생략
 
     # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
     polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
