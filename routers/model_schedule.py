@@ -83,6 +83,30 @@ def _parse_recipients(raw: str) -> list[str]:
     return [a.strip() for a in raw.split(",") if a.strip()]
 
 
+def _resolve_share_recipients(audiences: set[str], override: list[str] | None) -> list[str]:
+    if override:
+        return override
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+    if "DQA" in audiences:
+        for addr in _parse_recipients(settings.model_schedule_share_dqa_recipients):
+            if addr not in seen:
+                seen.add(addr)
+                ordered.append(addr)
+    if "개발" in audiences:
+        for addr in _parse_recipients(settings.model_schedule_share_dev_recipients):
+            if addr not in seen:
+                seen.add(addr)
+                ordered.append(addr)
+
+    if ordered:
+        return ordered
+
+    legacy = _parse_recipients(settings.model_schedule_share_recipients)
+    return legacy or ["seokmin.koh@lge.com"]
+
+
 @router.post("/share")
 async def share_schedule_snapshot(req: ScheduleShareRequest):
     """Snapshot HTML 메일 발송 — DQA 또는 개발 선택 시."""
@@ -100,9 +124,9 @@ async def share_schedule_snapshot(req: ScheduleShareRequest):
             detail="SMTP 미설정 — BE .env 에 SMTP_HOST, SMTP_USER, SMTP_PASSWORD 를 설정하세요.",
         )
 
-    to_addrs = req.recipients or _parse_recipients(settings.model_schedule_share_recipients)
+    to_addrs = _resolve_share_recipients(aud, req.recipients)
     if not to_addrs:
-        to_addrs = ["seokmin.koh@lge.com"]
+        raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
 
     subject = build_snapshot_subject(date.today())
     html = build_snapshot_html(

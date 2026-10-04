@@ -16,7 +16,9 @@ p = Path("config.py")
 t = p.read_text(encoding="utf-8")
 changed = False
 
-block = '''    # 모델 현황 Snapshot 메일 공유 (쉼표 구분)
+block = '''    # 모델 현황 Snapshot 메일 공유 — audiences 별 수신 (쉼표 구분)
+    model_schedule_share_dqa_recipients: str = "rokyung.kim@lge.com,seunghwa.kim@lge.com,haengmo.jin@lge.com"
+    model_schedule_share_dev_recipients: str = "seokmin.koh@lge.com,hyunja.kim@lge.com,sungyeon.cho@lge.com,hongsoon.lee@lge.com,yoonkyu.park@lge.com,jejun.oh@lge.com,sh12.park@lge.com,taeksu.la@lge.com,yongseung.cho@lge.com,maeul.lee@lge.com,pilkyu.yoon@lge.com,jaecheol.lee@lge.com"
     model_schedule_share_recipients: str = "seokmin.koh@lge.com"
 
     # SMTP — LGE 내부 relay (lgesmtp.lge.com:25, STARTTLS, 무인증)
@@ -29,6 +31,18 @@ block = '''    # 모델 현황 Snapshot 메일 공유 (쉼표 구분)
     smtp_verify_ssl: bool = False
 
 '''
+
+if "model_schedule_share_dqa_recipients" not in t:
+    if "model_schedule_share_recipients:" in t:
+        t = t.replace(
+            "    model_schedule_share_recipients:",
+            "    model_schedule_share_dqa_recipients: str = \"rokyung.kim@lge.com,seunghwa.kim@lge.com,haengmo.jin@lge.com\"\n"
+            "    model_schedule_share_dev_recipients: str = \"seokmin.koh@lge.com,hyunja.kim@lge.com,sungyeon.cho@lge.com,hongsoon.lee@lge.com,yoonkyu.park@lge.com,jejun.oh@lge.com,sh12.park@lge.com,taeksu.la@lge.com,yongseung.cho@lge.com,maeul.lee@lge.com,pilkyu.yoon@lge.com,jaecheol.lee@lge.com\"\n"
+            "    model_schedule_share_recipients:",
+            1,
+        )
+        changed = True
+        print("  + DQA/개발 recipient fields added to config.py")
 
 if "model_schedule_share_recipients" not in t and "smtp_host" not in t:
     needles = ["    # Polarion", "    # LLM", "    model_config"]
