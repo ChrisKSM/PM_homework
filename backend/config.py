@@ -55,7 +55,16 @@ class Settings(BaseSettings):
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
     cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
 
-    # 모델 현황 Snapshot 메일 공유 (쉼표 구분)
+    # 모델 현황 Snapshot 메일 공유 — audiences 별 수신 (쉼표 구분)
+    model_schedule_share_dqa_recipients: str = (
+        "rokyung.kim@lge.com,seunghwa.kim@lge.com,haengmo.jin@lge.com"
+    )
+    model_schedule_share_dev_recipients: str = (
+        "seokmin.koh@lge.com,hyunja.kim@lge.com,sungyeon.cho@lge.com,hongsoon.lee@lge.com,"
+        "yoonkyu.park@lge.com,jejun.oh@lge.com,sh12.park@lge.com,taeksu.la@lge.com,"
+        "yongseung.cho@lge.com,maeul.lee@lge.com,pilkyu.yoon@lge.com,jaecheol.lee@lge.com"
+    )
+    # legacy fallback
     model_schedule_share_recipients: str = "seokmin.koh@lge.com"
 
     # Daily report

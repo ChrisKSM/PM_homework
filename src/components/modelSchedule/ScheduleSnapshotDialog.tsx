@@ -374,7 +374,6 @@ export default function ScheduleSnapshotDialog({
         dates: dates.map((d) => toISO(d)),
         rows: allRows,
         audiences: shareAudiences,
-        recipients: ['seokmin.koh@lge.com'],
       })
       setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
     } catch (e: any) {
@@ -559,7 +558,10 @@ export default function ScheduleSnapshotDialog({
               {sharing ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
               공유 (메일)
             </button>
-            <span className="text-[10px] text-gray-400">DQA 또는 개발 선택 시 발송 · 전체 {allRows.length}행 · 테스트: seokmin.koh@lge.com</span>
+            <span className="text-[10px] text-gray-400">
+              DQA 또는 개발 중 선택한 대상에게 발송 · 전체 {allRows.length}행
+              {shareAudiences.length > 0 ? ` · ${shareAudiences.join('+')}` : ''}
+            </span>
           </div>
           {shareMsg && (
             <p className={clsx('text-[11px]', shareMsg.type === 'ok' ? 'text-emerald-600' : 'text-red-600')}>

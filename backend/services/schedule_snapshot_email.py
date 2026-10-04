@@ -190,7 +190,9 @@ def _render_table(rows: list[dict[str, Any]], dates: list[str]) -> str:
             )
 
         cells.append(
-            f'<td style="padding:4px;border:1px solid #ddd;font-size:10px;">{_escape(str(row.get("testType", "")))}</td>'
+            f'<td style="padding:4px 6px;border:1px solid #ddd;font-size:10px;'
+            f'white-space:nowrap;word-break:keep-all;min-width:52px;">'
+            f'{_escape(str(row.get("testType", "")))}</td>'
         )
 
         if not mm["hidden"]:
@@ -224,10 +226,12 @@ def _render_table(rows: list[dict[str, Any]], dates: list[str]) -> str:
         body_rows.append(f'<tr>{"".join(cells)}</tr>')
 
     return f"""
-    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;font-family:Malgun Gothic,sans-serif;">
+    <div style="overflow-x:auto;max-width:100%;-webkit-overflow-scrolling:touch;">
+    <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;min-width:960px;font-family:Malgun Gothic,sans-serif;table-layout:auto;">
       <thead>{header}</thead>
       <tbody>{"".join(body_rows)}</tbody>
-    </table>"""
+    </table>
+    </div>"""
 
 
 def build_snapshot_html(

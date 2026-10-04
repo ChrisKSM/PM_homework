@@ -55,6 +55,8 @@ ensure_kv SMTP_PASSWORD ""
 ensure_kv SMTP_FROM "DL-webOS_PMO-AudioSWPO@lge.com"
 ensure_kv SMTP_USE_TLS "true"
 ensure_kv SMTP_VERIFY_SSL "false"
+ensure_kv MODEL_SCHEDULE_SHARE_DQA_RECIPIENTS "rokyung.kim@lge.com,seunghwa.kim@lge.com,haengmo.jin@lge.com"
+ensure_kv MODEL_SCHEDULE_SHARE_DEV_RECIPIENTS "seokmin.koh@lge.com,hyunja.kim@lge.com,sungyeon.cho@lge.com,hongsoon.lee@lge.com,yoonkyu.park@lge.com,jejun.oh@lge.com,sh12.park@lge.com,taeksu.la@lge.com,yongseung.cho@lge.com,maeul.lee@lge.com,pilkyu.yoon@lge.com,jaecheol.lee@lge.com"
 ensure_kv MODEL_SCHEDULE_SHARE_RECIPIENTS "seokmin.koh@lge.com"
 
 echo ""
