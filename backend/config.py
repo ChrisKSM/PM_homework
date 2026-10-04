@@ -70,7 +70,7 @@ class Settings(BaseSettings):
     smtp_port: int = 25
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_from: str = "DL-webOS_PMO-AudioSWPO@lge.com"
     smtp_use_tls: bool = True
     smtp_verify_ssl: bool = False  # 사내 relay — 인증서 검증 생략
 
