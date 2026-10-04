@@ -6,6 +6,52 @@ import type {
   OverviewScheduleBar,
 } from '../types/modelScheduleOverview'
 
+/** 전 모델 일정 카테고리 정렬 — 검증 일정 상세와 동일 순서 (파티 → 무선) */
+const OVERVIEW_CATEGORY_ORDER = [
+  '사운드바(Wi-Fi)',
+  '사운드바',
+  '파티스피커(Bluetooth)',
+  '파티스피커',
+  '무선스피커(Bluetooth)',
+  '무선스피커',
+  '이어버드',
+]
+
+export function normalizeOverviewCategory(category: string): string {
+  const compact = category.trim().replace(/\s+/g, '')
+  if (/^사운드바\(wi.?fi\)$/i.test(compact)) return '사운드바(Wi-Fi)'
+  if (/^사운드바$/i.test(compact)) return '사운드바'
+  if (/^파티스피커/i.test(compact)) return '파티스피커'
+  if (/^무선스피커/i.test(compact)) return '무선스피커'
+  return category.trim()
+}
+
+export function sortOverviewModels(models: OverviewModel[]): OverviewModel[] {
+  const catIdx = (c: string) => {
+    const n = normalizeOverviewCategory(c)
+    const i = OVERVIEW_CATEGORY_ORDER.indexOf(n)
+    return i >= 0 ? i : OVERVIEW_CATEGORY_ORDER.length
+  }
+  return [...models].sort((a, b) => {
+    const byCat = catIdx(a.category) - catIdx(b.category)
+    if (byCat !== 0) return byCat
+    return a.model.localeCompare(b.model, 'ko')
+  })
+}
+
+export function prepareOverviewModels(models: OverviewModel[]): OverviewModel[] {
+  return sortOverviewModels(
+    models.map((m) => ({
+      ...m,
+      events: (m.events ?? []).map((e) => ({
+        ...e,
+        start: String(e.start ?? '').slice(0, 10),
+        end: String(e.end ?? e.start ?? '').slice(0, 10),
+      })),
+    })),
+  )
+}
+
 export function isMrMinorVariant(variant: string): boolean {
   const v = variant.replace(/\s+/g, '_').toLowerCase()
   return v.includes('mr_minor') || v.includes('mrminor')

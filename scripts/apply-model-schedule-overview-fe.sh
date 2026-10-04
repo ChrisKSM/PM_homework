@@ -29,6 +29,8 @@ mkdir -p src/pages src/data src/types src/utils src/api src/components/modelSche
 
 for f in \
   src/pages/ModelScheduleOverviewPage.tsx \
+  src/components/modelSchedule/OverviewEventPicker.tsx \
+  src/components/modelSchedule/OverviewSnapshotDialog.tsx \
   src/data/modelScheduleOverviewMock.ts \
   src/types/modelScheduleOverview.ts \
   src/utils/modelScheduleOverviewRows.ts \
