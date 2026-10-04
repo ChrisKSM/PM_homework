@@ -3,7 +3,22 @@
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
-BASE="${1:-http://127.0.0.1:8000}"
+
+# BE pod 표준 8200, 로컬 dev/README 는 8000
+if [ -n "${1:-}" ]; then
+  BASE="$1"
+else
+  BASE=""
+  for p in 8200 8000; do
+    if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
+      BASE="http://127.0.0.1:${p}"
+      break
+    fi
+  done
+  [ -n "$BASE" ] || BASE="http://127.0.0.1:8200"
+fi
+
+echo "=== BE base: $BASE ==="
 
 echo "=== 1. 파일 ==="
 for f in routers/model_schedule.py services/email_service.py services/schedule_snapshot_email.py; do
@@ -41,6 +56,7 @@ for path in /api/model-schedule/load /api/model-schedule/share; do
   echo "  $path → HTTP $CODE"
   if [ "$path" = "/api/model-schedule/share" ]; then
     case "$CODE" in
+      000) echo "       → 000: BE 미기동 — port 8200(uv run) 또는 8000 확인" ;;
       404) echo "       → 404: 구버전 BE. deploy-model-schedule-share-be.sh 실행 후 uvicorn 재시작" ;;
       503) echo "       → 503: SMTP 미설정 (.env SMTP_HOST 확인)" ;;
       502) echo "       → 502: SMTP 발송 실패" ;;
