@@ -1,4 +1,5 @@
 import client from './client'
+import { prepareModelScheduleRows } from '../utils/modelScheduleRows'
 
 const STORAGE_KEY = 'model-schedule-data'
 
@@ -58,7 +59,8 @@ export const modelScheduleApi = {
       } catch (e) {
         console.warn('MongoDB load failed, using localStorage:', e)
       }
-      return { rows: localPayload.rows, count: localPayload.rows.length, source: 'local' }
+      const rows = prepareModelScheduleRows(localPayload.rows)
+      return { rows, count: rows.length, source: 'local' }
     }
 
     try {
@@ -68,14 +70,16 @@ export const modelScheduleApi = {
 
       if (res.rows?.length > 0) {
         saveLocalPayload(res.rows, 'mongo')
-        return { rows: res.rows, count: res.count, source: 'mongo' }
+        const rows = prepareModelScheduleRows(res.rows)
+        return { rows, count: rows.length, source: 'mongo' }
       }
     } catch (e) {
       console.warn('MongoDB load failed, trying localStorage:', e)
     }
 
     if (localPayload?.rows.length) {
-      return { rows: localPayload.rows, count: localPayload.rows.length, source: 'local' }
+      const rows = prepareModelScheduleRows(localPayload.rows)
+      return { rows, count: rows.length, source: 'local' }
     }
 
     return { rows: [], count: 0, source: 'default' }

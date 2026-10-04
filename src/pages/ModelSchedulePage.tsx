@@ -4,18 +4,21 @@ import Header from '../components/layout/Header'
 import { Download, Pencil, Check, ChevronLeft, ChevronRight, Filter, X, Plus, Trash2, Undo2, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
 import { modelScheduleApi } from '../api/modelScheduleApi'
+import {
+  type BarType,
+  type ModelRow,
+  type ScheduleBar,
+  type StatusType,
+  type TestCategory,
+  TEST_TYPES,
+  STATUS_LIST,
+  groupKey,
+  prepareModelScheduleRows,
+  rowsNeedRepair,
+  sortModelRows,
+} from '../utils/modelScheduleRows'
 
-// ── 타입 ─────────────────────────────────────────────────────────────────────
-
-type BarType = 'planned' | 'inprogress' | 'event_ng' | 'event_ok' | 'event_done_est' | 'su_fota'
-interface ScheduleBar { start: string; end: string; type: BarType; label?: string }
-type TestCategory = '일반성능' | '호환성' | '안정성' | '시너지'
-type StatusType = '완료' | '검증제외' | '예정'
-
-interface ModelRow {
-  id: string; category: string; model: string; event: string; variant: string; manufacturer: string
-  soc: string; staff: string; testType: TestCategory; changes: string; status: StatusType; bars: ScheduleBar[]
-}
+// ── 타입 (utils re-export) ───────────────────────────────────────────────────
 
 // ── 상수 ─────────────────────────────────────────────────────────────────────
 
@@ -28,36 +31,6 @@ const BAR_CONFIG: Record<BarType, { color: string; label: string; textColor: str
   su_fota:        { color: '#F97316', label: 'SU/FOTA 배포',     textColor: '#fff' },
 }
 const BAR_TYPES: BarType[] = ['planned', 'inprogress', 'event_ng', 'event_ok', 'event_done_est', 'su_fota']
-const TEST_TYPES: TestCategory[] = ['일반성능', '호환성', '안정성', '시너지']
-const STATUS_LIST: StatusType[] = ['예정', '완료', '검증제외']
-const CATEGORY_ORDER = [
-  '사운드바(Wi-Fi)',
-  '사운드바',
-  '무선스피커(Bluetooth)',
-  '파티스피커(Bluetooth)',
-  '이어버드',
-]
-
-function groupKey(r: ModelRow): string {
-  return `${r.category}|${r.model}|${r.event}`
-}
-
-function sortModelRows(rows: ModelRow[]): ModelRow[] {
-  const catIdx = (c: string) => {
-    const i = CATEGORY_ORDER.indexOf(c)
-    return i >= 0 ? i : CATEGORY_ORDER.length
-  }
-  const ttIdx = (t: TestCategory) => TEST_TYPES.indexOf(t)
-  return [...rows].sort((a, b) => {
-    const byCat = catIdx(a.category) - catIdx(b.category)
-    if (byCat !== 0) return byCat
-    const byModel = a.model.localeCompare(b.model, 'ko')
-    if (byModel !== 0) return byModel
-    const byEvent = a.event.localeCompare(b.event, 'ko')
-    if (byEvent !== 0) return byEvent
-    return ttIdx(a.testType) - ttIdx(b.testType)
-  })
-}
 
 const STATUS_STYLE: Record<StatusType, { bg: string; text: string }> = {
   '완료': { bg: 'bg-emerald-50', text: 'text-emerald-600' }, '예정': { bg: 'bg-gray-100', text: 'text-gray-500' },
@@ -115,37 +88,6 @@ function barCoversDay(bar:ScheduleBar,d:Date){const dk=toISO(d);return dk>=normD
 function isBarStartDay(bar:ScheduleBar,d:Date){return toISO(d)===normDate(bar.start)}
 function rowBars(row:ModelRow){return Array.isArray(row.bars)?row.bars:[]}
 
-const TYPE_BY_LABEL=Object.fromEntries(Object.entries(BAR_CONFIG).map(([k,v])=>[v.label,k])) as Record<string,BarType>
-function normBarType(type:unknown):BarType|null{
-  if(typeof type!=='string')return null
-  if(BAR_TYPES.includes(type as BarType))return type as BarType
-  return TYPE_BY_LABEL[type]??null
-}
-function normBar(raw:unknown):ScheduleBar|null{
-  if(!raw||typeof raw!=='object')return null
-  const b=raw as Record<string,unknown>
-  const type=normBarType(b.type)
-  const start=normDate(String(b.start??''))
-  if(!type||!start)return null
-  const end=normDate(String(b.end??start))||start
-  return{start,end,type,label:typeof b.label==='string'?b.label:''}
-}
-function normRow(raw:unknown,index:number):ModelRow|null{
-  if(!raw||typeof raw!=='object')return null
-  const r=raw as Record<string,unknown>
-  const testType=TEST_TYPES.includes(r.testType as TestCategory)?(r.testType as TestCategory):'일반성능'
-  const status=STATUS_LIST.includes(r.status as StatusType)?(r.status as StatusType):'예정'
-  return{
-    id:String(r.id??r.row_id??`row-${index}-${Date.now()}`),
-    category:String(r.category??''),model:String(r.model??''),event:String(r.event??''),
-    variant:String(r.variant??''),manufacturer:String(r.manufacturer??''),soc:String(r.soc??''),
-    staff:String(r.staff??''),testType,changes:String(r.changes??''),status,
-    bars:(Array.isArray(r.bars)?r.bars:[]).map(normBar).filter((b):b is ScheduleBar=>b!==null),
-  }
-}
-function normRows(rows:unknown[]):ModelRow[]{
-  return rows.map((r,i)=>normRow(r,i)).filter((r):r is ModelRow=>r!==null)
-}
 function uniq(data:ModelRow[],f:keyof ModelRow){const s=new Set<string>();data.forEach(r=>{const v=String(r[f]||'').trim();if(v)s.add(v)});return Array.from(s).sort()}
 
 function exportCSV(data:ModelRow[]){
@@ -240,7 +182,7 @@ function EI({value,onChange}:{value:string;onChange:(v:string)=>void}){
 const DAYS=42,CW=28,RH=28
 
 export default function ModelSchedulePage(){
-  const [data,setData]=useState<ModelRow[]>(DEFAULT_DATA)
+  const [data,setData]=useState<ModelRow[]>(()=>prepareModelScheduleRows(DEFAULT_DATA))
   const [snapshot,setSnapshot]=useState<ModelRow[]|null>(null)
   const [editing,setEditing]=useState(false)
   const [saving,setSaving]=useState(false)
@@ -259,10 +201,21 @@ export default function ModelSchedulePage(){
     let cancelled=false
     setLoading(true)
     modelScheduleApi.load()
-      .then(res=>{
+      .then(async res=>{
         if(cancelled)return
-        if(res.rows.length>0)setData(sortModelRows(normRows(res.rows)))
-        setDataSource(res.source)
+        if(res.rows.length>0){
+          const prepared=prepareModelScheduleRows(res.rows)
+          setData(prepared)
+          setDataSource(res.source)
+          if(rowsNeedRepair(res.rows)){
+            try{
+              const saved=await modelScheduleApi.save(prepared)
+              if(!cancelled)setDataSource(saved.source)
+            }catch{/* ignore */}
+          }
+        }else{
+          setDataSource(res.source)
+        }
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
     return()=>{cancelled=true}
