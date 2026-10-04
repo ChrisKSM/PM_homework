@@ -18,6 +18,14 @@ def _parse_recipients(raw: str) -> list[str]:
     return [addr.strip() for addr in raw.split(",") if addr.strip()]
 
 
+def _normalize_sender(raw: str) -> str:
+    """`.env` 줄 붙음 bug: `...@lge.comSMTP_HOST=...` → 발신 주소만 추출."""
+    addr = str(raw or "").strip()
+    if "SMTP_" in addr:
+        addr = addr.split("SMTP_", 1)[0].rstrip()
+    return addr
+
+
 def _tls_context() -> ssl.SSLContext | None:
     """내부 relay용 — 인증서 검증 생략 (사내 스크립트와 동일)."""
     if settings.smtp_verify_ssl:
