@@ -2,6 +2,7 @@ import client from './client'
 import { prepareModelScheduleRows } from '../utils/modelScheduleRows'
 
 const STORAGE_KEY = 'model-schedule-data'
+const OVERVIEW_STORAGE_KEY = 'model-schedule-overview-data'
 
 export type ModelScheduleLoadResult = {
   rows: any[]
@@ -106,6 +107,51 @@ export const modelScheduleApi = {
   },
 
   loadLocal: () => loadLocalPayload()?.rows ?? null,
+
+  loadOverview: async (): Promise<{ models: any[]; count: number; source: 'mongo' | 'local' | 'default' }> => {
+    try {
+      const res = await client
+        .get<{ models: any[]; count: number }>('/model-schedule/overview/load')
+        .then((r) => r.data)
+      if (res.models?.length > 0) {
+        localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), models: res.models }))
+        return { models: res.models, count: res.models.length, source: 'mongo' }
+      }
+    } catch (e) {
+      console.warn('overview load failed, trying localStorage:', e)
+    }
+    try {
+      const raw = localStorage.getItem(OVERVIEW_STORAGE_KEY)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        const models = parsed?.models ?? parsed
+        if (Array.isArray(models) && models.length > 0) {
+          return { models, count: models.length, source: 'local' }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return { models: [], count: 0, source: 'default' }
+  },
+
+  saveOverview: async (models: any[]): Promise<{ saved: number; message: string; source: 'mongo' | 'local' }> => {
+    try {
+      const res = await client
+        .post<{ saved: number; message: string }>('/model-schedule/overview/save', { models })
+        .then((r) => r.data)
+      localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), models }))
+      return { ...res, source: 'mongo' }
+    } catch (e: any) {
+      localStorage.setItem(OVERVIEW_STORAGE_KEY, JSON.stringify({ savedAt: Date.now(), models }))
+      const detail = e?.response?.data?.detail || e?.message || 'unknown'
+      return {
+        saved: models.length,
+        message: `브라우저에 저장됨 (서버 저장 실패: ${detail})`,
+        source: 'local',
+      }
+    }
+  },
 
   shareSnapshot: async (payload: {
     period_label: string

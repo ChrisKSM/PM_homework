@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../components/layout/Header'
+import { modelScheduleApi } from '../api/modelScheduleApi'
 import { OVERVIEW_MOCK_MODELS } from '../data/modelScheduleOverviewMock'
-import type { OverviewBarType, OverviewScheduleBar } from '../types/modelScheduleOverview'
+import type { OverviewBarType, OverviewModel, OverviewScheduleBar } from '../types/modelScheduleOverview'
 import {
   calcOverviewMerge,
   expandOverviewToDisplayRows,
@@ -89,8 +91,35 @@ function monthSpans(dates: Date[]) {
 }
 
 export default function ModelScheduleOverviewPage() {
+  const location = useLocation()
+  const [models, setModels] = useState<OverviewModel[]>(OVERVIEW_MOCK_MODELS)
+  const [loading, setLoading] = useState(true)
+  const [dataSource, setDataSource] = useState<'mongo' | 'local' | 'mock'>('mock')
   const [startDate] = useState(() => toD('2026-10-01'))
   const [dayOffset, setDayOffset] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    modelScheduleApi
+      .loadOverview()
+      .then((res) => {
+        if (cancelled) return
+        if (res.models.length > 0) {
+          setModels(res.models as OverviewModel[])
+          setDataSource(res.source === 'default' ? 'mock' : res.source)
+        } else {
+          setModels(OVERVIEW_MOCK_MODELS)
+          setDataSource('mock')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [location.pathname])
 
   const viewStart = useMemo(() => addDays(startDate, dayOffset), [startDate, dayOffset])
   const dates = useMemo(
@@ -100,7 +129,7 @@ export default function ModelScheduleOverviewPage() {
   const today = dayStart(new Date())
   const todayOff = useMemo(() => diffD(viewStart, today), [viewStart, today])
 
-  const displayRows = useMemo(() => expandOverviewToDisplayRows(OVERVIEW_MOCK_MODELS), [])
+  const displayRows = useMemo(() => expandOverviewToDisplayRows(models), [models])
   const catMerge = useMemo(() => calcOverviewMerge(displayRows, (r) => r.category), [displayRows])
   const modelMerge = useMemo(() => calcOverviewMerge(displayRows, overviewGroupKey), [displayRows])
   const monthHdr = useMemo(() => monthSpans(dates), [dates])
@@ -125,9 +154,20 @@ export default function ModelScheduleOverviewPage() {
     'ATS',
   ] as const
 
+  if (loading) {
+    return (
+      <>
+        <Header title="전 모델 일정" subtitle="로딩 중..." />
+        <div className="pt-16 p-6 flex justify-center items-center h-40">
+          <Loader2 size={24} className="animate-spin text-gray-400" />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
-      <Header title="전 모델 일정" subtitle="모델별 PV/MP 일정 · Event 타임라인 (mock)" />
+      <Header title="전 모델 일정" subtitle="모델별 PV/MP 일정 · Event 타임라인" />
       <div className="pt-16 p-4">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button
@@ -157,7 +197,8 @@ export default function ModelScheduleOverviewPage() {
             ))}
           </div>
           <span className="text-[10px] text-gray-400 ml-auto">
-            {OVERVIEW_MOCK_MODELS.length}모델 · {displayRows.length}행 (mock)
+            {models.length}모델 · {displayRows.length}행
+            {dataSource === 'mongo' ? ' · DB' : dataSource === 'local' ? ' · local' : ' · mock'}
           </span>
         </div>
 

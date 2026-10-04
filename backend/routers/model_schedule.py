@@ -13,10 +13,15 @@ from services.schedule_snapshot_email import build_snapshot_html, build_snapshot
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
 
 COLLECTION = "model_schedule_data"
+COLLECTION_OVERVIEW = "model_schedule_overview"
 
 
 class ScheduleSaveRequest(BaseModel):
     rows: list[dict[str, Any]]
+
+
+class OverviewSaveRequest(BaseModel):
+    models: list[dict[str, Any]]
 
 
 class ScheduleShareRequest(BaseModel):
@@ -105,6 +110,45 @@ def _resolve_share_recipients(audiences: set[str], override: list[str] | None) -
 
     legacy = _parse_recipients(settings.model_schedule_share_recipients)
     return legacy or ["seokmin.koh@lge.com"]
+
+
+@router.get("/overview/load")
+async def load_overview_schedule():
+    """전 모델 일정 — Milvus에서 models + events 로드."""
+    try:
+        if not mongo_helper.ensure_collection(COLLECTION_OVERVIEW):
+            raise HTTPException(
+                status_code=502,
+                detail=f"DB collection 준비 실패: {COLLECTION_OVERVIEW} — {mongo_helper.collection_error(COLLECTION_OVERVIEW)}",
+            )
+        docs = mongo_helper.get_all_documents(COLLECTION_OVERVIEW, use_cache=False)
+        for doc in docs:
+            doc.pop("_id", None)
+        return {"models": docs, "count": len(docs)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"DB 오류: {e}")
+
+
+@router.post("/overview/save")
+async def save_overview_schedule(req: OverviewSaveRequest):
+    """전 모델 일정 — Milvus 저장 (전체 교체)."""
+    try:
+        if not mongo_helper.ensure_collection(COLLECTION_OVERVIEW):
+            raise HTTPException(
+                status_code=502,
+                detail=f"DB collection 준비 실패: {COLLECTION_OVERVIEW} — {mongo_helper.collection_error(COLLECTION_OVERVIEW)}",
+            )
+        if not mongo_helper.delete_all_documents(COLLECTION_OVERVIEW):
+            raise HTTPException(status_code=502, detail="기존 overview 데이터 삭제 실패")
+        if req.models and not mongo_helper.insert_documents(COLLECTION_OVERVIEW, req.models):
+            raise HTTPException(status_code=502, detail="DB 저장 실패")
+        return {"saved": len(req.models), "message": "overview 저장 완료"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"DB 저장 오류: {e}")
 
 
 @router.post("/share")
