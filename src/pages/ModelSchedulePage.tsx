@@ -1,7 +1,8 @@
 import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import Header from '../components/layout/Header'
-import { Download, Pencil, Check, ChevronLeft, ChevronRight, Filter, X, Plus, Trash2, Undo2, Loader2 } from 'lucide-react'
+import { Download, Pencil, Check, ChevronLeft, ChevronRight, Filter, X, Plus, Trash2, Undo2, Loader2, Camera } from 'lucide-react'
+import ScheduleSnapshotDialog from '../components/modelSchedule/ScheduleSnapshotDialog'
 import clsx from 'clsx'
 import { modelScheduleApi } from '../api/modelScheduleApi'
 import {
@@ -195,6 +196,7 @@ export default function ModelSchedulePage(){
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
   const [changesPopup,setChangesPopup]=useState<{model:string;cat:string;event:string}|null>(null)
+  const [showSnapshotPopup,setShowSnapshotPopup]=useState(false)
 
   // MongoDB / localStorage 로드 (페이지 진입 시마다)
   useEffect(()=>{
@@ -371,6 +373,7 @@ export default function ModelSchedulePage(){
           ):(
             <button onClick={startEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-gray-600 border border-surface-border hover:bg-surface-page"><Pencil size={14}/>Edit</button>
           )}
+          <button onClick={()=>setShowSnapshotPopup(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-gray-600 border border-surface-border hover:bg-surface-page"><Camera size={14}/>Snapshot</button>
           <button onClick={()=>exportCSV(filtered)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-gray-600 border border-surface-border hover:bg-surface-page"><Download size={14}/>엑셀</button>
         </div>
 
@@ -506,6 +509,15 @@ export default function ModelSchedulePage(){
 
       {picker&&<BarTypePicker x={picker.x} y={picker.y} currentType={picker.currentType} currentLabel={picker.currentLabel} onSelect={applyBarType} onRemove={removeBar} onClose={()=>setPicker(null)} onApplyLabel={applyBarLabel}/>}
       {changesPopup&&<ChangesPopup value={data.find(r=>r.model===changesPopup.model&&r.category===changesPopup.cat&&r.event===changesPopup.event)?.changes||''} onSave={v=>updateGroup(changesPopup.model,changesPopup.cat,changesPopup.event,'changes',v)} onClose={()=>setChangesPopup(null)}/>}
+      <ScheduleSnapshotDialog
+        open={showSnapshotPopup}
+        onClose={()=>setShowSnapshotPopup(false)}
+        rows={filtered}
+        dates={dates}
+        periodLabel={`${fmt(startDate)} ~ ${fmt(addDays(startDate,DAYS-1))}`}
+        today={today}
+        startDate={startDate}
+      />
     </>
   )
 }
