@@ -23,7 +23,7 @@ class ScheduleShareRequest(BaseModel):
     period_label: str = Field(..., description="예: 9/15 ~ 10/26")
     dates: list[str] = Field(..., description="Gantt 열 날짜 YYYY-MM-DD")
     rows: list[dict[str, Any]]
-    audiences: list[str] = Field(..., description="DQA, 개발 — 둘 다 필요")
+    audiences: list[str] = Field(..., description="DQA, 개발 — 하나 이상")
     recipients: list[str] | None = Field(default=None, description="테스트용 수신자 override")
 
 
@@ -85,10 +85,11 @@ def _parse_recipients(raw: str) -> list[str]:
 
 @router.post("/share")
 async def share_schedule_snapshot(req: ScheduleShareRequest):
-    """Snapshot HTML 메일 발송 — DQA·개발 모두 선택 시."""
-    aud = {a.strip() for a in req.audiences if a and str(a).strip()}
-    if not {"DQA", "개발"}.issubset(aud):
-        raise HTTPException(status_code=400, detail="DQA 와 개발을 모두 선택해야 발송됩니다.")
+    """Snapshot HTML 메일 발송 — DQA 또는 개발 선택 시."""
+    allowed = {"DQA", "개발"}
+    aud = {a.strip() for a in req.audiences if a and str(a).strip() in allowed}
+    if not aud:
+        raise HTTPException(status_code=400, detail="DQA 또는 개발 중 하나 이상 선택해야 발송됩니다.")
 
     if not req.rows:
         raise HTTPException(status_code=400, detail="발송할 일정 데이터가 없습니다.")

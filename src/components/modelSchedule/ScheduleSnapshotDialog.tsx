@@ -343,7 +343,14 @@ export default function ScheduleSnapshotDialog({
   const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
 
-  const canShare = shareDqa && shareDev && !sharing
+  const shareAudiences = useMemo(() => {
+    const a: string[] = []
+    if (shareDqa) a.push('DQA')
+    if (shareDev) a.push('개발')
+    return a
+  }, [shareDqa, shareDev])
+
+  const canShare = shareAudiences.length > 0 && !sharing
 
   const pageRows = pages[pageIndex] ?? []
   const tableW = LEFT_COLS_W + dates.length * CW
@@ -366,7 +373,7 @@ export default function ScheduleSnapshotDialog({
         period_label: periodLabel,
         dates: dates.map((d) => toISO(d)),
         rows: allRows,
-        audiences: ['DQA', '개발'],
+        audiences: shareAudiences,
         recipients: ['seokmin.koh@lge.com'],
       })
       setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
@@ -552,7 +559,7 @@ export default function ScheduleSnapshotDialog({
               {sharing ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
               공유 (메일)
             </button>
-            <span className="text-[10px] text-gray-400">DQA·개발 모두 선택 시 발송 · 테스트: seokmin.koh@lge.com</span>
+            <span className="text-[10px] text-gray-400">DQA 또는 개발 선택 시 발송 · 전체 {allRows.length}행 · 테스트: seokmin.koh@lge.com</span>
           </div>
           {shareMsg && (
             <p className={clsx('text-[11px]', shareMsg.type === 'ok' ? 'text-emerald-600' : 'text-red-600')}>
