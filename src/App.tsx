@@ -8,6 +8,8 @@ import ProcurementDashboardPage from './pages/ProcurementDashboardPage'
 import ReleaseSprintPlanPage from './pages/ReleaseSprintPlanPage'
 import RiskDashboardPage from './pages/RiskDashboardPage'
 import ModelSchedulePage from './pages/ModelSchedulePage'
+import ModelScheduleOverviewPage from './pages/ModelScheduleOverviewPage'
+import ModelScheduleStatusPage from './pages/ModelScheduleStatusPage'
 import MrSchedulePage from './pages/mr/MrSchedulePage'
 import MrQualityPage from './pages/mr/MrQualityPage'
 import MrBuildPlanPage from './pages/mr/MrBuildPlanPage'
@@ -17,10 +19,13 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/model-schedule" replace />} />
+          <Route index element={<Navigate to="/model-schedule/verification" replace />} />
 
-          {/* 모델 일정 현황 */}
-          <Route path="model-schedule" element={<ModelSchedulePage />} />
+          {/* 모델 현황 프로젝트 */}
+          <Route path="model-schedule" element={<Navigate to="/model-schedule/verification" replace />} />
+          <Route path="model-schedule/overview" element={<ModelScheduleOverviewPage />} />
+          <Route path="model-schedule/verification" element={<ModelSchedulePage />} />
+          <Route path="model-schedule/status" element={<ModelScheduleStatusPage />} />
 
           {/* S80C Soundbar */}
           <Route path="s80c/manager" element={<ManagerDashboard />} />

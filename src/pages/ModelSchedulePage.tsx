@@ -30,6 +30,34 @@ const BAR_CONFIG: Record<BarType, { color: string; label: string; textColor: str
 const BAR_TYPES: BarType[] = ['planned', 'inprogress', 'event_ng', 'event_ok', 'event_done_est', 'su_fota']
 const TEST_TYPES: TestCategory[] = ['일반성능', '호환성', '안정성', '시너지']
 const STATUS_LIST: StatusType[] = ['예정', '완료', '검증제외']
+const CATEGORY_ORDER = [
+  '사운드바(Wi-Fi)',
+  '사운드바',
+  '무선스피커(Bluetooth)',
+  '파티스피커(Bluetooth)',
+  '이어버드',
+]
+
+function groupKey(r: ModelRow): string {
+  return `${r.category}|${r.model}|${r.event}`
+}
+
+function sortModelRows(rows: ModelRow[]): ModelRow[] {
+  const catIdx = (c: string) => {
+    const i = CATEGORY_ORDER.indexOf(c)
+    return i >= 0 ? i : CATEGORY_ORDER.length
+  }
+  const ttIdx = (t: TestCategory) => TEST_TYPES.indexOf(t)
+  return [...rows].sort((a, b) => {
+    const byCat = catIdx(a.category) - catIdx(b.category)
+    if (byCat !== 0) return byCat
+    const byModel = a.model.localeCompare(b.model, 'ko')
+    if (byModel !== 0) return byModel
+    const byEvent = a.event.localeCompare(b.event, 'ko')
+    if (byEvent !== 0) return byEvent
+    return ttIdx(a.testType) - ttIdx(b.testType)
+  })
+}
 
 const STATUS_STYLE: Record<StatusType, { bg: string; text: string }> = {
   '완료': { bg: 'bg-emerald-50', text: 'text-emerald-600' }, '예정': { bg: 'bg-gray-100', text: 'text-gray-500' },
@@ -128,8 +156,8 @@ function exportCSV(data:ModelRow[]){
   a.download=`모델현황_${new Date().toISOString().slice(0,10)}.csv`;a.click()
 }
 
-function isModelAllDone(data:ModelRow[],model:string,cat:string):boolean{
-  const group=data.filter(r=>r.model===model&&r.category===cat)
+function isModelAllDone(data:ModelRow[],model:string,cat:string,event:string):boolean{
+  const group=data.filter(r=>r.model===model&&r.category===cat&&r.event===event)
   return group.length>0&&group.every(r=>r.status==='완료')
 }
 
@@ -224,7 +252,7 @@ export default function ModelSchedulePage(){
   const scrollRef=useRef<HTMLDivElement>(null)
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
-  const [changesPopup,setChangesPopup]=useState<{model:string;cat:string}|null>(null)
+  const [changesPopup,setChangesPopup]=useState<{model:string;cat:string;event:string}|null>(null)
 
   // MongoDB / localStorage 로드 (페이지 진입 시마다)
   useEffect(()=>{
@@ -233,7 +261,7 @@ export default function ModelSchedulePage(){
     modelScheduleApi.load()
       .then(res=>{
         if(cancelled)return
-        if(res.rows.length>0)setData(normRows(res.rows))
+        if(res.rows.length>0)setData(sortModelRows(normRows(res.rows)))
         setDataSource(res.source)
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
@@ -241,9 +269,10 @@ export default function ModelSchedulePage(){
   },[location.pathname])
 
   const hasFilter=!!(fCat||fModel||fStatus)
-  const filtered=useMemo(()=>data.filter(r=>(!fCat||r.category===fCat)&&(!fModel||r.model===fModel)&&(!fStatus||r.status===fStatus)),[data,fCat,fModel,fStatus])
+  const sortedData=useMemo(()=>sortModelRows(data),[data])
+  const filtered=useMemo(()=>sortedData.filter(r=>(!fCat||r.category===fCat)&&(!fModel||r.model===fModel)&&(!fStatus||r.status===fStatus)),[sortedData,fCat,fModel,fStatus])
   const catMerge=useMemo(()=>calcMerge(filtered,r=>r.category),[filtered])
-  const modelMerge=useMemo(()=>calcMerge(filtered,r=>`${r.category}|${r.model}`),[filtered])
+  const modelMerge=useMemo(()=>calcMerge(filtered,groupKey),[filtered])
 
   const today=dayStart(new Date())
   const dates=useMemo(()=>Array.from({length:DAYS},(_,i)=>dayStart(addDays(startDate,i))),[startDate])
@@ -251,7 +280,7 @@ export default function ModelSchedulePage(){
 
   const isModelLast=useCallback((ri:number)=>{
     if(ri>=filtered.length-1)return true
-    return `${filtered[ri].category}|${filtered[ri].model}`!==`${filtered[ri+1].category}|${filtered[ri+1].model}`
+    return groupKey(filtered[ri])!==groupKey(filtered[ri+1])
   },[filtered])
 
   const startEdit=()=>{setSnapshot(JSON.parse(JSON.stringify(data)));setEditing(true)}
@@ -260,7 +289,7 @@ export default function ModelSchedulePage(){
     setEditing(false);setPicker(null);setSnapshot(null)
     setSaving(true);setSaveMessage(null)
     try{
-      const res=await modelScheduleApi.save(data)
+      const res=await modelScheduleApi.save(sortModelRows(data))
       setDataSource(res.source)
       setSaveMessage({
         type:res.source==='mongo'?'success':'warn',
@@ -273,7 +302,7 @@ export default function ModelSchedulePage(){
   }
 
   const updateField=(id:string,f:keyof ModelRow,v:string)=>setData(p=>p.map(r=>r.id===id?{...r,[f]:v}:r))
-  const updateGroup=(m:string,c:string,f:keyof ModelRow,v:string)=>setData(p=>p.map(r=>r.model===m&&r.category===c?{...r,[f]:v}:r))
+  const updateGroup=(m:string,c:string,e:string,f:keyof ModelRow,v:string)=>setData(p=>p.map(r=>r.model===m&&r.category===c&&r.event===e?{...r,[f]:v}:r))
 
   const addModel=()=>{
     const ts=Date.now()
@@ -282,7 +311,7 @@ export default function ModelSchedulePage(){
       staff:'',testType:tt,changes:'',status:'예정' as StatusType,bars:[],
     }))])
   }
-  const deleteModel=(m:string,c:string)=>setData(p=>p.filter(r=>!(r.model===m&&r.category===c)))
+  const deleteModel=(m:string,c:string,e:string)=>setData(p=>p.filter(r=>!(r.model===m&&r.category===c&&r.event===e)))
 
   const handleCellClick=(e:React.MouseEvent,rowId:string,date:Date)=>{
     if(!editing)return
@@ -354,15 +383,15 @@ export default function ModelSchedulePage(){
 
   const MergedCell=({ri,children,className=''}:{ri:number;children:React.ReactNode;className?:string})=>{
     if(modelMerge[ri].hidden)return null
-    const allDone=isModelAllDone(data,filtered[ri].model,filtered[ri].category)
+    const allDone=isModelAllDone(data,filtered[ri].model,filtered[ri].category,filtered[ri].event)
     return <td rowSpan={modelMerge[ri].rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',allDone&&'bg-gray-100',className)}>{children}</td>
   }
 
-  if(loading)return(<><Header title="모델 현황" subtitle="로딩 중..."/><div className="pt-16 p-6 flex justify-center items-center h-40"><Loader2 size={24} className="animate-spin text-gray-400"/></div></>)
+  if(loading)return(<><Header title="모델 검증 일정 상세" subtitle="로딩 중..."/><div className="pt-16 p-6 flex justify-center items-center h-40"><Loader2 size={24} className="animate-spin text-gray-400"/></div></>)
 
   return(
     <>
-      <Header title="모델 현황" subtitle="모델별 개발/검증 일정 Gantt — 편집 · 엑셀 · MongoDB"/>
+      <Header title="모델 검증 일정 상세" subtitle="모델별 개발/검증 일정 Gantt — 편집 · 엑셀 · MongoDB"/>
       <div className="pt-16 p-4">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button onClick={()=>setStartDate(p=>addDays(p,-7))} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page"><ChevronLeft size={16}/></button>
@@ -396,11 +425,11 @@ export default function ModelSchedulePage(){
           <Filter size={14} className="text-gray-400"/>
           {([['카테고리',fCat,setFCat,'category'],['모델명',fModel,setFModel,'model'],['Status',fStatus,setFStatus,'status']] as const).map(([l,v,s,f])=>(
             <select key={f} value={v} onChange={e=>s(e.target.value)} className={clsx('text-[10px] px-1.5 py-1 rounded border bg-white cursor-pointer',v?'border-lg-red text-lg-red font-bold':'border-gray-200 text-gray-500')}>
-              <option value="">{l} ▾</option>{uniq(data,f).map(o=><option key={o} value={o}>{o}</option>)}
+              <option value="">{l} ▾</option>{uniq(sortedData,f).map(o=><option key={o} value={o}>{o}</option>)}
             </select>
           ))}
           {hasFilter&&<button onClick={()=>{setFCat('');setFModel('');setFStatus('')}} className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-red-500 hover:bg-red-50"><X size={10}/>초기화</button>}
-          <span className="text-[10px] text-gray-400 ml-auto">{filtered.length}/{data.length}건</span>
+          <span className="text-[10px] text-gray-400 ml-auto">{filtered.length}/{sortedData.length}건</span>
         </div>
 
         {editing&&<div className="text-[10px] text-gray-500 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">💡 일정 셀 <b>클릭</b> → 타입+라벨 · <b>변경점</b> 클릭 → 팝업 편집 · <b>취소</b> = 복원 · <b>편집 완료</b> = MongoDB 저장</div>}
@@ -432,21 +461,21 @@ export default function ModelSchedulePage(){
                 {filtered.map((row,ri)=>{
                   const cm=catMerge[ri];const mm=modelMerge[ri]
                   const borderB=isModelLast(ri)?'border-b-2 border-b-gray-400':'border-b border-b-surface-border/60'
-                  const allDone=isModelAllDone(data,row.model,row.category)
+                  const allDone=isModelAllDone(data,row.model,row.category,row.event)
                   const doneBg=allDone?'bg-gray-100':''
 
                   return(
                     <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB)} style={{height:RH}}>
                       {!cm.hidden&&<td rowSpan={cm.rowSpan} className={clsx('sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-gray-600 text-[10px] whitespace-nowrap align-middle',allDone&&'bg-gray-100')}>
-                        {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,'category',v)}/>:row.category}
+                        {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,row.event,'category',v)}/>:row.category}
                       </td>}
                       {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky left-20 z-10 bg-white border-r border-surface-border px-1.5 text-gray-900 font-semibold text-[11px] whitespace-nowrap align-middle text-center',allDone&&'bg-gray-100')}>
-                        {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;setData(p=>p.map(r=>r.model===om&&r.category===oc?{...r,model:v}:r))}}/>:row.model}
+                        {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;const oe=row.event;setData(p=>p.map(r=>r.model===om&&r.category===oc&&r.event===oe?{...r,model:v}:r))}}/>:row.model}
                       </td>}
-                      <MergedCell ri={ri}>{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,'event',v)}/>:<span className="text-gray-600">{row.event}</span>}</MergedCell>
-                      <MergedCell ri={ri}>{editing?<EI value={row.variant} onChange={v=>updateGroup(row.model,row.category,'variant',v)}/>:<span className="text-gray-600">{row.variant}</span>}</MergedCell>
-                      <MergedCell ri={ri}>{editing?<EI value={row.manufacturer} onChange={v=>updateGroup(row.model,row.category,'manufacturer',v)}/>:<span className="text-gray-600">{row.manufacturer}</span>}</MergedCell>
-                      <MergedCell ri={ri}>{editing?<EI value={row.soc} onChange={v=>updateGroup(row.model,row.category,'soc',v)}/>:<span className="text-gray-600 font-mono">{row.soc}</span>}</MergedCell>
+                      <MergedCell ri={ri}>{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,row.event,'event',v)}/>:<span className="text-gray-600">{row.event}</span>}</MergedCell>
+                      <MergedCell ri={ri}>{editing?<EI value={row.variant} onChange={v=>updateGroup(row.model,row.category,row.event,'variant',v)}/>:<span className="text-gray-600">{row.variant}</span>}</MergedCell>
+                      <MergedCell ri={ri}>{editing?<EI value={row.manufacturer} onChange={v=>updateGroup(row.model,row.category,row.event,'manufacturer',v)}/>:<span className="text-gray-600">{row.manufacturer}</span>}</MergedCell>
+                      <MergedCell ri={ri}>{editing?<EI value={row.soc} onChange={v=>updateGroup(row.model,row.category,row.event,'soc',v)}/>:<span className="text-gray-600 font-mono">{row.soc}</span>}</MergedCell>
                       <MergedCell ri={ri}>{editing?<EI value={row.staff} onChange={v=>updateField(row.id,'staff',v)}/>:<span className="text-gray-600">{row.staff}</span>}</MergedCell>
                       <td className="border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap">
                         <span className={clsx('px-1 py-0.5 rounded text-[9px] font-bold',TT_STYLE[row.testType])}>{row.testType}</span>
@@ -454,7 +483,7 @@ export default function ModelSchedulePage(){
                       {/* 주요 변경점 — 툴팁 + 팝업 편집 */}
                       <MergedCell ri={ri} className="min-w-[140px]">
                         {editing?(
-                          <button onClick={()=>setChangesPopup({model:row.model,cat:row.category})} className="w-full text-left text-[9px] text-blue-600 hover:underline truncate px-1 py-0.5 border border-dashed border-gray-300 rounded">
+                          <button onClick={()=>setChangesPopup({model:row.model,cat:row.category,event:row.event})} className="w-full text-left text-[9px] text-blue-600 hover:underline truncate px-1 py-0.5 border border-dashed border-gray-300 rounded">
                             {row.changes||'클릭하여 편집...'}
                           </button>
                         ):(
@@ -472,7 +501,7 @@ export default function ModelSchedulePage(){
                         ):(()=>{const s=STATUS_STYLE[row.status];return<span className={`px-1 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${s.bg} ${s.text}`}>{row.status}</span>})()}
                       </td>
                       {editing&&<td className="border-r border-surface-border px-1 text-center">
-                        {row.testType==='일반성능'&&<button onClick={()=>deleteModel(row.model,row.category)} className="text-red-400 hover:text-red-600"><Trash2 size={12}/></button>}
+                        {row.testType==='일반성능'&&<button onClick={()=>deleteModel(row.model,row.category,row.event)} className="text-red-400 hover:text-red-600"><Trash2 size={12}/></button>}
                       </td>}
 
                       {dates.map((d,di)=>{
@@ -523,7 +552,7 @@ export default function ModelSchedulePage(){
       </div>
 
       {picker&&<BarTypePicker x={picker.x} y={picker.y} currentType={picker.currentType} currentLabel={picker.currentLabel} onSelect={applyBarType} onRemove={removeBar} onClose={()=>setPicker(null)} onApplyLabel={applyBarLabel}/>}
-      {changesPopup&&<ChangesPopup value={data.find(r=>r.model===changesPopup.model&&r.category===changesPopup.cat)?.changes||''} onSave={v=>updateGroup(changesPopup.model,changesPopup.cat,'changes',v)} onClose={()=>setChangesPopup(null)}/>}
+      {changesPopup&&<ChangesPopup value={data.find(r=>r.model===changesPopup.model&&r.category===changesPopup.cat&&r.event===changesPopup.event)?.changes||''} onSave={v=>updateGroup(changesPopup.model,changesPopup.cat,changesPopup.event,'changes',v)} onClose={()=>setChangesPopup(null)}/>}
     </>
   )
 }
