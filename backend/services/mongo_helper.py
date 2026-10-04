@@ -24,6 +24,17 @@ COLLECTION_VECTOR_DIM = 2
 DUMMY_VECTOR = [0.0, 0.0]
 
 _client: MilvusClient | None = None
+_last_error: str | None = None
+
+
+def _set_error(msg: str) -> None:
+    global _last_error
+    _last_error = msg
+    logger.error(msg)
+
+
+def last_error() -> str | None:
+    return _last_error
 
 
 def _host() -> str:
@@ -42,8 +53,17 @@ def _password() -> str:
     return os.getenv("MILVUS_PASSWORD") or os.getenv("MONGO_PASSWORD", "")
 
 
+def _normalize_db_name(raw: str) -> str:
+    """Milvus DB명: 하이픈·특수문자 불가 → underscore."""
+    name = (raw or "default").strip()
+    if not name or name.lower() == "default":
+        return "default"
+    return re.sub(r"[^0-9a-zA-Z_]", "_", name.replace("-", "_"))
+
+
 def _db_name() -> str:
-    return os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "dify-mv-audiojdmtask")
+    raw = os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "default")
+    return _normalize_db_name(raw)
 
 
 def _uri() -> str:
@@ -93,6 +113,9 @@ def ensure_database() -> str:
         if db not in databases:
             bootstrap.create_database(db_name=db)
             logger.info("Created Milvus database: %s", db)
+    except Exception as exc:
+        _set_error(f"ensure_database({db}) failed: {exc}")
+        raise
     finally:
         close = getattr(bootstrap, "close", None)
         if callable(close):
@@ -130,6 +153,8 @@ def _create_collection_schema(client: MilvusClient):
 
 
 def create_collection(name: str) -> bool:
+    global _last_error
+    _last_error = None
     try:
         client = get_client()
         if client.has_collection(name):
@@ -138,12 +163,23 @@ def create_collection(name: str) -> bool:
         client.create_collection(collection_name=name, schema=schema, index_params=index_params)
         return True
     except Exception as exc:
-        logger.error("create_collection failed: %s", exc)
+        _set_error(f"create_collection({name}) failed: {exc}")
         return False
 
 
 def ensure_collection(name: str) -> bool:
     return create_collection(name)
+
+
+def collection_error(name: str) -> str:
+    """ensure_collection 실패 시 API 응답용 상세 메시지."""
+    if _last_error:
+        return _last_error
+    return (
+        f"Milvus collection '{name}' 준비 실패 — "
+        f"uri={_safe_uri_for_log()} db={_db_name()} "
+        f"(MONGO_PASSWORD·MONGO_PORT=19530·pymilvus 설치 확인)"
+    )
 
 
 def get_all_documents(collection: str, use_cache: bool = False) -> list[dict]:
@@ -233,10 +269,12 @@ def delete_all_documents(collection: str) -> bool:
 
 
 def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
+    raw_db = os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "default")
     result: dict[str, Any] = {
         "mode": "milvus",
         "uri": _safe_uri_for_log(),
         "db": _db_name(),
+        "db_raw": raw_db,
         "port": _port(),
         "collection": collection,
         "steps": [],
