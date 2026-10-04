@@ -34,7 +34,8 @@ for f in \
   scripts/patch-config-snapshot-smtp.sh:scripts/patch-config-snapshot-smtp.sh \
   scripts/patch-env-snapshot-smtp.sh:scripts/patch-env-snapshot-smtp.sh \
   scripts/verify-model-schedule-mongo.sh:scripts/verify-model-schedule-mongo.sh \
-  scripts/deploy-model-schedule-share-be.sh:scripts/deploy-model-schedule-share-be.sh
+  scripts/deploy-model-schedule-share-be.sh:scripts/deploy-model-schedule-share-be.sh \
+  scripts/verify-model-schedule-share-be.sh:scripts/verify-model-schedule-share-be.sh
 do
   src="${f%%:*}"
   dst="${f##*:}"
@@ -80,6 +81,10 @@ else
 fi
 
 "$PY" -m pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0" -q 2>/dev/null || true
+
+echo ""
+echo "=== 배포 검증 ==="
+sh scripts/verify-model-schedule-share-be.sh http://127.0.0.1:8000 || true
 
 echo ""
 echo "=== 배포 완료 — 다음 단계 ==="
