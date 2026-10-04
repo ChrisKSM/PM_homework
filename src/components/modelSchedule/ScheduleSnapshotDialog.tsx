@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Mail, X } from 'lucide-react'
 import clsx from 'clsx'
+import { modelScheduleApi } from '../../api/modelScheduleApi'
 import {
   type BarType,
   type ModelRow,
@@ -314,6 +315,7 @@ type Props = {
   open: boolean
   onClose: () => void
   rows: ModelRow[]
+  allRows: ModelRow[]
   dates: Date[]
   periodLabel: string
   today: Date
@@ -324,6 +326,7 @@ export default function ScheduleSnapshotDialog({
   open,
   onClose,
   rows,
+  allRows,
   dates,
   periodLabel,
   today,
@@ -332,16 +335,48 @@ export default function ScheduleSnapshotDialog({
   const pages = useMemo(() => splitRowsIntoPages(rows), [rows])
   const pageCount = pages.length
   const [pageIndex, setPageIndex] = useState(0)
+  const [shareDqa, setShareDqa] = useState(false)
+  const [shareDev, setShareDev] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [shareMsg, setShareMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
+
+  const canShare = shareDqa && shareDev && !sharing
 
   const pageRows = pages[pageIndex] ?? []
   const tableW = LEFT_COLS_W + dates.length * CW
 
   useEffect(() => {
-    if (open) setPageIndex(0)
+    if (open) {
+      setPageIndex(0)
+      setShareDqa(false)
+      setShareDev(false)
+      setShareMsg(null)
+    }
   }, [open, rows])
+
+  const handleShare = async () => {
+    if (!canShare) return
+    setSharing(true)
+    setShareMsg(null)
+    try {
+      const res = await modelScheduleApi.shareSnapshot({
+        period_label: periodLabel,
+        dates: dates.map((d) => toISO(d)),
+        rows: allRows,
+        audiences: ['DQA', '개발'],
+        recipients: ['seokmin.koh@lge.com'],
+      })
+      setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
+    } catch (e: any) {
+      const detail = e?.response?.data?.detail || e?.message || '발송 실패'
+      setShareMsg({ type: 'err', text: String(detail) })
+    } finally {
+      setSharing(false)
+    }
+  }
 
   useLayoutEffect(() => {
     if (!open) return
@@ -482,11 +517,54 @@ export default function ScheduleSnapshotDialog({
           </div>
         </div>
 
-        <div className="px-4 py-2 border-t border-surface-border text-[11px] text-gray-500 shrink-0 flex justify-between items-center">
-          <span>
-            Page {pageIndex + 1}/{pageCount} · 이 페이지 모델 {pageGroupCount}개 · {pageRows.length}행
-          </span>
-          <span>빨간 세로선 = 오늘 ({fmt(today)})</span>
+        <div className="px-4 py-3 border-t border-surface-border shrink-0 bg-white space-y-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-xs font-semibold text-gray-700">메일 공유</span>
+            <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={shareDqa}
+                onChange={(e) => setShareDqa(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              DQA
+            </label>
+            <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={shareDev}
+                onChange={(e) => setShareDev(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              개발
+            </label>
+            <button
+              type="button"
+              disabled={!canShare}
+              onClick={handleShare}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                canShare
+                  ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500'
+                  : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed',
+              )}
+            >
+              {sharing ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+              공유 (메일)
+            </button>
+            <span className="text-[10px] text-gray-400">DQA·개발 모두 선택 시 발송 · 테스트: seokmin.koh@lge.com</span>
+          </div>
+          {shareMsg && (
+            <p className={clsx('text-[11px]', shareMsg.type === 'ok' ? 'text-emerald-600' : 'text-red-600')}>
+              {shareMsg.text}
+            </p>
+          )}
+          <div className="flex justify-between items-center text-[11px] text-gray-500 pt-1">
+            <span>
+              Page {pageIndex + 1}/{pageCount} · 이 페이지 모델 {pageGroupCount}개 · {pageRows.length}행
+            </span>
+            <span>빨간 세로선 = 오늘 ({fmt(today)})</span>
+          </div>
         </div>
       </div>
     </>

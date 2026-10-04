@@ -513,6 +513,7 @@ export default function ModelSchedulePage(){
         open={showSnapshotPopup}
         onClose={()=>setShowSnapshotPopup(false)}
         rows={filtered}
+        allRows={filtered}
         dates={dates}
         periodLabel={`${fmt(startDate)} ~ ${fmt(addDays(startDate,DAYS-1))}`}
         today={today}

@@ -86,18 +86,19 @@ export const modelScheduleApi = {
   },
 
   save: async (rows: any[]): Promise<{ saved: number; message: string; source: 'mongo' | 'local' }> => {
+    const prepared = prepareModelScheduleRows(rows)
     try {
       const res = await client
-        .post<{ saved: number; message: string }>('/model-schedule/save', { rows })
+        .post<{ saved: number; message: string }>('/model-schedule/save', { rows: prepared })
         .then((r) => r.data)
-      saveLocalPayload(rows, 'mongo')
+      saveLocalPayload(prepared, 'mongo')
       return { ...res, source: 'mongo' }
     } catch (e: any) {
-      saveLocalPayload(rows, 'local')
+      saveLocalPayload(prepared, 'local')
       const detail = e?.response?.data?.detail || e?.message || 'unknown'
       console.warn('MongoDB save failed, data kept in localStorage:', detail, e)
       return {
-        saved: rows.length,
+        saved: prepared.length,
         message: `브라우저에 저장됨 (서버 저장 실패: ${detail})`,
         source: 'local',
       }
@@ -105,4 +106,20 @@ export const modelScheduleApi = {
   },
 
   loadLocal: () => loadLocalPayload()?.rows ?? null,
+
+  shareSnapshot: async (payload: {
+    period_label: string
+    dates: string[]
+    rows: any[]
+    audiences: string[]
+    recipients?: string[]
+  }): Promise<{ message: string; subject: string; recipients: string[] }> => {
+    const res = await client
+      .post<{ message: string; subject: string; recipients: string[] }>(
+        '/model-schedule/share',
+        payload,
+      )
+      .then((r) => r.data)
+    return res
+  },
 }

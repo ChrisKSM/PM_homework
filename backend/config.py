@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
     cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
 
+    # 모델 현황 Snapshot 메일 공유 (쉼표 구분)
+    model_schedule_share_recipients: str = "seokmin.koh@lge.com"
+
     # Daily report
     report_enabled: bool = True
     report_recipients: str = "seokmin.koh@lge.com"
