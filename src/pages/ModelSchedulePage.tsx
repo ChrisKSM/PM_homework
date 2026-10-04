@@ -149,8 +149,9 @@ function BarTypePicker({x,y,currentType,currentLabel,onSelect,onRemove,onClose,o
   onSelect:(t:BarType,label:string)=>void;onRemove:()=>void;onClose:()=>void;onApplyLabel:(l:string)=>void
 }){
   const [label,setLabel]=useState(currentLabel)
+  const inputRef=useRef<HTMLInputElement>(null)
   useEffect(()=>{setLabel(currentLabel)},[currentLabel])
-  const trimmed=label.trim()
+  const readLabel=()=>(inputRef.current?.value??label).trim()
   return(
     <>
       <div className="fixed inset-0 z-40" onMouseDown={onClose}/>
@@ -158,16 +159,16 @@ function BarTypePicker({x,y,currentType,currentLabel,onSelect,onRemove,onClose,o
         style={{left:Math.min(x,window.innerWidth-170),top:Math.min(y,window.innerHeight-320)}}
         onMouseDown={e=>e.stopPropagation()}>
         {BAR_TYPES.map(t=>(
-          <button key={t} type="button" onMouseDown={e=>e.stopPropagation()} onClick={()=>onSelect(t,trimmed)} className={clsx('w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-surface-page text-left',currentType===t&&'bg-blue-50 font-semibold')}>
+          <button key={t} type="button" onMouseDown={e=>e.stopPropagation()} onClick={()=>onSelect(t,readLabel())} className={clsx('w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-surface-page text-left',currentType===t&&'bg-blue-50 font-semibold')}>
             <div className="w-4 h-3 rounded-sm shrink-0" style={{backgroundColor:BAR_CONFIG[t].color}}/>{BAR_CONFIG[t].label}
           </button>
         ))}
         <div className="border-t border-surface-border my-1"/>
         <div className="px-3 py-1.5">
           <p className="text-[9px] text-gray-400 mb-1">라벨 (블록 위 글자)</p>
-          <input className="w-full px-2 py-1 border border-gray-300 rounded text-[11px]" value={label} placeholder="예: FC1, MR8..."
-            onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){onApplyLabel(trimmed);onClose()}}} autoFocus/>
-          <button type="button" onMouseDown={e=>e.stopPropagation()} onClick={()=>{onApplyLabel(trimmed);onClose()}} className="mt-1 w-full text-center text-[10px] text-blue-600 hover:underline">적용</button>
+          <input ref={inputRef} className="w-full px-2 py-1 border border-gray-300 rounded text-[11px]" value={label} placeholder="예: FC1, MR8..."
+            onChange={e=>setLabel(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){onApplyLabel(readLabel());onClose()}}} autoFocus/>
+          <button type="button" onMouseDown={e=>e.stopPropagation()} onClick={()=>{onApplyLabel(readLabel());onClose()}} className="mt-1 w-full text-center text-[10px] text-blue-600 hover:underline">적용</button>
         </div>
         <div className="border-t border-surface-border my-1"/>
         <button type="button" onMouseDown={e=>e.stopPropagation()} onClick={onRemove} className="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] hover:bg-red-50 text-red-500 text-left"><X size={12}/>삭제</button>
@@ -263,7 +264,7 @@ export default function ModelSchedulePage(){
       setDataSource(res.source)
       setSaveMessage({
         type:res.source==='mongo'?'success':'warn',
-        text:res.source==='mongo'?'저장되었습니다.':'브라우저에 저장됨 (서버 연결 실패)',
+        text:res.source==='mongo'?'저장되었습니다.':res.message,
       })
     }catch(e){
       console.warn('Save failed:',e)
@@ -300,7 +301,7 @@ export default function ModelSchedulePage(){
         const bars=[...rowBars(r)]
         const ei=bars.findIndex(b=>snap.date>=normDate(b.start)&&snap.date<=normDate(b.end))
         if(ei>=0){
-          bars[ei]={...bars[ei],type,label:label||bars[ei].label||''}
+          bars[ei]={...bars[ei],type,label:label!==''?label:(bars[ei].label||'')}
         }else{
           bars.push({start:snap.date,end:snap.date,type,label})
         }
@@ -482,7 +483,7 @@ export default function ModelSchedulePage(){
                         const bc=bar?BAR_CONFIG[bar.type]:null
                         const barSpanDays=bar?diffD(toD(normDate(bar.start)),toD(normDate(bar.end)))+1:0
                         const barMinW=barSpanDays*CW-2
-                        const barW=bar?.label&&barSpanDays===1
+                        const barW=bar?.label
                           ? Math.max(barMinW,bar.label.length*7+10)
                           : barMinW
 
