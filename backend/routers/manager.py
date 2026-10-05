@@ -17,7 +17,10 @@ async def project_summary():
     try:
         return await jira_service.get_project_summary()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Jira API 오류: {e} — BE pod: sh scripts/restore-be-jira-env.sh · GET /api/jira/diagnose",
+        )
 
 
 @router.get("/epics/progress")
@@ -26,7 +29,10 @@ async def epic_progress():
     try:
         return await jira_service.get_epic_progress()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Jira API 오류: {e} — BE pod: sh scripts/restore-be-jira-env.sh · GET /api/jira/diagnose",
+        )
 
 
 @router.get("/issues/distribution")
@@ -35,7 +41,10 @@ async def issue_distribution():
     try:
         return await jira_service.get_issue_distribution()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Jira API 오류: {e} — BE pod: sh scripts/restore-be-jira-env.sh · GET /api/jira/diagnose",
+        )
 
 
 @router.get("/sprints/velocity")
@@ -44,7 +53,10 @@ async def velocity():
     try:
         return await jira_service.get_velocity()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Jira API 오류: {e} — BE pod: sh scripts/restore-be-jira-env.sh · GET /api/jira/diagnose",
+        )
 
 
 @router.get("/issues/risks")
@@ -53,4 +65,7 @@ async def risk_issues():
     try:
         return await jira_service.get_risk_issues()
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Jira API 오류: {e}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Jira API 오류: {e} — BE pod: sh scripts/restore-be-jira-env.sh · GET /api/jira/diagnose",
+        )

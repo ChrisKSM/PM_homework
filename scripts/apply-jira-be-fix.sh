@@ -45,7 +45,12 @@ for f in backend/jira_client.py backend/routers/manager.py; do
   echo "  + $dest"
 done
 
-for f in scripts/verify-jira-be.sh scripts/fix-be-token.sh scripts/apply-jira-be-fix.sh; do
+for f in \
+  scripts/verify-jira-be.sh \
+  scripts/fix-be-token.sh \
+  scripts/restore-be-jira-env.sh \
+  scripts/apply-jira-be-fix.sh
+do
   show "$f" > "$f"
   chmod +x "$f"
   echo "  + $f"
