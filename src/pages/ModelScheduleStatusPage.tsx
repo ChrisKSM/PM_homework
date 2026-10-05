@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Filter, Loader2, X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ChevronLeft, ChevronRight, ExternalLink, Filter, Loader2, X } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../components/layout/Header'
-import ManagerDashboardBody from '../components/modelStatus/ManagerDashboardBody'
 import ModelStatusEventsTable from '../components/modelStatus/ModelStatusEventsTable'
 import ModelStatusMetaCard from '../components/modelStatus/ModelStatusMetaCard'
 import OverviewScheduleTable from '../components/modelSchedule/OverviewScheduleTable'
@@ -231,18 +231,31 @@ export default function ModelScheduleStatusPage() {
               <div>
                 <h3 className="text-sm font-semibold text-gray-800">조직 KPI (Jira)</h3>
                 <p className="text-[10px] text-gray-400 mt-0.5">
-                  {showJira
-                    ? `${selected.model} — Jira board 연동`
-                    : `${selected.model} — Jira 연동 준비 중 (현재 S80C만 KPI 표시)`}
+                  모델현황은 overview 일정·메타 중심 · Jira KPI는 별도 대시보드
                 </p>
               </div>
               {showJira ? (
-                <ManagerDashboardBody />
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-6 text-center space-y-3">
+                  <p className="text-sm text-gray-700">
+                    {selected.model} Jira KPI (Epic, Velocity, 리스크)는 S80C 책임자 대시보드에서 확인하세요.
+                  </p>
+                  <Link
+                    to="/s80c/manager"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-500"
+                  >
+                    S80C 책임자 대시보드
+                    <ExternalLink size={14} />
+                  </Link>
+                  <p className="text-[10px] text-gray-500">
+                    BE Jira 502 시 — be-audio-test pod .env JIRA_API_TOKEN 확인
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-4 py-10 text-center">
                   <p className="text-sm text-gray-500">해당 모델의 Jira KPI 연동은 준비 중입니다.</p>
                   <p className="text-[10px] text-gray-400 mt-1">
-                    일정·메타 정보는 위 overview 데이터 기준 · Sound Suite {sortedModels.filter((m) => normalizeOverviewCategory(m.category) === 'Sound Suite').length}모델
+                    일정·메타는 위 overview 데이터 · Sound Suite{' '}
+                    {sortedModels.filter((m) => normalizeOverviewCategory(m.category) === 'Sound Suite').length}모델
                   </p>
                 </div>
               )}
