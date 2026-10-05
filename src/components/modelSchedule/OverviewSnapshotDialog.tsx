@@ -5,6 +5,7 @@ import type { OverviewModel } from '../../types/modelScheduleOverview'
 import { expandOverviewToDisplayRows } from '../../utils/modelScheduleOverviewRows'
 import { captureOverviewPageImages } from '../../utils/captureOverviewPages'
 import { modelScheduleApi } from '../../api/modelScheduleApi'
+import { devEmailsFromSwPm } from '../../utils/modelScheduleDevRecipients'
 import OverviewScheduleTable from './OverviewScheduleTable'
 
 const MIN_SCALE = 0.75
@@ -59,6 +60,7 @@ export default function OverviewSnapshotDialog({
   const wrapRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
+  const devRecipients = useMemo(() => devEmailsFromSwPm(models), [models])
 
   useEffect(() => {
     if (open) {
@@ -95,6 +97,11 @@ export default function OverviewSnapshotDialog({
         console.warn('overview snapshot capture failed:', capErr)
       }
 
+      if (!devRecipients.length) {
+        setShareMsg({ type: 'err', text: 'SW 담당(개발)에서 수신자를 찾을 수 없습니다.' })
+        return
+      }
+
       const res = await modelScheduleApi.shareOverviewSnapshot({
         period_label: periodLabel,
         dates: dates.map(toISO),
@@ -115,7 +122,7 @@ export default function OverviewSnapshotDialog({
           bars: r.bars,
         })),
         audiences: ['개발'],
-        recipients: ['seokmin.koh@lge.com'],
+        recipients: devRecipients,
       })
       setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
     } catch (e: unknown) {
@@ -204,7 +211,8 @@ export default function OverviewSnapshotDialog({
               공유 (메일)
             </button>
             <span className="text-[10px] text-gray-400">
-              테스트: seokmin.koh@lge.com · SW 이벤트 + Page 1/2 · 전체 {models.length}모델 발송
+              개발: {devRecipients.length ? devRecipients.join(', ') : '(SW 담당 없음)'} · SW 이벤트 + Page 1/2 · 전체{' '}
+              {models.length}모델 발송
               {filterActive && filteredCount != null && filteredCount !== models.length
                 ? ` (화면 필터 ${filteredCount}모델 — 메일은 전체)`
                 : ''}

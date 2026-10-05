@@ -14,6 +14,7 @@ from services.overview_snapshot_email import (
     build_overview_subject,
     _split_model_pages,
 )
+from services.model_schedule_recipients import dev_emails_from_models
 from services.schedule_snapshot_email import build_snapshot_html, build_snapshot_subject
 
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
@@ -119,7 +120,12 @@ def _parse_recipients(raw: str) -> list[str]:
     return [a.strip() for a in raw.split(",") if a.strip()]
 
 
-def _resolve_share_recipients(audiences: set[str], override: list[str] | None) -> list[str]:
+def _resolve_share_recipients(
+    audiences: set[str],
+    override: list[str] | None,
+    *,
+    models: list[dict[str, Any]] | None = None,
+) -> list[str]:
     if override:
         return override
 
@@ -131,7 +137,9 @@ def _resolve_share_recipients(audiences: set[str], override: list[str] | None) -
                 seen.add(addr)
                 ordered.append(addr)
     if "개발" in audiences:
-        for addr in _parse_recipients(settings.model_schedule_share_dev_recipients):
+        schedule_dev = dev_emails_from_models(models)
+        dev_addrs = schedule_dev or _parse_recipients(settings.model_schedule_share_dev_recipients)
+        for addr in dev_addrs:
             if addr not in seen:
                 seen.add(addr)
                 ordered.append(addr)
@@ -237,7 +245,7 @@ def _send_overview_share_email(
             detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
         )
 
-    to_addrs = _resolve_share_recipients(audiences, req.recipients)
+    to_addrs = _resolve_share_recipients(audiences, req.recipients, models=req.models)
     if not to_addrs:
         raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
 
@@ -269,6 +277,7 @@ def _send_share_email(
     html: str,
     audiences: set[str],
     recipients: list[str] | None,
+    models: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not smtp_is_configured():
         raise HTTPException(
@@ -276,7 +285,7 @@ def _send_share_email(
             detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
         )
 
-    to_addrs = _resolve_share_recipients(audiences, recipients)
+    to_addrs = _resolve_share_recipients(audiences, recipients, models=models)
     if not to_addrs:
         raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
 

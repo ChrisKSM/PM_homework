@@ -17,6 +17,16 @@ def test_resolve_dev_only():
     assert len(addrs) == 12
 
 
+def test_resolve_dev_from_sw_pm():
+    models = [{"swPm": "고석민/윤필규"}, {"swPm": "조성연"}]
+    addrs = _resolve_share_recipients({"개발"}, None, models=models)
+    assert addrs == [
+        "seokmin.koh@lge.com",
+        "pilkyu.yoon@lge.com",
+        "sungyeon.cho@lge.com",
+    ]
+
+
 def test_resolve_both_deduplicates():
     addrs = _resolve_share_recipients({"DQA", "개발"}, None)
     assert len(addrs) == 15
