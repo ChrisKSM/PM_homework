@@ -43,5 +43,8 @@ for p in 8200 8000; do
 done
 
 echo "  uvicorn 미기동 — 재시작:"
-echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200"
+echo "  sh scripts/start-be-route-port.sh   # FE 외부 URL (port 8000)"
+echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200  # dev"
+echo ""
+echo "  local8200 OK + external 502 → Route는 8000. start-be-route-port.sh 실행"
 echo "=== Done ==="
