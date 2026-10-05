@@ -376,22 +376,29 @@ async def diagnose_jira() -> dict[str, Any]:
     BE pod Jira 연결 진단 — 토큰·경로·Agile API ping.
     항상 200 JSON (오류는 필드에 기록).
     """
+    import socket
+
+    env_token_len = len(_normalize_token(os.getenv("JIRA_API_TOKEN")))
     result: dict[str, Any] = {
         "ok": False,
+        "hostname": socket.gethostname(),
+        "cwd": str(Path.cwd()),
         "jira_base_url": settings.jira_base_url,
         "board_id": settings.board_id,
         "jira_verify_ssl": settings.jira_verify_ssl,
         "token_source": "none",
         "token_length": 0,
+        "env_jira_api_token_length": env_token_len,
+        "settings_jira_api_token_length": len(_normalize_token(settings.jira_api_token)),
         "dotenv_paths": [
             {"path": str(p), "exists": p.is_file()} for p in _DOTENV_PATHS
         ],
         "jira_ping": None,
         "error": None,
         "fix_hint": (
-            "JIRA_API_TOKEN 설정: (1) AX Studio 프로젝트 Variables, "
-            "(2) /workspace/project/.env + cp → /usr/app/src/.env, "
-            "(3) Route 포트 8000 uvicorn 재시작 (8200은 pod dev용)"
+            "JIRA_API_TOKEN: (1) AX Studio Variables → 프로젝트 **재시작**(uvicorn만 X), "
+            "(2) /workspace/project/.env + cp /usr/app/src/.env, "
+            "(3) FE URL vs Worker Port URL hostname 비교 (diagnose.hostname)"
         ),
     }
     source, length = _token_source_info()
