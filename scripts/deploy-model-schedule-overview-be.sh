@@ -32,8 +32,13 @@ mkdir -p routers services scripts
 for f in \
   backend/routers/model_schedule.py:routers/model_schedule.py \
   backend/services/mongo_helper.py:services/mongo_helper.py \
+  backend/services/email_service.py:services/email_service.py \
+  backend/services/overview_snapshot_email.py:services/overview_snapshot_email.py \
   scripts/seed-model-schedule-overview.json:scripts/seed-model-schedule-overview.json \
   scripts/seed-model-schedule-overview-to-db.sh:scripts/seed-model-schedule-overview-to-db.sh \
+  scripts/apply-model-schedule-overview-be.sh:scripts/apply-model-schedule-overview-be.sh \
+  scripts/verify-overview-be-deployed.sh:scripts/verify-overview-be-deployed.sh \
+  scripts/test-overview-share-mail.sh:scripts/test-overview-share-mail.sh \
   scripts/deploy-model-schedule-overview-be.sh:scripts/deploy-model-schedule-overview-be.sh \
   scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh
 do
