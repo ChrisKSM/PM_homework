@@ -11,7 +11,7 @@ def test_build_overview_subject():
     assert build_overview_subject(date(2026, 10, 5)) == "[2026-10-05] 전 모델 개발 일정"
 
 
-def test_build_overview_plain_text_lists_sw_events():
+def test_build_overview_plain_text_lists_all_models():
     models = [
         {
             "category": "Sound Suite",
@@ -20,7 +20,8 @@ def test_build_overview_plain_text_lists_sw_events():
                 {"name": "FC 1", "start": "2026-10-01", "end": "2026-10-02", "kind": "sw"},
                 {"name": "MP", "start": "2026-11-01", "kind": "hw"},
             ],
-        }
+        },
+        {"category": "Sound Suite", "model": "H5", "events": []},
     ]
     text = build_overview_plain_text(
         period_label="26/10월",
@@ -29,9 +30,11 @@ def test_build_overview_plain_text_lists_sw_events():
         has_attachments=True,
     )
     assert "[Sound Suite] H7_VI" in text
+    assert "[Sound Suite] H5" in text
     assert "FC 1" in text
     assert "2026-10-01 ~ 2026-10-02" in text
     assert "MP" not in text
+    assert "(SW 이벤트 없음)" in text
     assert "Page 1/2" in text
     assert "Page 2/2" in text
 

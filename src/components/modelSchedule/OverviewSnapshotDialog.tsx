@@ -27,6 +27,8 @@ export default function OverviewSnapshotDialog({
   open,
   onClose,
   models,
+  filterActive = false,
+  filteredCount,
   dates,
   periodLabel,
   today,
@@ -35,6 +37,9 @@ export default function OverviewSnapshotDialog({
   open: boolean
   onClose: () => void
   models: OverviewModel[]
+  /** 화면 필터 적용 중이어도 메일은 전체 models 로 발송 */
+  filterActive?: boolean
+  filteredCount?: number
   dates: Date[]
   periodLabel: string
   today: Date
@@ -199,7 +204,10 @@ export default function OverviewSnapshotDialog({
               공유 (메일)
             </button>
             <span className="text-[10px] text-gray-400">
-              테스트: seokmin.koh@lge.com · SW 이벤트 + Page 1/2 · {models.length}모델
+              테스트: seokmin.koh@lge.com · SW 이벤트 + Page 1/2 · 전체 {models.length}모델 발송
+              {filterActive && filteredCount != null && filteredCount !== models.length
+                ? ` (화면 필터 ${filteredCount}모델 — 메일은 전체)`
+                : ''}
             </span>
           </div>
           {shareMsg && (

@@ -683,7 +683,9 @@ export default function ModelScheduleOverviewPage() {
       <OverviewSnapshotDialog
         open={showSnapshotPopup}
         onClose={() => setShowSnapshotPopup(false)}
-        models={filteredModels}
+        models={sortedModels}
+        filterActive={hasFilter}
+        filteredCount={filteredModels.length}
         dates={dates}
         periodLabel={`${viewMonth.year % 100}/${viewMonth.month + 1}월`}
         today={today}

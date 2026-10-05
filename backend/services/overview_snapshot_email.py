@@ -81,19 +81,30 @@ def _sw_events_summary(models: list[dict[str, Any]]) -> str:
     for m in models:
         cat = _escape(str(m.get("category", "")))
         model = _escape(str(m.get("model", "")))
-        for e in _sw_events_for_model(m):
-            ev_name = str(e.get("name", "")).strip()
+        sw_events = _sw_events_for_model(m)
+        if sw_events:
+            for e in sw_events:
+                ev_name = str(e.get("name", "")).strip()
+                rows.append(
+                    "<tr>"
+                    f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">{cat}</td>'
+                    f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;font-weight:bold;">{model}</td>'
+                    f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">{_escape(ev_name)}</td>'
+                    f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">'
+                    f'{_escape(_fmt_range(str(e.get("start", "")), str(e.get("end", ""))))}</td>'
+                    "</tr>"
+                )
+        else:
             rows.append(
                 "<tr>"
                 f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">{cat}</td>'
                 f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;font-weight:bold;">{model}</td>'
-                f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">{_escape(ev_name)}</td>'
-                f'<td style="padding:4px 8px;border:1px solid #ddd;font-size:11px;">'
-                f'{_escape(_fmt_range(str(e.get("start", "")), str(e.get("end", ""))))}</td>'
+                f'<td colspan="2" style="padding:4px 8px;border:1px solid #ddd;font-size:11px;color:#888;">'
+                f'(SW 이벤트 없음)</td>'
                 "</tr>"
             )
     if not rows:
-        return "<p style='font-size:12px;color:#666;'>SW 이벤트 없음</p>"
+        return "<p style='font-size:12px;color:#666;'>모델 없음</p>"
     return f"""
     <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;max-width:960px;margin-bottom:20px;">
       <thead>
@@ -122,24 +133,19 @@ def build_overview_plain_text(
         "■ 모델별 SW 이벤트 일정",
         "",
     ]
-    any_event = False
     for m in models:
         cat = str(m.get("category", "")).strip()
         model = str(m.get("model", "")).strip()
         sw_events = _sw_events_for_model(m)
-        if not sw_events:
-            continue
-        any_event = True
         header = f"[{cat}] {model}" if cat else model
         lines.append(header)
-        for e in sw_events:
-            name = str(e.get("name", "")).strip()
-            period = _fmt_range(str(e.get("start", "")), str(e.get("end", "")))
-            lines.append(f"  · {name} : {period}")
-        lines.append("")
-
-    if not any_event:
-        lines.append("(SW 이벤트 없음)")
+        if sw_events:
+            for e in sw_events:
+                name = str(e.get("name", "")).strip()
+                period = _fmt_range(str(e.get("start", "")), str(e.get("end", "")))
+                lines.append(f"  · {name} : {period}")
+        else:
+            lines.append("  · (SW 이벤트 없음)")
         lines.append("")
 
     lines.append("■ 타임라인 Snapshot")
