@@ -48,6 +48,11 @@ ensure_kv() {
   fi
 }
 
+# 빈 SMTP_HOST= 줄이 기본값을 덮어쓰지 않도록 제거 후 재설정
+if grep -q '^SMTP_HOST=$' "$ENV_FILE" 2>/dev/null; then
+  sed -i '/^SMTP_HOST=$/d' "$ENV_FILE"
+  echo "  - removed empty SMTP_HOST="
+fi
 ensure_kv SMTP_HOST "lgesmtp.lge.com"
 ensure_kv SMTP_PORT "25"
 ensure_kv SMTP_USER ""

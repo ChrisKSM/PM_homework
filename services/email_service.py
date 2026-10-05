@@ -9,7 +9,7 @@ import time
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from config import settings
+from config import effective_smtp_host, settings
 
 MAX_RETRIES = 3
 
@@ -37,7 +37,7 @@ def _tls_context() -> ssl.SSLContext | None:
 
 
 def _create_smtp_connection() -> smtplib.SMTP:
-    server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
+    server = smtplib.SMTP(effective_smtp_host(), settings.smtp_port, timeout=30)
     server.ehlo()
     if settings.smtp_use_tls:
         server.starttls(context=_tls_context())
@@ -80,7 +80,7 @@ def send_html_email(*, subject: str, html_body: str, recipients: list[str] | Non
     if not to_addrs:
         raise ValueError("수신자(REPORT_RECIPIENTS)가 설정되지 않았습니다.")
 
-    if not settings.smtp_host:
+    if not effective_smtp_host():
         raise ValueError("SMTP_HOST가 설정되지 않았습니다.")
 
     sender = _normalize_sender(

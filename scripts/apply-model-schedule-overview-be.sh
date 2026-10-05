@@ -37,6 +37,7 @@ for f in \
   backend/services/email_service.py:services/email_service.py \
   backend/services/schedule_snapshot_email.py:services/schedule_snapshot_email.py \
   backend/services/overview_snapshot_email.py:services/overview_snapshot_email.py \
+  backend/config.py:config.py \
   scripts/seed-model-schedule-overview.json:scripts/seed-model-schedule-overview.json \
   scripts/seed-model-schedule-overview-to-db.sh:scripts/seed-model-schedule-overview-to-db.sh \
   scripts/apply-model-schedule-overview-be.sh:scripts/apply-model-schedule-overview-be.sh \

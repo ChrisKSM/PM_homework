@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Any
 
-from config import settings
+from config import settings, smtp_is_configured
 from services import mongo_helper
 from services.email_service import send_html_email
 from services.overview_snapshot_email import build_overview_snapshot_html, build_overview_subject
@@ -172,10 +172,10 @@ async def share_schedule_snapshot(req: ScheduleShareRequest):
     if not req.rows:
         raise HTTPException(status_code=400, detail="발송할 일정 데이터가 없습니다.")
 
-    if not settings.smtp_host:
+    if not smtp_is_configured():
         raise HTTPException(
             status_code=503,
-            detail="SMTP 미설정 — BE .env 에 SMTP_HOST, SMTP_USER, SMTP_PASSWORD 를 설정하세요.",
+            detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
         )
 
     to_addrs = _resolve_share_recipients(aud, req.recipients)
@@ -216,10 +216,10 @@ async def share_overview_snapshot(req: OverviewShareRequest):
     if not req.models:
         raise HTTPException(status_code=400, detail="발송할 모델 데이터가 없습니다.")
 
-    if not settings.smtp_host:
+    if not smtp_is_configured():
         raise HTTPException(
             status_code=503,
-            detail="SMTP 미설정 — BE .env 에 SMTP_HOST, SMTP_USER, SMTP_PASSWORD 를 설정하세요.",
+            detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
         )
 
     to_addrs = _resolve_share_recipients(aud, req.recipients)
