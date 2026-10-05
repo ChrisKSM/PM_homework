@@ -35,14 +35,11 @@ LOCAL_OK=$(curl -s http://127.0.0.1:8000/api/jira/diagnose 2>/dev/null \
 EXT_OK=$(python3 -c "import json; print(json.load(open('/tmp/ext_jira.json')).get('ok'))" 2>/dev/null || echo "false")
 
 if [ "$LOCAL_OK" = "True" ] && [ "$EXT_OK" != "True" ]; then
-  echo "  ❌ 이 pod(local 8000)는 Jira OK — 그러나 Route는 **다른 BE**를 가리킵니다."
-  echo "     pod 이름: $(hostname) (개인 workspace BE)"
-  echo "     FE URL:   $EXT (공용 be-audio-test Route)"
+  echo "  ⚠️  local 8000 Jira OK + pod 내부 external curl 만 실패"
+  echo "     → pod 안에서 be-audio-test URL curl 은 브라우저와 **다른 경로**일 수 있음."
+  echo "     → local risks 200 이면 **브라우저 FE 새로고침** 으로 확인 (이게 정답)."
   echo ""
-  echo "  → 이 pod에서 uvicorn 재시작만으로 FE 502는 해결되지 않습니다."
-  echo "  → 공용 be-audio-test Deployment에 JIRA_API_TOKEN 설정 + pod 재시작 필요"
-  echo "     (OpenShift 콘솔 / 플랫폼 담당자)"
-  echo "  → 또는 BE GitLab master push 로 공용 이미지 재배포 (.env/secret 포함)"
+  echo "  브라우저도 502면 FE Network 탭 Request URL 캡처 후 공유"
 elif [ "$LOCAL_OK" = "True" ] && [ "$EXT_OK" = "True" ]; then
   echo "  ✅ local + external 모두 Jira OK — FE 새로고침"
 else
