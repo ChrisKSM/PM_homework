@@ -1,7 +1,14 @@
 from fastapi import APIRouter, HTTPException
+from jira_client import diagnose_jira
 from services import jira_service
 
 router = APIRouter(prefix="/api", tags=["manager"])
+
+
+@router.get("/jira/diagnose")
+async def jira_diagnose():
+    """Jira 토큰·연결 진단 (502 원인 확인용)."""
+    return await diagnose_jira()
 
 
 @router.get("/metrics/summary")

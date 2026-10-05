@@ -5,6 +5,7 @@ import RiskTable from '../cards/RiskTable'
 import EpicProgressChart from '../charts/EpicProgressChart'
 import IssueStatusChart from '../charts/IssueStatusChart'
 import VelocityChart from '../charts/VelocityChart'
+import JiraDegradedBanner from '../jira/JiraDegradedBanner'
 import {
   useProjectSummary,
   useEpicProgress,
@@ -12,6 +13,7 @@ import {
   useVelocity,
   useRiskIssues,
 } from '../../hooks/useJiraData'
+import { useJiraDegraded } from '../../hooks/useJiraDegraded'
 
 function LoadingSpinner() {
   return (
@@ -40,6 +42,7 @@ function ApiErrorBanner({ label, error }: { label: string; error: unknown }) {
 
 /** S80C 조직 책임자 대시보드 본문 */
 export default function ManagerDashboardBody() {
+  const jiraDegraded = useJiraDegraded()
   const summaryQ = useProjectSummary()
   const epicsQ = useEpicProgress()
   const distQ = useIssueDistribution()
@@ -48,6 +51,7 @@ export default function ManagerDashboardBody() {
 
   return (
     <div className="space-y-6">
+      {jiraDegraded ? <JiraDegradedBanner /> : null}
       {summaryQ.isError ? (
         <ApiErrorBanner label="KPI 요약" error={summaryQ.error} />
       ) : summaryQ.isLoading ? (
