@@ -122,3 +122,26 @@ def effective_smtp_host() -> str:
 
 def smtp_is_configured() -> bool:
     return bool(effective_smtp_host())
+
+
+# prod .env CORS_ORIGINS 에 axstudio 가 빠져도 FE(react-audio.apps.axstudio) 허용
+_REQUIRED_CORS_ORIGINS = (
+    "https://react-audio.apps.axstudio.lge.com",
+    "https://react-audio.apps.hedej.lge.com",
+    "https://workspace.hedej.lge.com",
+    "https://workspace.axstudio.lge.com",
+)
+
+
+def effective_cors_origins() -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for origin in [o.strip() for o in settings.cors_origins.split(",") if o.strip()]:
+        if origin not in seen:
+            seen.add(origin)
+            ordered.append(origin)
+    for origin in _REQUIRED_CORS_ORIGINS:
+        if origin not in seen:
+            seen.add(origin)
+            ordered.append(origin)
+    return ordered

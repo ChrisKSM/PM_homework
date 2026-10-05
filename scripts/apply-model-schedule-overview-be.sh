@@ -44,7 +44,8 @@ for f in \
   scripts/verify-overview-be-deployed.sh:scripts/verify-overview-be-deployed.sh \
   scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh \
   scripts/patch-config-snapshot-smtp.sh:scripts/patch-config-snapshot-smtp.sh \
-  scripts/patch-env-snapshot-smtp.sh:scripts/patch-env-snapshot-smtp.sh
+  scripts/patch-env-snapshot-smtp.sh:scripts/patch-env-snapshot-smtp.sh \
+  scripts/patch-env-cors-axstudio.sh:scripts/patch-env-cors-axstudio.sh
 do
   src="${f%%:*}"
   dst="${f##*:}"
@@ -80,6 +81,8 @@ EOF
 
 chmod +x scripts/patch-env-snapshot-smtp.sh 2>/dev/null || true
 sh scripts/patch-env-snapshot-smtp.sh .env 2>/dev/null || true
+chmod +x scripts/patch-env-cors-axstudio.sh 2>/dev/null || true
+sh scripts/patch-env-cors-axstudio.sh .env 2>/dev/null || true
 
 if [ -x .venv/bin/python ]; then
   PY=".venv/bin/python"

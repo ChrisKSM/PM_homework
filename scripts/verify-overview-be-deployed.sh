@@ -35,6 +35,7 @@ check "email_service.py" "[ -f services/email_service.py ]"
 check "overview/load route" "grep -q 'overview/load' routers/model_schedule.py"
 check "overview/save route" "grep -q 'overview/save' routers/model_schedule.py"
 check "share overview (snapshot_type)" "grep -q 'snapshot_type' routers/model_schedule.py"
+check "effective_cors_origins in config" "grep -q 'effective_cors_origins' config.py"
 check "seed JSON" "[ -f scripts/seed-model-schedule-overview.json ]"
 
 if [ -f scripts/seed-model-schedule-overview.json ]; then
@@ -50,6 +51,22 @@ print(len(ss))
     echo "  NG  seed Sound Suite ${SS}/7 — apply 스크립트 재실행"
     FAIL=1
   fi
+fi
+
+echo ""
+echo "=== CORS preflight ==="
+CORS_HDR=$(curl -s -D - -o /dev/null -X OPTIONS \
+  "${BASE}/api/model-schedule/overview/share" \
+  -H "Origin: https://react-audio.apps.axstudio.lge.com" \
+  -H "Access-Control-Request-Method: POST" \
+  -H "Access-Control-Request-Headers: content-type" 2>/dev/null \
+  | tr -d '\r' | grep -i '^access-control-allow-origin:' | head -1 || true)
+if echo "$CORS_HDR" | grep -qi 'react-audio.apps.axstudio.lge.com'; then
+  echo "  OK  OPTIONS overview/share → axstudio origin allowed"
+else
+  echo "  NG  OPTIONS overview/share — axstudio CORS missing"
+  echo "       → sh scripts/patch-env-cors-axstudio.sh .env && uvicorn 재시작"
+  FAIL=1
 fi
 
 echo ""
