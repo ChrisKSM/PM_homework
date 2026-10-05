@@ -28,7 +28,13 @@ class OverviewSaveRequest(BaseModel):
 class ScheduleShareRequest(BaseModel):
     period_label: str = Field(..., description="예: 9/15 ~ 10/26")
     dates: list[str] = Field(..., description="Gantt 열 날짜 YYYY-MM-DD")
-    rows: list[dict[str, Any]]
+    rows: list[dict[str, Any]] | None = Field(default=None, description="모델 검증 상세 Gantt rows")
+    snapshot_type: str | None = Field(
+        default=None,
+        description='overview 이면 전 모델 일정 Snapshot (models + display_rows 필요)',
+    )
+    models: list[dict[str, Any]] | None = Field(default=None, description="전 모델 일정 models")
+    display_rows: list[dict[str, Any]] | None = Field(default=None, description="전 모델 일정 display_rows")
     audiences: list[str] = Field(..., description="DQA, 개발 — 하나 이상")
     recipients: list[str] | None = Field(default=None, description="테스트용 수신자 override")
 
@@ -161,9 +167,70 @@ async def save_overview_schedule(req: OverviewSaveRequest):
         raise HTTPException(status_code=502, detail=f"DB 저장 오류: {e}")
 
 
+def _is_overview_share(req: ScheduleShareRequest) -> bool:
+    return req.snapshot_type == "overview" or (req.models is not None and req.display_rows is not None)
+
+
+def _send_share_email(
+    *,
+    subject: str,
+    html: str,
+    audiences: set[str],
+    recipients: list[str] | None,
+) -> dict[str, Any]:
+    if not smtp_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
+        )
+
+    to_addrs = _resolve_share_recipients(audiences, recipients)
+    if not to_addrs:
+        raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
+
+    try:
+        send_html_email(subject=subject, html_body=html, recipients=to_addrs)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"메일 발송 실패: {e}") from e
+
+    return {
+        "message": "메일 발송 완료",
+        "subject": subject,
+        "recipients": to_addrs,
+        "audiences": sorted(audiences),
+    }
+
+
 @router.post("/share")
 async def share_schedule_snapshot(req: ScheduleShareRequest):
-    """Snapshot HTML 메일 발송 — DQA 또는 개발 선택 시."""
+    """Snapshot HTML 메일 발송 — 모델 검증 상세(DQA/개발) 또는 전 모델 overview(개발)."""
+    if _is_overview_share(req):
+        allowed = {"개발"}
+        aud = {a.strip() for a in req.audiences if a and str(a).strip() in allowed}
+        if not aud:
+            raise HTTPException(status_code=400, detail="개발 대상만 선택 가능합니다.")
+        if not req.models:
+            raise HTTPException(status_code=400, detail="발송할 모델 데이터가 없습니다.")
+        if not req.display_rows:
+            raise HTTPException(status_code=400, detail="발송할 display_rows 가 없습니다.")
+
+        subject = build_overview_subject(date.today())
+        html = build_overview_snapshot_html(
+            period_label=req.period_label,
+            dates=req.dates,
+            models=req.models,
+            display_rows=req.display_rows,
+            audiences=sorted(aud),
+        )
+        return _send_share_email(
+            subject=subject,
+            html=html,
+            audiences=aud,
+            recipients=req.recipients,
+        )
+
     allowed = {"DQA", "개발"}
     aud = {a.strip() for a in req.audiences if a and str(a).strip() in allowed}
     if not aud:
@@ -172,16 +239,6 @@ async def share_schedule_snapshot(req: ScheduleShareRequest):
     if not req.rows:
         raise HTTPException(status_code=400, detail="발송할 일정 데이터가 없습니다.")
 
-    if not smtp_is_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
-        )
-
-    to_addrs = _resolve_share_recipients(aud, req.recipients)
-    if not to_addrs:
-        raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
-
     subject = build_snapshot_subject(date.today())
     html = build_snapshot_html(
         period_label=req.period_label,
@@ -189,62 +246,25 @@ async def share_schedule_snapshot(req: ScheduleShareRequest):
         rows=req.rows,
         audiences=sorted(aud),
     )
-
-    try:
-        send_html_email(subject=subject, html_body=html, recipients=to_addrs)
-    except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"메일 발송 실패: {e}") from e
-
-    return {
-        "message": "메일 발송 완료",
-        "subject": subject,
-        "recipients": to_addrs,
-        "audiences": sorted(aud),
-    }
+    return _send_share_email(
+        subject=subject,
+        html=html,
+        audiences=aud,
+        recipients=req.recipients,
+    )
 
 
 @router.post("/overview/share")
 async def share_overview_snapshot(req: OverviewShareRequest):
-    """전 모델 일정 Snapshot — 개발 대상 메일 (주요 SW 이벤트 + Page 1/2)."""
-    allowed = {"개발"}
-    aud = {a.strip() for a in req.audiences if a and str(a).strip() in allowed}
-    if not aud:
-        raise HTTPException(status_code=400, detail="개발 대상만 선택 가능합니다.")
-
-    if not req.models:
-        raise HTTPException(status_code=400, detail="발송할 모델 데이터가 없습니다.")
-
-    if not smtp_is_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
+    """전 모델 일정 Snapshot — /share 의 overview alias (하위 호환)."""
+    return await share_schedule_snapshot(
+        ScheduleShareRequest(
+            period_label=req.period_label,
+            dates=req.dates,
+            snapshot_type="overview",
+            models=req.models,
+            display_rows=req.display_rows,
+            audiences=req.audiences,
+            recipients=req.recipients,
         )
-
-    to_addrs = _resolve_share_recipients(aud, req.recipients)
-    if not to_addrs:
-        raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
-
-    subject = build_overview_subject(date.today())
-    html = build_overview_snapshot_html(
-        period_label=req.period_label,
-        dates=req.dates,
-        models=req.models,
-        display_rows=req.display_rows,
-        audiences=sorted(aud),
     )
-
-    try:
-        send_html_email(subject=subject, html_body=html, recipients=to_addrs)
-    except ValueError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"메일 발송 실패: {e}") from e
-
-    return {
-        "message": "메일 발송 완료",
-        "subject": subject,
-        "recipients": to_addrs,
-        "audiences": sorted(aud),
-    }
