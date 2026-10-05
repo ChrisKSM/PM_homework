@@ -50,9 +50,12 @@ function barOnDay(bar: OverviewScheduleBar, d: Date, dates: Date[]) {
   const seg = visibleBarSegment(bar, dates)
   if (!seg) return null
   if (dk < seg.visStart || dk > seg.visEnd) return null
-  const isVisStart = dk === seg.visStart
-  const singleDay = seg.visSpan <= 1
-  return { ...seg, isVisStart, singleDay }
+  return {
+    ...seg,
+    isVisStart: dk === seg.visStart,
+    isVisEnd: dk === seg.visEnd,
+    singleDay: seg.visSpan <= 1,
+  }
 }
 
 function monthSpans(dates: Date[]) {
@@ -241,12 +244,7 @@ export default function OverviewScheduleTable({
                 const bar = row.bars.find((b) => barOnDay(b, d, dates))
                 const seg = bar ? barOnDay(bar, d, dates) : null
                 const bc = bar ? barStyleForKind(bar.kind, bar.barType) : null
-                const visSpan = seg?.visSpan ?? 0
-                const maxW = (dates.length - di) * CW - 1
-                const barMinW = Math.min(visSpan * CW - 2, maxW)
-                const barW = bar?.label
-                  ? Math.min(Math.max(barMinW, bar.label.length * 7 + 10), maxW)
-                  : barMinW
+                const inMultiDayBar = Boolean(seg && bc && !seg.singleDay)
 
                 return (
                   <td
@@ -255,9 +253,10 @@ export default function OverviewScheduleTable({
                       'border-r border-surface-border/40 px-0 py-0 relative',
                       isW && 'bg-gray-50/50',
                       d.getDay() === 1 && 'border-l-2 border-l-gray-200',
+                      inMultiDayBar && !seg!.isVisEnd && 'border-r-transparent',
                       editing && onTimelineClick && 'cursor-pointer hover:bg-blue-50/40',
                     )}
-                    style={{ width: CW, minWidth: CW, height: RH, overflow: 'hidden' }}
+                    style={{ width: CW, minWidth: CW, height: RH, overflow: 'visible' }}
                     onClick={editing && onTimelineClick ? (e) => onTimelineClick(row.modelId, kind, d, e) : undefined}
                   >
                     {bar && bc && seg?.singleDay && (
@@ -269,17 +268,32 @@ export default function OverviewScheduleTable({
                         {bar.label}
                       </div>
                     )}
-                    {bar && bc && seg?.isVisStart && !seg.singleDay && (
-                      <div
-                        className="absolute top-1 left-0 rounded-sm flex items-center z-[5] pointer-events-none"
-                        style={{ width: `${barW}px`, height: RH - 8, backgroundColor: bc.bg }}
-                      >
-                        {bar.label ? (
-                          <span className="px-1 text-[8px] font-bold leading-none whitespace-nowrap" style={{ color: bc.text }}>
-                            {bar.label}
+                    {inMultiDayBar && (
+                      <>
+                        <div
+                          className={clsx(
+                            'absolute top-1 z-[4] pointer-events-none',
+                            seg!.isVisStart && 'left-0 rounded-l-sm',
+                            seg!.isVisEnd && 'right-0 rounded-r-sm',
+                          )}
+                          style={{
+                            height: RH - 8,
+                            backgroundColor: bc!.bg,
+                            left: 0,
+                            ...(seg!.isVisEnd
+                              ? { right: 0 }
+                              : { width: 'calc(100% + 1px)' }),
+                          }}
+                        />
+                        {seg!.isVisStart && bar!.label ? (
+                          <span
+                            className="absolute top-1 left-0.5 z-[5] px-0.5 text-[8px] font-bold leading-none whitespace-nowrap pointer-events-none"
+                            style={{ color: bc!.text }}
+                          >
+                            {bar!.label}
                           </span>
                         ) : null}
-                      </div>
+                      </>
                     )}
                     {di === todayOff && todayOff >= 0 && todayOff < dates.length && (
                       <div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-[2] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
