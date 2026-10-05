@@ -11,12 +11,57 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CSV1 = ROOT / "scripts/data/verification-schedule-gantt.csv"
 CSV2 = ROOT / "scripts/data/verification-schedule-events.csv"
+SOUND_SUITE = ROOT / "scripts/data/sound-suite-models.json"
 OUT_JSON = ROOT / "scripts/seed-model-schedule-overview.json"
 OUT_TS = ROOT / "src/data/modelScheduleOverviewMock.ts"
 
 TIMELINE_START = date(2026, 10, 1)
 META_COLS = 12
 TIMELINE_COLS = 123
+
+# 첨부 스프레드시트 — Sound Suite 7개 모델 순서
+SOUND_SUITE_ORDER = [
+    "H7_VI",
+    "H5",
+    "M7_VI",
+    "M5_VI",
+    "W5",
+    "H7 MR10(11월)",
+    "M7/W7 MR9(11월)",
+]
+
+CATEGORY_ORDER = [
+    "Sound Suite",
+    "사운드바(Wi-Fi)",
+    "사운드바(BT)",
+    "사운드바",
+    "Accessory",
+    "파티스피커",
+    "무선스피커",
+]
+
+# gantt CSV에 없거나 잘못 들어간 모델
+SKIP_GANTT_MODELS = {"M7"}
+
+MODEL_CATEGORY = {
+    "S90C": "사운드바(Wi-Fi)",
+    "S80C": "사운드바(BT)",
+    "CB-SH": "Accessory",
+    "POWER9000": "파티스피커",
+    "STAGE501": "파티스피커",
+    "XT7S": "무선스피커",
+    "BOUNCE": "무선스피커",
+    "BLAST": "무선스피커",
+    "ROCK": "무선스피커",
+}
+
+SOUND_SUITE_SOC = {
+    "H7_VI": "ax26sb",
+    "H5": "ax26sb",
+    "M7_VI": "ax26sb",
+    "M5_VI": "ax26sb",
+    "W5": "BL618M",
+}
 
 
 def slug(s: str) -> str:
@@ -34,8 +79,12 @@ def norm_category(raw: str) -> str:
         return "Sound Suite"
     if re.search(r"사운드.*wi.?fi", compact, re.I):
         return "사운드바(Wi-Fi)"
+    if re.search(r"사운드.*bt", compact, re.I):
+        return "사운드바(BT)"
     if compact == "사운드바":
         return "사운드바"
+    if re.search(r"accessory|액세서리", compact, re.I):
+        return "Accessory"
     if "파티" in compact:
         return "파티스피커"
     if "무선" in compact:
@@ -85,6 +134,10 @@ def read_csv_text(path: Path) -> str:
     return path.read_text(encoding="latin-1")
 
 
+def load_sound_suite_defs() -> list[dict]:
+    return json.loads(SOUND_SUITE.read_text(encoding="utf-8"))
+
+
 def parse_csv1(path: Path) -> dict[str, dict]:
     text = read_csv_text(path)
     rows = list(csv.reader(text.splitlines()))
@@ -94,10 +147,11 @@ def parse_csv1(path: Path) -> dict[str, dict]:
     for row in rows:
         if not row or row[0] == "제품군" or row[0] == "모델현황":
             continue
-        # skip legend/header rows
-        if row[0].startswith(",") or (len(row) > 0 and row[0] in ("", " ") and not (row[1] if len(row) > 1 else "").strip()):
+        if row[0].startswith(",") or (
+            len(row) > 0 and row[0] in ("", " ") and not (row[1] if len(row) > 1 else "").strip()
+        ):
             if len(row) > 1 and row[1].strip():
-                pass  # model row with empty category
+                pass
             else:
                 continue
 
@@ -109,11 +163,17 @@ def parse_csv1(path: Path) -> dict[str, dict]:
             continue
 
         key = norm_model(model)
+        if key in SKIP_GANTT_MODELS:
+            continue
+
         gantt_events = parse_gantt_events(row)
+        category = MODEL_CATEGORY.get(key, current_category)
+        if category == "Sound Suite" or norm_category(current_category) == "Sound Suite":
+            category = "Sound Suite"
 
         entry = {
             "id": f"ov-{slug(model)}",
-            "category": current_category,
+            "category": category,
             "model": model.strip(),
             "variant": (row[2] if len(row) > 2 else "").strip(),
             "manufacturer": (row[3] if len(row) > 3 else "").strip(),
@@ -129,28 +189,7 @@ def parse_csv1(path: Path) -> dict[str, dict]:
         }
         models[key] = entry
 
-    # Fix party speaker category from product knowledge
-    for name in ("POWER9000", "STAGE501"):
-        if name in models:
-            models[name]["category"] = "파티스피커"
-
     return models
-
-
-def map_csv2_category(product: str, product_cat: str) -> str | None:
-    p = (product or "").lower()
-    pc = (product_cat or "").lower()
-    if "soundbar_wifi" in p or "soundbar" in p and "wifi" in p:
-        return "사운드바(Wi-Fi)"
-    if "soundbar_bt" in p:
-        return "사운드바"
-    if "party" in p or "party" in pc:
-        return "파티스피커"
-    if "portable" in p or "music" in p or "speaker" in pc:
-        if "party" in pc:
-            return "파티스피커"
-        return "무선스피커"
-    return None
 
 
 def parse_csv2(path: Path) -> dict[str, list[dict]]:
@@ -191,22 +230,80 @@ def merge_events(existing: list[dict], extra: list[dict]) -> list[dict]:
     return out
 
 
+def apply_sound_suite(models: dict[str, dict], csv2: dict[str, list[dict]]) -> None:
+    """첨부 스프레드시트 기준 Sound Suite 7모델 보정."""
+    defs = load_sound_suite_defs()
+
+    for d in defs:
+        model = d["model"]
+        key = norm_model(model)
+
+        if key in models:
+            entry = models[key]
+        else:
+            entry = {
+                "id": f"ov-{slug(model)}",
+                "category": "Sound Suite",
+                "model": model,
+                "variant": d.get("variant", ""),
+                "manufacturer": "",
+                "soc": d.get("soc", ""),
+                "hwPm": "",
+                "swPo": "",
+                "swPm": d.get("swPm", ""),
+                "spec": d.get("spec", ""),
+                "pv": d.get("pv", "NA"),
+                "mp": d.get("mp", "NA"),
+                "ats": d.get("ats", "NA"),
+                "events": [],
+            }
+            models[key] = entry
+
+        entry["category"] = "Sound Suite"
+        if d.get("variant"):
+            entry["variant"] = d["variant"]
+        if d.get("soc"):
+            entry["soc"] = d["soc"]
+        if d.get("swPm"):
+            entry["swPm"] = d["swPm"]
+        if d.get("spec"):
+            entry["spec"] = d["spec"]
+        for field in ("pv", "mp", "ats"):
+            if field in d:
+                entry[field] = d[field]
+
+        alias = d.get("csv2Alias")
+        if alias:
+            alias_key = norm_model(alias)
+            if alias_key in csv2:
+                entry["events"] = merge_events(entry.get("events", []), csv2[alias_key])
+        if d.get("extraEvents"):
+            entry["events"] = merge_events(entry.get("events", []), d["extraEvents"])
+
+    for name, soc in SOUND_SUITE_SOC.items():
+        key = norm_model(name)
+        if key in models and soc:
+            models[key]["soc"] = soc
+
+
 def sort_models(models: list[dict]) -> list[dict]:
-    order = [
-        "사운드바(Wi-Fi)",
-        "사운드바",
-        "파티스피커",
-        "무선스피커",
-    ]
+    sound_idx = {norm_model(m): i for i, m in enumerate(SOUND_SUITE_ORDER)}
 
     def cat_idx(c: str) -> int:
         n = norm_category(c)
         try:
-            return order.index(n)
+            return CATEGORY_ORDER.index(n)
         except ValueError:
-            return len(order)
+            return len(CATEGORY_ORDER)
 
-    return sorted(models, key=lambda m: (cat_idx(m["category"]), m["model"]))
+    def model_idx(m: dict) -> tuple:
+        cat = norm_category(m["category"])
+        if cat == "Sound Suite":
+            key = norm_model(m["model"])
+            return (0, sound_idx.get(key, len(SOUND_SUITE_ORDER)))
+        return (1, m["model"])
+
+    return sorted(models, key=lambda m: (cat_idx(m["category"]), model_idx(m)))
 
 
 def main() -> None:
@@ -216,8 +313,15 @@ def main() -> None:
     for key, events in m2.items():
         if key in m1:
             m1[key]["events"] = merge_events(m1[key]["events"], events)
-        elif events:
-            print(f"  warn: csv2 model {key!r} not in csv1, skipped")
+        elif key not in {norm_model(d.get("csv2Alias", "")) for d in load_sound_suite_defs() if d.get("csv2Alias")}:
+            if events:
+                print(f"  warn: csv2 model {key!r} not in csv1, skipped")
+
+    apply_sound_suite(m1, m2)
+
+    for key, cat in MODEL_CATEGORY.items():
+        if key in m1:
+            m1[key]["category"] = cat
 
     models = sort_models(list(m1.values()))
 
@@ -225,13 +329,16 @@ def main() -> None:
     OUT_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     ts = "import type { OverviewModel } from '../types/modelScheduleOverview'\n\n"
-    ts += "/** 검증일정.csv + 검증일정2.csv import */\n"
+    ts += "/** 검증일정.csv + 검증일정2.csv import (Sound Suite 7모델 보정) */\n"
     ts += f"export const OVERVIEW_MOCK_MODELS: OverviewModel[] = {json.dumps(models, ensure_ascii=False, indent=2)}\n"
     OUT_TS.write_text(ts, encoding="utf-8")
 
     print(f"Wrote {len(models)} models → {OUT_JSON}")
+    ss = [m for m in models if m["category"] == "Sound Suite"]
+    print(f"  Sound Suite: {len(ss)} models")
     for m in models:
-        print(f"  {m['category']:16} {m['model']:10} events={len(m['events'])}")
+        mark = " *" if m["category"] == "Sound Suite" else ""
+        print(f"  {m['category']:18} {m['model']:22} events={len(m['events'])}{mark}")
 
 
 if __name__ == "__main__":

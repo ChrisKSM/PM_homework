@@ -21,6 +21,17 @@ const OVERVIEW_CATEGORY_ORDER = [
   '이어버드',
 ]
 
+/** Sound Suite 7모델 — H7_VI부터 첨부 스프레드시트 순서 */
+const SOUND_SUITE_MODEL_ORDER = [
+  'H7_VI',
+  'H5',
+  'M7_VI',
+  'M5_VI',
+  'W5',
+  'H7 MR10(11월)',
+  'M7/W7 MR9(11월)',
+]
+
 export function normalizeOverviewCategory(category: string): string {
   const c = (category || '').replace(/\n/g, ' ').trim()
   const compact = c.replace(/\s+/g, '')
@@ -40,9 +51,16 @@ export function sortOverviewModels(models: OverviewModel[]): OverviewModel[] {
     const i = OVERVIEW_CATEGORY_ORDER.indexOf(n)
     return i >= 0 ? i : OVERVIEW_CATEGORY_ORDER.length
   }
+  const soundSuiteIdx = (model: string) => {
+    const i = SOUND_SUITE_MODEL_ORDER.indexOf(model.trim())
+    return i >= 0 ? i : SOUND_SUITE_MODEL_ORDER.length
+  }
   return [...models].sort((a, b) => {
     const byCat = catIdx(a.category) - catIdx(b.category)
     if (byCat !== 0) return byCat
+    if (normalizeOverviewCategory(a.category) === 'Sound Suite') {
+      return soundSuiteIdx(a.model) - soundSuiteIdx(b.model)
+    }
     const byVariant = a.variant.localeCompare(b.variant, 'ko')
     if (byVariant !== 0) return byVariant
     return a.model.localeCompare(b.model, 'ko')
