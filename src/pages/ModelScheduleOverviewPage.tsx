@@ -6,13 +6,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  Filter,
   Loader2,
   Pencil,
   Plus,
   Undo2,
+  X,
 } from 'lucide-react'
 import clsx from 'clsx'
 import Header from '../components/layout/Header'
+import MetaTooltipCell from '../components/modelSchedule/MetaTooltipCell'
 import OverviewEventPicker from '../components/modelSchedule/OverviewEventPicker'
 import OverviewScheduleTable, { HW_LEGEND, SW_LEGEND } from '../components/modelSchedule/OverviewScheduleTable'
 import OverviewSnapshotDialog from '../components/modelSchedule/OverviewSnapshotDialog'
@@ -28,8 +31,6 @@ import {
   type OverviewMetaKey,
 } from '../utils/modelScheduleOverviewRows'
 import { HW_BAR_STYLE, SW_BAR_STYLE } from '../utils/overviewBarStyles'
-
-const DAYS = 123
 
 function addDays(d: Date, n: number) {
   const r = new Date(d)
@@ -56,6 +57,16 @@ function normDate(s: string) {
 }
 function diffD(a: Date, b: Date) {
   return Math.round((b.getTime() - a.getTime()) / 86400000)
+}
+function daysInMonth(year: number, month: number) {
+  return new Date(year, month + 1, 0).getDate()
+}
+function monthLabel(year: number, month: number) {
+  const last = daysInMonth(year, month)
+  return `${month + 1}/1 ~ ${month + 1}/${last}`
+}
+function uniqSorted(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'))
 }
 
 function exportOverviewCSV(models: OverviewModel[]) {
@@ -141,8 +152,12 @@ export default function ModelScheduleOverviewPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'warn'; text: string } | null>(null)
   const [dataSource, setDataSource] = useState<'mongo' | 'local' | 'mock'>('mock')
-  const [startDate] = useState(() => toD('2026-10-01'))
-  const [dayOffset, setDayOffset] = useState(0)
+  const [viewMonth, setViewMonth] = useState(() => {
+    const t = new Date()
+    return { year: t.getFullYear(), month: t.getMonth() }
+  })
+  const [fCat, setFCat] = useState('')
+  const [fModel, setFModel] = useState('')
   const [showSnapshotPopup, setShowSnapshotPopup] = useState(false)
   const [picker, setPicker] = useState<{
     modelId: string
@@ -197,11 +212,45 @@ export default function ModelScheduleOverviewPage() {
   }, [location.pathname, location.search, mockPreview])
 
   const sortedModels = useMemo(() => prepareOverviewModels(models), [models])
-  const viewStart = useMemo(() => addDays(startDate, dayOffset), [startDate, dayOffset])
-  const dates = useMemo(() => Array.from({ length: DAYS }, (_, i) => dayStart(addDays(viewStart, i))), [viewStart])
+  const categoryOptions = useMemo(() => uniqSorted(sortedModels.map((m) => m.category)), [sortedModels])
+  const modelOptions = useMemo(() => {
+    const pool = fCat ? sortedModels.filter((m) => m.category === fCat) : sortedModels
+    return uniqSorted(pool.map((m) => m.model))
+  }, [sortedModels, fCat])
+  const filteredModels = useMemo(
+    () =>
+      sortedModels.filter((m) => {
+        if (fCat && m.category !== fCat) return false
+        if (fModel && m.model !== fModel) return false
+        return true
+      }),
+    [sortedModels, fCat, fModel],
+  )
+  const viewStart = useMemo(
+    () => dayStart(new Date(viewMonth.year, viewMonth.month, 1)),
+    [viewMonth],
+  )
+  const monthDays = useMemo(() => daysInMonth(viewMonth.year, viewMonth.month), [viewMonth])
+  const dates = useMemo(
+    () =>
+      Array.from({ length: monthDays }, (_, i) =>
+        dayStart(new Date(viewMonth.year, viewMonth.month, i + 1)),
+      ),
+    [viewMonth, monthDays],
+  )
   const today = dayStart(new Date())
-  const todayOff = useMemo(() => diffD(viewStart, today), [viewStart, today])
-  const displayRows = useMemo(() => expandOverviewToDisplayRows(sortedModels), [sortedModels])
+  const todayOff = useMemo(() => {
+    if (today.getFullYear() !== viewMonth.year || today.getMonth() !== viewMonth.month) return -1
+    return today.getDate() - 1
+  }, [today, viewMonth])
+  const displayRows = useMemo(() => expandOverviewToDisplayRows(filteredModels), [filteredModels])
+  const hasFilter = Boolean(fCat || fModel)
+  const shiftMonth = (delta: number) => {
+    setViewMonth((prev) => {
+      const d = new Date(prev.year, prev.month + delta, 1)
+      return { year: d.getFullYear(), month: d.getMonth() }
+    })
+  }
 
   const updateModel = (modelId: string, field: OverviewMetaKey, value: string) => {
     setModels((p) => p.map((m) => (m.id === modelId ? { ...m, [field]: value } : m)))
@@ -346,8 +395,10 @@ export default function ModelScheduleOverviewPage() {
       if (!model) return null
       const val = model[key]
       if (!editing) {
-        if (key === 'spec') return <span className="whitespace-pre-wrap leading-snug text-[9px]">{val}</span>
-        return val
+        if (key === 'spec' || key === 'swPm') {
+          return <MetaTooltipCell value={String(val ?? '')} className="text-[9px] leading-snug" maxWidth={100} />
+        }
+        return <MetaTooltipCell value={String(val ?? '')} className="text-[10px]" maxWidth={88} />
       }
       return <EI value={val} onChange={(v) => updateModel(row.modelId, key, v)} multiline={key === 'spec'} />
     },
@@ -379,13 +430,13 @@ export default function ModelScheduleOverviewPage() {
           </p>
         )}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <button type="button" onClick={() => setDayOffset((o) => o - 14)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page">
+          <button type="button" onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page" title="이전 달">
             <ChevronLeft size={16} />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[160px] text-center">
-            {fmt(viewStart)} ~ {fmt(addDays(viewStart, DAYS - 1))}
+          <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
+            {viewMonth.year % 100}/{viewMonth.month + 1}월 ({monthLabel(viewMonth.year, viewMonth.month)})
           </span>
-          <button type="button" onClick={() => setDayOffset((o) => o + 14)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page">
+          <button type="button" onClick={() => shiftMonth(1)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page" title="다음 달">
             <ChevronRight size={16} />
           </button>
           <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -450,8 +501,58 @@ export default function ModelScheduleOverviewPage() {
             엑셀
           </button>
           <span className="text-[10px] text-gray-400">
-            {sortedModels.length}모델 · {displayRows.length}행 · {mockPreview ? 'mock' : dataSource}
+            {filteredModels.length}/{sortedModels.length}모델 · {displayRows.length}행 · {mockPreview ? 'mock' : dataSource}
           </span>
+        </div>
+
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <Filter size={14} className="text-gray-400" />
+          <select
+            value={fCat}
+            onChange={(e) => {
+              setFCat(e.target.value)
+              setFModel('')
+            }}
+            className={clsx(
+              'text-[10px] px-1.5 py-1 rounded border bg-white cursor-pointer',
+              fCat ? 'border-lg-red text-lg-red font-bold' : 'border-gray-200 text-gray-500',
+            )}
+          >
+            <option value="">카테고리 ▾</option>
+            {categoryOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <select
+            value={fModel}
+            onChange={(e) => setFModel(e.target.value)}
+            className={clsx(
+              'text-[10px] px-1.5 py-1 rounded border bg-white cursor-pointer',
+              fModel ? 'border-lg-red text-lg-red font-bold' : 'border-gray-200 text-gray-500',
+            )}
+          >
+            <option value="">모델명 ▾</option>
+            {modelOptions.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          {hasFilter && (
+            <button
+              type="button"
+              onClick={() => {
+                setFCat('')
+                setFModel('')
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-red-500 hover:bg-red-50"
+            >
+              <X size={10} />
+              초기화
+            </button>
+          )}
         </div>
 
         {loadError ? <p className="text-[10px] text-amber-800 mb-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">{loadError}</p> : null}
@@ -468,7 +569,7 @@ export default function ModelScheduleOverviewPage() {
           <div className="border border-surface-border rounded-xl bg-white p-8 text-center text-gray-500 text-sm">표시할 모델 데이터가 없습니다.</div>
         ) : (
           <div className="border border-surface-border rounded-xl bg-white">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
               <OverviewScheduleTable
                 displayRows={displayRows}
                 dates={dates}
@@ -500,9 +601,9 @@ export default function ModelScheduleOverviewPage() {
       <OverviewSnapshotDialog
         open={showSnapshotPopup}
         onClose={() => setShowSnapshotPopup(false)}
-        models={sortedModels}
+        models={filteredModels}
         dates={dates}
-        periodLabel={`${fmt(viewStart)} ~ ${fmt(addDays(viewStart, DAYS - 1))}`}
+        periodLabel={`${viewMonth.year % 100}/${viewMonth.month + 1}월 ${monthLabel(viewMonth.year, viewMonth.month)}`}
         today={today}
         viewStart={viewStart}
         todayOff={todayOff}

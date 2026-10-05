@@ -235,7 +235,7 @@ export const OVERVIEW_META_COLUMNS = [
   { key: 'variant' as const, label: '개발등급', minW: 88 },
   { key: 'soc' as const, label: 'SoC', minW: 72 },
   { key: 'swPm' as const, label: 'SW', minW: 88 },
-  { key: 'spec' as const, label: '스펙', minW: 160 },
+  { key: 'spec' as const, label: '스펙', minW: 100, maxW: 100 },
   { key: 'pv' as const, label: 'PV', minW: 72 },
   { key: 'mp' as const, label: 'MP', minW: 72 },
 ]

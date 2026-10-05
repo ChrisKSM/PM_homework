@@ -71,6 +71,13 @@ def is_blank(v: object) -> bool:
     return not s or s in ("-", "NA", "N/A")
 
 
+def is_null_meta(v: object) -> bool:
+    """병합 셀 export — JSON null 만 이전 행 상속."""
+    if v is None:
+        return True
+    return str(v).strip() == ""
+
+
 def norm_category(raw: str) -> str:
     c = (raw or "").replace("\n", " ").strip()
     compact = re.sub(r"\s+", "", c)
@@ -110,18 +117,64 @@ def norm_event_name(name: str) -> str:
 
 
 def forward_fill_rows(rows: list[dict]) -> list[dict]:
-    """null 메타 → 이전 행 값 상속 (스프레드시트 병합 셀 규칙)."""
+    """null 메타 → 같은 모델 블록 내 이전 행 값 상속."""
     state: dict[str, object] = {k: None for k in META_KEYS}
     out: list[dict] = []
     for row in rows:
         filled = dict(row)
+        if not is_null_meta(row.get("모델명")):
+            state = {
+                k: (None if is_null_meta(row.get(k)) else row.get(k))
+                for k in META_KEYS
+            }
+        else:
+            for k in META_KEYS:
+                if not is_null_meta(row.get(k)):
+                    state[k] = row.get(k)
         for k in META_KEYS:
-            raw = row.get(k)
-            if not is_blank(raw):
-                state[k] = raw
             filled[k] = state[k]
         out.append(filled)
     return out
+
+
+def parse_meta_date(v: object) -> str:
+    s = str(v or "").strip()
+    if is_blank(s):
+        return ""
+    s = s.replace("/", "-")
+    m = re.match(r"^(\d{4})-(\d{1,2})-(\d{1,2})$", s)
+    if m:
+        y, mo, d = m.groups()
+        return f"{y}-{int(mo):02d}-{int(d):02d}"
+    m2 = re.match(r"^(\d{2})/(\d{1,2})/(\d{1,2})$", s)
+    if m2:
+        yy, mo, d = m2.groups()
+        return f"20{yy}-{int(mo):02d}-{int(d):02d}"
+    return ""
+
+
+def is_mp_hw_name(name: str) -> bool:
+    n = name.lower().replace(" ", "")
+    return n == "mp" or "mpapproval" in n
+
+
+def is_ats_hw_name(name: str) -> bool:
+    return name.lower().replace(" ", "") == "ats"
+
+
+def normalize_model_milestones(entry: dict) -> None:
+    """H열 MP / ATS 메타 날짜 → HW MP·ATS 단일일 보정 (긴 막대 오표시 방지)."""
+    mp_d = parse_meta_date(entry.get("mp"))
+    ats_d = parse_meta_date(entry.get("ats"))
+    for e in entry.get("events") or []:
+        if e.get("kind") != "hw":
+            continue
+        if is_mp_hw_name(e["name"]) and mp_d:
+            e["start"] = mp_d
+            e["end"] = mp_d
+        elif is_ats_hw_name(e["name"]) and ats_d:
+            e["start"] = ats_d
+            e["end"] = ats_d
 
 
 def parse_event(
@@ -229,6 +282,9 @@ def rows_to_models(rows: list[dict]) -> list[dict]:
             if ev and event_key(ev) not in seen:
                 seen.add(event_key(ev))
                 entry["events"].append(ev)
+
+    for entry in models:
+        normalize_model_milestones(entry)
 
     return models
 

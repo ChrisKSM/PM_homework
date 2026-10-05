@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { Trash2 } from 'lucide-react'
+import MetaTooltipCell from './MetaTooltipCell'
 import type { OverviewDisplayRow, OverviewMetaKey, OverviewScheduleBar } from '../../types/modelScheduleOverview'
 import {
   OVERVIEW_META_COLUMNS,
@@ -36,9 +37,6 @@ function barCoversDay(bar: OverviewScheduleBar, d: Date) {
 }
 function isBarStartDay(bar: OverviewScheduleBar, d: Date) {
   return toISO(d) === normDate(bar.start)
-}
-function isBarEndDay(bar: OverviewScheduleBar, d: Date) {
-  return toISO(d) === normDate(bar.end)
 }
 function barSpanDays(bar: OverviewScheduleBar) {
   return diffD(toD(normDate(bar.start)), toD(normDate(bar.end))) + 1
@@ -93,17 +91,19 @@ export default function OverviewScheduleTable({
   }
 
   const defaultMeta = (row: OverviewDisplayRow, key: OverviewMetaKey) => {
-    const val = row[key]
-    if (key === 'spec') {
-      return <span className="whitespace-pre-wrap leading-snug text-[9px]">{val}</span>
+    const val = String(row[key] ?? '')
+    const col = OVERVIEW_META_COLUMNS.find((c) => c.key === key)
+    const w = col && 'maxW' in col && col.maxW ? col.maxW : col?.minW ?? 88
+    if (key === 'spec' || key === 'swPm') {
+      return <MetaTooltipCell value={val} className="text-[9px] leading-snug" maxWidth={w} />
     }
-    return <span className="text-[10px]">{val}</span>
+    return <MetaTooltipCell value={val} className="text-[10px]" maxWidth={w} />
   }
 
   const cell = renderMetaCell ?? defaultMeta
 
   return (
-    <table className="text-xs border-collapse" style={{ minWidth: leftW + dates.length * CW }}>
+    <table className="text-xs border-collapse table-fixed" style={{ minWidth: leftW + dates.length * CW }}>
       <thead>
         <tr className="bg-gray-50 border-b border-gray-200">
           <th
@@ -130,7 +130,9 @@ export default function OverviewScheduleTable({
                 i === 1 && 'sticky z-10 bg-gray-50',
               )}
               style={{
+                width: col.minW,
                 minWidth: col.minW,
+                maxWidth: 'maxW' in col ? col.maxW : col.minW,
                 ...(i === 1 ? { left: STICKY_LEFT[1] } : {}),
               }}
             >
@@ -193,7 +195,11 @@ export default function OverviewScheduleTable({
                   <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] align-middle text-center">
                     {cell(row, 'swPm')}
                   </td>
-                  <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[9px] text-gray-600 align-middle text-center min-w-[160px]">
+                  <td
+                    rowSpan={mm.rowSpan}
+                    className="border-r border-surface-border px-1 text-[9px] text-gray-600 align-middle text-center overflow-visible"
+                    style={{ width: OVERVIEW_META_COLUMNS[5].minW, maxWidth: OVERVIEW_META_COLUMNS[5].minW }}
+                  >
                     {cell(row, 'spec')}
                   </td>
                   <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] align-middle text-center">
@@ -224,7 +230,6 @@ export default function OverviewScheduleTable({
 
                 const bar = row.bars.find((b) => barCoversDay(b, d))
                 const isBS = bar && isBarStartDay(bar, d)
-                const isBE = bar && isBarEndDay(bar, d)
                 const bc = bar ? barStyleForKind(bar.kind, bar.barType) : null
                 const span = bar ? barSpanDays(bar) : 0
                 const barMinW = span * CW - 2
@@ -235,17 +240,17 @@ export default function OverviewScheduleTable({
                   <td
                     key={di}
                     className={clsx(
-                      'border-r border-surface-border/40 px-0 py-0 relative overflow-visible',
+                      'border-r border-surface-border/40 px-0 py-0 relative',
                       isW && 'bg-gray-50/50',
                       d.getDay() === 1 && 'border-l-2 border-l-gray-200',
                       editing && onTimelineClick && 'cursor-pointer hover:bg-blue-50/40',
                     )}
-                    style={{ width: CW, minWidth: CW, height: RH }}
+                    style={{ width: CW, minWidth: CW, height: RH, overflow: 'visible' }}
                     onClick={editing && onTimelineClick ? (e) => onTimelineClick(row.modelId, kind, d, e) : undefined}
                   >
                     {bar && bc && singleDay && (
                       <div
-                        className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-1 py-0.5 text-[8px] font-bold leading-tight z-[1] pointer-events-none whitespace-nowrap max-w-[calc(100%-2px)] truncate"
+                        className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-1 py-0.5 text-[8px] font-bold leading-tight z-[5] pointer-events-none whitespace-nowrap"
                         style={{ backgroundColor: bc.bg, color: bc.text }}
                         title={bar.label}
                       >
@@ -254,8 +259,8 @@ export default function OverviewScheduleTable({
                     )}
                     {bar && bc && isBS && !singleDay && (
                       <div
-                        className="absolute top-1 left-0 rounded-l-sm flex items-center z-[1] pointer-events-none overflow-hidden"
-                        style={{ width: `${barW}px`, minWidth: `${CW - 2}px`, height: RH - 8, backgroundColor: bc.bg }}
+                        className="absolute top-1 left-0 rounded-sm flex items-center z-[5] pointer-events-none overflow-visible"
+                        style={{ width: `${barW}px`, minWidth: `${barMinW}px`, height: RH - 8, backgroundColor: bc.bg }}
                       >
                         {bar.label ? (
                           <span className="px-1 text-[8px] font-bold leading-none whitespace-nowrap" style={{ color: bc.text }}>
@@ -264,14 +269,8 @@ export default function OverviewScheduleTable({
                         ) : null}
                       </div>
                     )}
-                    {bar && bc && !isBS && !singleDay && !isBE && (
-                      <div className="absolute top-1 bottom-1 left-0 right-0 pointer-events-none" style={{ backgroundColor: bc.bg }} />
-                    )}
-                    {bar && bc && !isBS && !singleDay && isBE && (
-                      <div
-                        className="absolute top-1 bottom-1 left-0 right-0 rounded-r-sm pointer-events-none"
-                        style={{ backgroundColor: bc.bg }}
-                      />
+                    {bar && bc && !isBS && !singleDay && (
+                      <div className="absolute inset-y-1 inset-x-0 pointer-events-none z-[4]" style={{ backgroundColor: bc.bg }} />
                     )}
                     {di === todayOff && todayOff >= 0 && todayOff < dates.length && (
                       <div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-[2] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
