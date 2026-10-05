@@ -261,7 +261,7 @@ export default function OverviewScheduleTable({
                   >
                     {bar && bc && seg?.singleDay && (
                       <div
-                        className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-1 py-0.5 text-[8px] font-bold leading-tight z-[5] pointer-events-none whitespace-nowrap"
+                        className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-1 py-0.5 text-[9px] font-bold leading-tight z-[5] pointer-events-none whitespace-nowrap"
                         style={{ backgroundColor: bc.bg, color: bc.text }}
                         title={bar.label}
                       >
@@ -287,7 +287,7 @@ export default function OverviewScheduleTable({
                         />
                         {seg!.isVisStart && bar!.label ? (
                           <span
-                            className="absolute top-1 left-0.5 z-[5] px-0.5 text-[8px] font-bold leading-none whitespace-nowrap pointer-events-none"
+                            className="absolute top-1 left-0.5 z-[5] px-0.5 text-[9px] font-bold leading-none whitespace-nowrap pointer-events-none"
                             style={{ color: bc!.text }}
                           >
                             {bar!.label}

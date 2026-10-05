@@ -16,12 +16,12 @@ import {
 import clsx from 'clsx'
 import Header from '../components/layout/Header'
 import MetaTooltipCell from '../components/modelSchedule/MetaTooltipCell'
-import OverviewEventPicker from '../components/modelSchedule/OverviewEventPicker'
+import OverviewEventEditor, { type OverviewEventDraft } from '../components/modelSchedule/OverviewEventEditor'
 import OverviewScheduleTable, { HW_LEGEND, SW_LEGEND } from '../components/modelSchedule/OverviewScheduleTable'
 import OverviewSnapshotDialog from '../components/modelSchedule/OverviewSnapshotDialog'
 import { modelScheduleApi } from '../api/modelScheduleApi'
 import { OVERVIEW_MOCK_MODELS } from '../data/modelScheduleOverviewMock'
-import type { OverviewBarType, OverviewEvent, OverviewEventKind, OverviewModel } from '../types/modelScheduleOverview'
+import type { OverviewEvent, OverviewEventKind, OverviewModel } from '../types/modelScheduleOverview'
 import {
   classifyEventKind,
   expandOverviewToDisplayRows,
@@ -123,8 +123,8 @@ function EI({ value, onChange, multiline = false }: { value: string; onChange: (
   )
 }
 
-function findEventAt(events: OverviewEvent[], date: string, kind: OverviewEventKind): OverviewEvent | undefined {
-  return events.find(
+function findEventIndexAt(events: OverviewEvent[], date: string, kind: OverviewEventKind): number {
+  return events.findIndex(
     (e) =>
       isValidOverviewEvent(e) &&
       classifyEventKind(e.name, e.kind) === kind &&
@@ -162,11 +162,11 @@ export default function ModelScheduleOverviewPage() {
   const [picker, setPicker] = useState<{
     modelId: string
     kind: OverviewEventKind
-    date: string
+    eventIndex: number
     x: number
     y: number
-    currentType: OverviewBarType | null
-    currentName: string
+    draft: OverviewEventDraft
+    isNew: boolean
   } | null>(null)
 
   useEffect(() => {
@@ -321,47 +321,49 @@ export default function ModelScheduleOverviewPage() {
     e.stopPropagation()
     const ds = toISO(d)
     const model = models.find((m) => m.id === modelId)
-    const ev = model ? findEventAt(model.events ?? [], ds, kind) : undefined
+    const events = model?.events ?? []
+    const idx = findEventIndexAt(events, ds, kind)
+    const ev = idx >= 0 ? events[idx] : undefined
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const barType = ev?.barType ?? inferBarType(ev?.name ?? '')
     setPicker({
       modelId,
       kind,
-      date: ds,
+      eventIndex: idx,
       x: rect.left,
       y: rect.bottom + 2,
-      currentType: ev?.barType ?? (ev ? inferBarType(ev.name) : null),
-      currentName: ev?.name ?? '',
+      isNew: idx < 0,
+      draft: {
+        name: ev?.name ?? '',
+        start: ev ? normDate(ev.start) : ds,
+        end: ev ? normDate(ev.end || ev.start) : ds,
+        barType: barType === 'default' && !ev ? (kind === 'hw' ? 'prepv' : 'sit') : barType,
+        kind,
+      },
     })
   }
 
-  const applyEvent = (type: OverviewBarType, name: string) => {
+  const applyEvent = (draft: OverviewEventDraft) => {
     setPicker((current) => {
       if (!current) return null
       const snap = current
+      const payload: OverviewEvent = {
+        name: draft.name,
+        start: draft.start,
+        end: draft.barType === 'mp' ? draft.start : draft.end,
+        barType: draft.barType,
+        kind: snap.kind,
+      }
       setModels((p) =>
         p.map((m) => {
           if (m.id !== snap.modelId) return m
           const events = [...(m.events ?? [])]
-          const idx = events.findIndex(
-            (ev) =>
-              isValidOverviewEvent(ev) &&
-              classifyEventKind(ev.name, ev.kind) === snap.kind &&
-              snap.date >= normDate(ev.start) &&
-              snap.date <= normDate(ev.end),
-          )
-          const payload: OverviewEvent = {
-            name: name || type,
-            start: snap.date,
-            end: snap.date,
-            barType: type,
-            kind: snap.kind,
-          }
-          if (idx >= 0) events[idx] = { ...events[idx], ...payload, end: events[idx].end || snap.date }
-          else events.push(payload)
+          if (snap.isNew || snap.eventIndex < 0) events.push(payload)
+          else events[snap.eventIndex] = { ...events[snap.eventIndex], ...payload }
           return { ...m, events }
         }),
       )
-      return { ...snap, currentType: type, currentName: name }
+      return null
     })
   }
 
@@ -369,20 +371,11 @@ export default function ModelScheduleOverviewPage() {
     setPicker((current) => {
       if (!current) return null
       const snap = current
+      if (snap.isNew || snap.eventIndex < 0) return null
       setModels((p) =>
         p.map((m) => {
           if (m.id !== snap.modelId) return m
-          return {
-            ...m,
-            events: (m.events ?? []).filter(
-              (ev) =>
-                !(
-                  classifyEventKind(ev.name, ev.kind) === snap.kind &&
-                  snap.date >= normDate(ev.start) &&
-                  snap.date <= normDate(ev.end)
-                ),
-            ),
-          }
+          return { ...m, events: (m.events ?? []).filter((_, i) => i !== snap.eventIndex) }
         }),
       )
       return null
@@ -433,8 +426,8 @@ export default function ModelScheduleOverviewPage() {
           <button type="button" onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page" title="이전 달">
             <ChevronLeft size={16} />
           </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[120px] text-center">
-            {viewMonth.year % 100}/{viewMonth.month + 1}월 ({monthLabel(viewMonth.year, viewMonth.month)})
+          <span className="text-sm font-medium text-gray-700 min-w-[72px] text-center">
+            {viewMonth.year % 100}/{viewMonth.month + 1}월
           </span>
           <button type="button" onClick={() => shiftMonth(1)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page" title="다음 달">
             <ChevronRight size={16} />
@@ -587,13 +580,13 @@ export default function ModelScheduleOverviewPage() {
       </div>
 
       {picker && (
-        <OverviewEventPicker
+        <OverviewEventEditor
           x={picker.x}
           y={picker.y}
           kind={picker.kind}
-          currentType={picker.currentType}
-          currentName={picker.currentName}
-          onSelect={applyEvent}
+          draft={picker.draft}
+          isNew={picker.isNew}
+          onApply={applyEvent}
           onRemove={removeEvent}
           onClose={() => setPicker(null)}
         />

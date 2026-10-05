@@ -29,7 +29,7 @@ mkdir -p src/pages src/data src/types src/utils src/api src/components/modelSche
 
 for f in \
   src/pages/ModelScheduleOverviewPage.tsx \
-  src/components/modelSchedule/OverviewEventPicker.tsx \
+  src/components/modelSchedule/OverviewEventEditor.tsx \
   src/components/modelSchedule/OverviewSnapshotDialog.tsx \
   src/components/modelSchedule/OverviewScheduleTable.tsx \
   src/components/modelSchedule/MetaTooltipCell.tsx \
