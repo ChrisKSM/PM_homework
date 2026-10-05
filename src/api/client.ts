@@ -26,7 +26,11 @@ function readApiBaseUrlOverride(): string | undefined {
 export function resolveApiBaseUrl(): string {
   const host = window.location.hostname
 
-  // react-audio 포함 — entrypoint / workspace_env.js / .env override 최우선
+  // axstudio react-audio — BE_AXSTUDIO 우선 (workspace_env 가 hedej 공용 URL 주입)
+  if (host === 'react-audio.apps.axstudio.lge.com') {
+    return BE_AXSTUDIO
+  }
+
   const override = readApiBaseUrlOverride()
   if (override) return override
 
