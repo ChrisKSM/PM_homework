@@ -24,12 +24,17 @@ function normalizeOverviewModel(raw: any): any | null {
     mp: raw.mp ?? '',
     ats: raw.ats ?? '',
     events: events
-      .filter((e: any) => e && (e.start || e.end))
+      .filter((e: any) => {
+        const name = String(e?.name ?? e?.event ?? '').trim()
+        const start = String(e?.start ?? '').trim()
+        return name && name !== '-' && start && start !== '-'
+      })
       .map((e: any) => ({
-        name: String(e.name ?? e.event ?? ''),
+        name: String(e.name ?? e.event ?? '').trim(),
         start: String(e.start ?? '').slice(0, 10),
         end: String(e.end ?? e.start ?? '').slice(0, 10),
         barType: e.barType,
+        kind: e.kind,
       })),
   }
 }

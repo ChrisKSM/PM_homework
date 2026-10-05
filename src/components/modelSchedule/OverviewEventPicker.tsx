@@ -3,7 +3,8 @@ import { X } from 'lucide-react'
 import clsx from 'clsx'
 import type { OverviewBarType } from '../../types/modelScheduleOverview'
 
-const BAR_TYPES: OverviewBarType[] = ['sit', 'dev_test', 'fc', 'prepv', 'pv', 'mp', 'preqp', 'qp', 'su', 'default']
+const HW_BAR_TYPES: OverviewBarType[] = ['prepv', 'pv', 'mp', 'ats', 'default']
+const SW_BAR_TYPES: OverviewBarType[] = ['sit', 'dev_test', 'fc', 'preqp', 'qp', 'su', 'default']
 
 const BAR_LABELS: Record<OverviewBarType, string> = {
   sit: 'SIT',
@@ -15,6 +16,7 @@ const BAR_LABELS: Record<OverviewBarType, string> = {
   preqp: 'PreQP',
   qp: 'QP',
   su: 'SU',
+  ats: 'ATS',
   default: '기타',
 }
 
@@ -28,12 +30,14 @@ const BAR_COLORS: Record<OverviewBarType, string> = {
   preqp: '#C4B5FD',
   qp: '#A78BFA',
   su: '#EF4444',
+  ats: '#64748B',
   default: '#94A3B8',
 }
 
 export default function OverviewEventPicker({
   x,
   y,
+  kind,
   currentType,
   currentName,
   onSelect,
@@ -42,12 +46,14 @@ export default function OverviewEventPicker({
 }: {
   x: number
   y: number
+  kind: 'hw' | 'sw'
   currentType: OverviewBarType | null
   currentName: string
   onSelect: (type: OverviewBarType, name: string) => void
   onRemove: () => void
   onClose: () => void
 }) {
+  const BAR_TYPES = kind === 'hw' ? HW_BAR_TYPES : SW_BAR_TYPES
   const [name, setName] = useState(currentName)
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {

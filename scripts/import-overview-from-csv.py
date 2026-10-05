@@ -30,7 +30,9 @@ def norm_model(name: str) -> str:
 def norm_category(raw: str) -> str:
     c = (raw or "").replace("\n", " ").strip()
     compact = re.sub(r"\s+", "", c)
-    if re.search(r"사운드.*wi.?fi", compact, re.I) or "사운드스위트" in compact:
+    if "사운드스위트" in compact or re.search(r"soundsuite", compact, re.I):
+        return "Sound Suite"
+    if re.search(r"사운드.*wi.?fi", compact, re.I):
         return "사운드바(Wi-Fi)"
     if compact == "사운드바":
         return "사운드바"

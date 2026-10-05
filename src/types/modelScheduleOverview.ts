@@ -1,12 +1,15 @@
-/** 전 모델 일정 — 스프레드시트 기반 구조 */
+/** 전 모델 일정 — 스프레드시트 A~N 열 구조 */
 
-export type OverviewBarType = 'sit' | 'dev_test' | 'fc' | 'prepv' | 'pv' | 'mp' | 'preqp' | 'qp' | 'su' | 'default'
+export type OverviewBarType = 'sit' | 'dev_test' | 'fc' | 'prepv' | 'pv' | 'mp' | 'preqp' | 'qp' | 'su' | 'ats' | 'default'
+
+export type OverviewEventKind = 'hw' | 'sw'
 
 export interface OverviewEvent {
   name: string
   start: string
   end: string
   barType?: OverviewBarType
+  kind?: OverviewEventKind
 }
 
 export interface OverviewModel {
@@ -14,15 +17,20 @@ export interface OverviewModel {
   category: string
   model: string
   variant: string
-  manufacturer: string
+  /** legacy — UI 미표시 */
+  manufacturer?: string
   soc: string
-  hwPm: string
-  swPo: string
+  /** legacy */
+  hwPm?: string
+  /** legacy */
+  swPo?: string
+  /** E열 SW 담당 */
   swPm: string
   spec: string
   pv: string
   mp: string
-  ats: string
+  /** legacy — HW Event ATS 로 표시 */
+  ats?: string
   events: OverviewEvent[]
 }
 
@@ -31,9 +39,10 @@ export interface OverviewScheduleBar {
   end: string
   label: string
   barType: OverviewBarType
+  kind: OverviewEventKind
 }
 
-/** 테이블 1줄 — MR_Minor 는 1행, 그 외 2행(0=메타, 1=일정 바) */
+/** 테이블 1줄 — MR_Minor 1행(SW) / 그 외 2행(HW+SW) */
 export interface OverviewDisplayRow {
   id: string
   modelId: string
@@ -41,17 +50,12 @@ export interface OverviewDisplayRow {
   category: string
   model: string
   variant: string
-  manufacturer: string
   soc: string
-  hwPm: string
-  swPo: string
   swPm: string
   spec: string
   pv: string
   mp: string
-  ats: string
   bars: OverviewScheduleBar[]
-  /** false → 메타만, true → 타임라인 바 표시 행 */
-  showTimeline: boolean
+  timelineKind: OverviewEventKind | 'none'
   isMrMinor: boolean
 }
