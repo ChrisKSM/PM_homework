@@ -55,6 +55,28 @@ if [ ! -f src/components/modelSchedule/OverviewEventEditor.tsx ]; then
   exit 1
 fi
 
+if [ ! -f src/utils/captureOverviewPages.ts ]; then
+  echo "Error: captureOverviewPages.ts 복사 실패 — git fetch 후 재실행"
+  exit 1
+fi
+
+if ! grep -q '"html2canvas"' package.json 2>/dev/null; then
+  echo "  + npm install html2canvas (snapshot PNG 캡처)"
+  npm install html2canvas@^1.4.1 --save
+else
+  npm install html2canvas@^1.4.1 2>/dev/null || true
+fi
+
+# fix 스크립트도 최신 유지
+if git cat-file -e "$REF:scripts/fix-overview-fe-capture-module.sh" 2>/dev/null; then
+  show scripts/fix-overview-fe-capture-module.sh > scripts/fix-overview-fe-capture-module.sh
+  chmod +x scripts/fix-overview-fe-capture-module.sh
+fi
+if git cat-file -e "$REF:scripts/verify-overview-fe-deployed.sh" 2>/dev/null; then
+  show scripts/verify-overview-fe-deployed.sh > scripts/verify-overview-fe-deployed.sh
+  chmod +x scripts/verify-overview-fe-deployed.sh
+fi
+
 echo ""
 echo "  다음: sh scripts/verify-overview-fe-deployed.sh && npm run build → git push"
 echo "  화면: /model-schedule/overview"

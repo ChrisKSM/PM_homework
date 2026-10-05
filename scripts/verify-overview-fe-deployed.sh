@@ -31,6 +31,10 @@ check "HW/SW timelineKind in utils" "grep -q 'timelineKind' src/utils/modelSched
 check "8 meta columns defined" "grep -q \"label: 'SW'\" src/utils/modelScheduleOverviewRows.ts"
 check "overview share → /overview/share" "grep -q \"'/model-schedule/overview/share'\" src/api/modelScheduleApi.ts"
 check "overview share not /share only" "! grep -q \"snapshot_type: 'overview'\" src/api/modelScheduleApi.ts"
+check "captureOverviewPages.ts exists" "[ -f src/utils/captureOverviewPages.ts ]"
+check "Snapshot imports captureOverviewPages" "grep -q 'captureOverviewPages' src/components/modelSchedule/OverviewSnapshotDialog.tsx"
+check "html2canvas dependency" "grep -q '\"html2canvas\"' package.json"
+check "mail uses sortedModels not filter only" "grep -q 'models={sortedModels}' src/pages/ModelScheduleOverviewPage.tsx"
 
 if [ -d build ]; then
   if grep -rq 'A~H 메타' build/ 2>/dev/null; then
