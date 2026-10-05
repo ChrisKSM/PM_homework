@@ -32,6 +32,8 @@ for f in \
   src/pages/ModelScheduleStatusPage.tsx \
   src/pages/ManagerDashboard.tsx \
   src/components/modelStatus/ManagerDashboardBody.tsx \
+  src/components/modelStatus/ModelStatusMetaCard.tsx \
+  src/components/modelStatus/ModelStatusEventsTable.tsx \
   src/components/modelSchedule/OverviewEventEditor.tsx \
   src/components/modelSchedule/OverviewSnapshotDialog.tsx \
   src/api/modelScheduleApi.ts \
