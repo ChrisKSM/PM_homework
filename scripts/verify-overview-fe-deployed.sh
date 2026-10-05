@@ -29,12 +29,20 @@ check "Page subtitle A~H meta" "grep -q 'A~H 메타' src/pages/ModelScheduleOver
 check "No old 생산 column in overview page" "! grep -q '생산' src/pages/ModelScheduleOverviewPage.tsx"
 check "HW/SW timelineKind in utils" "grep -q 'timelineKind' src/utils/modelScheduleOverviewRows.ts"
 check "8 meta columns defined" "grep -q \"label: 'SW'\" src/utils/modelScheduleOverviewRows.ts"
+check "overview share → /overview/share" "grep -q \"'/model-schedule/overview/share'\" src/api/modelScheduleApi.ts"
+check "overview share not /share only" "! grep -q \"snapshot_type: 'overview'\" src/api/modelScheduleApi.ts"
 
 if [ -d build ]; then
   if grep -rq 'A~H 메타' build/ 2>/dev/null; then
     echo "  OK  build/ contains new UI strings"
   else
     echo "  NG  build/ is old — run: npm run build"
+    FAIL=1
+  fi
+  if grep -rq 'overview/share' build/ 2>/dev/null; then
+    echo "  OK  build/ calls /overview/share"
+  else
+    echo "  NG  build/ still old share endpoint — npm run build 후 push"
     FAIL=1
   fi
 else

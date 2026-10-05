@@ -218,17 +218,12 @@ export const modelScheduleApi = {
     audiences: string[]
     recipients?: string[]
   }): Promise<{ message: string; subject: string; recipients: string[] }> => {
-    type ShareRes = { message: string; subject: string; recipients: string[] }
-    const post = (path: string, body: Record<string, unknown>) =>
-      client.post<ShareRes>(path, body).then((r) => r.data)
-
-    try {
-      // prod BE(7ce2ef6) — /overview/share 동작, /share 는 rows 필수(422)
-      return await post('/model-schedule/overview/share', payload)
-    } catch (e: unknown) {
-      const err = e as { response?: { status?: number } }
-      if (err.response?.status !== 404) throw e
-      return post('/model-schedule/share', { ...payload, snapshot_type: 'overview' })
-    }
+    const res = await client
+      .post<{ message: string; subject: string; recipients: string[] }>(
+        '/model-schedule/overview/share',
+        payload,
+      )
+      .then((r) => r.data)
+    return res
   },
 }
