@@ -1,13 +1,13 @@
 #!/bin/sh
-# FE pod — BE apply 실수로 생긴 flat 파일 제거
-# backend/ 서브폴더(모노레포 소스)는 유지
+# FE pod — BE apply 실수로 생긴 파일 제거
 #
 # react-audio FE pod (/workspace/project):
 #   sh scripts/cleanup-be-from-fe.sh
 #
-# 제거 대상 (루트 flat BE):
+# 제거 대상:
 #   routers/  services/  tests/test_model_schedule_share.py
-#   main.py  config.py  jira_client.py  (루트에만 — backend/ 는 유지)
+#   backend/  (tests/ 만 있거나 main.py 없는 경우 — FE 에서 불필요)
+#   루트 main.py  config.py  jira_client.py
 
 set -e
 cd "$(dirname "$0")/.."
