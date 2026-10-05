@@ -22,6 +22,8 @@ check() {
 echo "=== 전 모델 일정 FE 배포 검증 ==="
 
 check "OverviewScheduleTable.tsx exists" "[ -f src/components/modelSchedule/OverviewScheduleTable.tsx ]"
+check "OverviewEventEditor.tsx exists" "[ -f src/components/modelSchedule/OverviewEventEditor.tsx ]"
+check "Page imports OverviewEventEditor" "grep -q 'OverviewEventEditor' src/pages/ModelScheduleOverviewPage.tsx"
 check "overviewBarStyles.ts exists" "[ -f src/utils/overviewBarStyles.ts ]"
 check "Page subtitle A~H meta" "grep -q 'A~H 메타' src/pages/ModelScheduleOverviewPage.tsx"
 check "No old 생산 column in overview page" "! grep -q '생산' src/pages/ModelScheduleOverviewPage.tsx"
