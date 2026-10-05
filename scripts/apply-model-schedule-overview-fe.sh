@@ -32,6 +32,7 @@ for f in \
   src/components/modelSchedule/OverviewEventPicker.tsx \
   src/components/modelSchedule/OverviewSnapshotDialog.tsx \
   src/components/modelSchedule/OverviewScheduleTable.tsx \
+  src/components/modelSchedule/MetaTooltipCell.tsx \
   src/data/modelScheduleOverviewMock.ts \
   src/types/modelScheduleOverview.ts \
   src/utils/modelScheduleOverviewRows.ts \
