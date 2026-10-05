@@ -802,6 +802,29 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
     ]
   },
   {
+    "id": "ov-stage501",
+    "category": "파티스피커",
+    "model": "Stage501",
+    "variant": "MR_Minor",
+    "manufacturer": "",
+    "soc": "MLC3735",
+    "hwPm": "",
+    "swPo": "",
+    "swPm": "오제준/박시형",
+    "spec": "-",
+    "pv": "-",
+    "mp": "-",
+    "ats": "",
+    "events": [
+      {
+        "name": "QP 1",
+        "start": "2026-09-30",
+        "end": "2026-10-05",
+        "kind": "sw"
+      }
+    ]
+  },
+  {
     "id": "ov-blast",
     "category": "무선스피커",
     "model": "Blast",
@@ -878,29 +901,6 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
         "name": "QP 1",
         "start": "2026-10-06",
         "end": "2026-10-13",
-        "kind": "sw"
-      }
-    ]
-  },
-  {
-    "id": "ov-stage501",
-    "category": "무선스피커",
-    "model": "Stage501",
-    "variant": "MR_Minor",
-    "manufacturer": "",
-    "soc": "MLC3735",
-    "hwPm": "",
-    "swPo": "",
-    "swPm": "오제준/박시형",
-    "spec": "-",
-    "pv": "-",
-    "mp": "-",
-    "ats": "",
-    "events": [
-      {
-        "name": "QP 1",
-        "start": "2026-09-30",
-        "end": "2026-10-05",
         "kind": "sw"
       }
     ]
