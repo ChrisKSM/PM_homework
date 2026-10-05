@@ -122,8 +122,17 @@ function findEventAt(events: OverviewEvent[], date: string, kind: OverviewEventK
   )
 }
 
+/** URL ?mock=1 또는 ?preview=mock — DB/API 없이 JSON mock만 표시 */
+function isOverviewMockPreview(search: string): boolean {
+  const p = new URLSearchParams(search)
+  const mock = p.get('mock')
+  const preview = p.get('preview')
+  return mock === '1' || mock === 'true' || preview === 'mock'
+}
+
 export default function ModelScheduleOverviewPage() {
   const location = useLocation()
+  const mockPreview = isOverviewMockPreview(location.search)
   const [models, setModels] = useState<OverviewModel[]>(() => prepareOverviewModels(OVERVIEW_MOCK_MODELS))
   const [snapshot, setSnapshot] = useState<OverviewModel[] | null>(null)
   const [editing, setEditing] = useState(false)
@@ -148,6 +157,17 @@ export default function ModelScheduleOverviewPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+
+    if (mockPreview) {
+      setModels(prepareOverviewModels(OVERVIEW_MOCK_MODELS))
+      setDataSource('mock')
+      setLoadError(null)
+      setLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
+
     modelScheduleApi
       .loadOverview()
       .then((res) => {
@@ -174,7 +194,7 @@ export default function ModelScheduleOverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [location.pathname])
+  }, [location.pathname, location.search, mockPreview])
 
   const sortedModels = useMemo(() => prepareOverviewModels(models), [models])
   const viewStart = useMemo(() => addDays(startDate, dayOffset), [startDate, dayOffset])
@@ -204,10 +224,14 @@ export default function ModelScheduleOverviewPage() {
     setEditing(false)
     setPicker(null)
     setSnapshot(null)
-    setSaving(true)
-    setSaveMessage(null)
     const prepared = prepareOverviewModels(models)
     setModels(prepared)
+    if (mockPreview) {
+      setSaveMessage({ type: 'warn', text: 'Mock 미리보기 — DB 저장 생략 (실제 반영 전 확인용)' })
+      return
+    }
+    setSaving(true)
+    setSaveMessage(null)
     try {
       const res = await modelScheduleApi.saveOverview(prepared)
       setDataSource(res.source)
@@ -343,8 +367,17 @@ export default function ModelScheduleOverviewPage() {
 
   return (
     <>
-      <Header title="전 모델 일정" subtitle="A~H 메타 · HW/SW Event 타임라인" />
+      <Header
+        title="전 모델 일정"
+        subtitle={mockPreview ? 'Mock 미리보기 · JSON import 데이터 (DB 미반영)' : 'A~H 메타 · HW/SW Event 타임라인'}
+      />
       <div className="pt-16 p-4">
+        {mockPreview && (
+          <p className="text-[11px] text-blue-900 mb-2 bg-blue-50 border border-blue-300 rounded-lg px-3 py-2 font-medium">
+            Mock 미리보기 모드 — overview-schedule-rows.json 기반 UI 확인 (DB/API 저장 안 함). URL:{' '}
+            <code className="text-[10px] bg-white px-1 rounded">?mock=1</code>
+          </p>
+        )}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button type="button" onClick={() => setDayOffset((o) => o - 14)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page">
             <ChevronLeft size={16} />
@@ -417,7 +450,7 @@ export default function ModelScheduleOverviewPage() {
             엑셀
           </button>
           <span className="text-[10px] text-gray-400">
-            {sortedModels.length}모델 · {displayRows.length}행
+            {sortedModels.length}모델 · {displayRows.length}행 · {mockPreview ? 'mock' : dataSource}
           </span>
         </div>
 

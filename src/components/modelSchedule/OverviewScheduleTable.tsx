@@ -37,6 +37,15 @@ function barCoversDay(bar: OverviewScheduleBar, d: Date) {
 function isBarStartDay(bar: OverviewScheduleBar, d: Date) {
   return toISO(d) === normDate(bar.start)
 }
+function isBarEndDay(bar: OverviewScheduleBar, d: Date) {
+  return toISO(d) === normDate(bar.end)
+}
+function barSpanDays(bar: OverviewScheduleBar) {
+  return diffD(toD(normDate(bar.start)), toD(normDate(bar.end))) + 1
+}
+function isSingleDayBar(bar: OverviewScheduleBar) {
+  return barSpanDays(bar) <= 1
+}
 
 function monthSpans(dates: Date[]) {
   const spans: { label: string; len: number }[] = []
@@ -215,17 +224,18 @@ export default function OverviewScheduleTable({
 
                 const bar = row.bars.find((b) => barCoversDay(b, d))
                 const isBS = bar && isBarStartDay(bar, d)
+                const isBE = bar && isBarEndDay(bar, d)
                 const bc = bar ? barStyleForKind(bar.kind, bar.barType) : null
-                const barSpanDays = bar ? diffD(toD(normDate(bar.start)), toD(normDate(bar.end))) + 1 : 0
-                const barMinW = barSpanDays * CW - 2
-                const barW = bar?.label ? Math.max(barMinW, bar.label.length * 6 + 8) : barMinW
-                const isMpSingle = bar?.barType === 'mp' && barSpanDays <= 1
+                const span = bar ? barSpanDays(bar) : 0
+                const barMinW = span * CW - 2
+                const barW = bar?.label ? Math.max(barMinW, bar.label.length * 7 + 10) : barMinW
+                const singleDay = bar ? isSingleDayBar(bar) : false
 
                 return (
                   <td
                     key={di}
                     className={clsx(
-                      'border-r border-surface-border/40 px-0 py-0 relative',
+                      'border-r border-surface-border/40 px-0 py-0 relative overflow-visible',
                       isW && 'bg-gray-50/50',
                       d.getDay() === 1 && 'border-l-2 border-l-gray-200',
                       editing && onTimelineClick && 'cursor-pointer hover:bg-blue-50/40',
@@ -233,28 +243,35 @@ export default function OverviewScheduleTable({
                     style={{ width: CW, minWidth: CW, height: RH }}
                     onClick={editing && onTimelineClick ? (e) => onTimelineClick(row.modelId, kind, d, e) : undefined}
                   >
-                    {bar && bc && isBS && !isMpSingle && (
+                    {bar && bc && singleDay && (
                       <div
-                        className="absolute top-1 left-0 rounded-sm flex items-center z-[1] pointer-events-none"
-                        style={{ width: `${barW}px`, minWidth: `${barMinW}px`, height: RH - 8, backgroundColor: bc.bg }}
+                        className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-1 py-0.5 text-[8px] font-bold leading-tight z-[1] pointer-events-none whitespace-nowrap max-w-[calc(100%-2px)] truncate"
+                        style={{ backgroundColor: bc.bg, color: bc.text }}
+                        title={bar.label}
+                      >
+                        {bar.label}
+                      </div>
+                    )}
+                    {bar && bc && isBS && !singleDay && (
+                      <div
+                        className="absolute top-1 left-0 rounded-l-sm flex items-center z-[1] pointer-events-none overflow-hidden"
+                        style={{ width: `${barW}px`, minWidth: `${CW - 2}px`, height: RH - 8, backgroundColor: bc.bg }}
                       >
                         {bar.label ? (
-                          <span className="px-0.5 text-[7px] font-bold leading-none whitespace-nowrap" style={{ color: bc.text }}>
+                          <span className="px-1 text-[8px] font-bold leading-none whitespace-nowrap" style={{ color: bc.text }}>
                             {bar.label}
                           </span>
                         ) : null}
                       </div>
                     )}
-                    {bar && bc && isBS && isMpSingle && (
-                      <div
-                        className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-0.5 text-[7px] font-bold z-[1] pointer-events-none"
-                        style={{ backgroundColor: bc.bg, color: bc.text }}
-                      >
-                        MP
-                      </div>
+                    {bar && bc && !isBS && !singleDay && !isBE && (
+                      <div className="absolute top-1 bottom-1 left-0 right-0 pointer-events-none" style={{ backgroundColor: bc.bg }} />
                     )}
-                    {bar && bc && !isBS && !isMpSingle && (
-                      <div className="absolute inset-y-1 inset-x-0 rounded-sm pointer-events-none" style={{ backgroundColor: bc.bg }} />
+                    {bar && bc && !isBS && !singleDay && isBE && (
+                      <div
+                        className="absolute top-1 bottom-1 left-0 right-0 rounded-r-sm pointer-events-none"
+                        style={{ backgroundColor: bc.bg }}
+                      />
                     )}
                     {di === todayOff && todayOff >= 0 && todayOff < dates.length && (
                       <div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-[2] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />
