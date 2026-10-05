@@ -48,7 +48,12 @@ for f in \
   scripts/patch-env-cors-axstudio.sh:scripts/patch-env-cors-axstudio.sh \
   scripts/patch-be-config-cors.sh:scripts/patch-be-config-cors.sh \
   scripts/patch-be-main-cors.sh:scripts/patch-be-main-cors.sh \
-  scripts/apply-be-cors-axstudio.sh:scripts/apply-be-cors-axstudio.sh
+  scripts/apply-be-cors-axstudio.sh:scripts/apply-be-cors-axstudio.sh \
+  backend/jira_client.py:jira_client.py \
+  backend/routers/manager.py:routers/manager.py \
+  scripts/apply-jira-be-fix.sh:scripts/apply-jira-be-fix.sh \
+  scripts/verify-jira-be.sh:scripts/verify-jira-be.sh \
+  scripts/fix-be-token.sh:scripts/fix-be-token.sh
 do
   src="${f%%:*}"
   dst="${f##*:}"
@@ -67,6 +72,7 @@ grep -q setuptools requirements.txt 2>/dev/null || echo "setuptools>=69.0.0,<82"
 echo ""
 echo "=== main.py / config / .env 패치 ==="
 sh scripts/patch-be-main-model-schedule.sh
+sh scripts/patch-be-main-cors.sh
 sh scripts/patch-config-snapshot-smtp.sh
 
 if [ ! -f .env ]; then
