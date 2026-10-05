@@ -9,6 +9,13 @@ set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 PORT="${BE_ROUTE_PORT:-8000}"
 
+if [ ! -f main.py ] || [ ! -d routers ]; then
+  echo "Error: BE pod가 아닙니다 (main.py + routers/ 없음)"
+  echo "  hostname: $(hostname 2>/dev/null || echo unknown)"
+  echo "  → project-be-audio-test-* pod에서 실행하세요"
+  exit 1
+fi
+
 if [ ! -f .env ] && [ ! -f /workspace/project/.env ]; then
   echo "Error: .env 없음"
   exit 1

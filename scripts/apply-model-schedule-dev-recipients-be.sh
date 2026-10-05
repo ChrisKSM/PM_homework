@@ -24,11 +24,18 @@ be_root() {
     pwd
     return 0
   fi
-  if [ -f /workspace/project/main.py ]; then
+  if [ -f /workspace/project/main.py ] && [ -d /workspace/project/routers ]; then
     echo /workspace/project
     return 0
   fi
-  echo "Error: BE root not found — cd /workspace/project 후 실행" >&2
+  if [ -f package.json ] && [ -d src ] && [ ! -f main.py ]; then
+    echo "Error: FE pod(react-audio)입니다 — BE 스크립트가 아닙니다." >&2
+    echo "  → sh scripts/apply-model-schedule-dev-recipients-fe.sh" >&2
+    echo "  → BE는 project-be-audio-test-* pod 터미널에서 실행" >&2
+    exit 1
+  fi
+  echo "Error: BE root not found (main.py + routers/ 필요)" >&2
+  echo "  → project-be-audio-test-* pod /workspace/project 에서 실행" >&2
   exit 1
 }
 

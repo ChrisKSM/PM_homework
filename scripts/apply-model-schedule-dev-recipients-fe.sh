@@ -20,6 +20,12 @@ set -e
 cd "$(dirname "$0")/.."
 REF="${1:-github/cursor/model-schedule-bar-label-fix-b14b}"
 
+if [ -f main.py ] && [ -d routers ] && [ ! -f package.json ]; then
+  echo "Error: BE pod입니다 — FE 스크립트가 아닙니다."
+  echo "  → sh scripts/apply-model-schedule-dev-recipients-be.sh"
+  exit 1
+fi
+
 if ! git rev-parse "$REF" >/dev/null 2>&1; then
   echo "Error: git fetch github cursor/model-schedule-bar-label-fix-b14b 먼저"
   exit 1

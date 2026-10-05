@@ -69,6 +69,9 @@ if not d.get('ok'):
 
 echo ""
 echo "=== 해석 ==="
-echo "  · 로컬 8200 OK + 외부 load 502 → 브라우저는 외부(플랫폼) BE 사용. 수동 uvicorn과 무관."
-echo "  · 외부 diagnose ok:false → 공용 BE에 mongo_helper dotenv + pymilvus + .env 필요."
+echo "  · 로컬 jira/diagnose ok:true + issues/risks 200, 외부 502"
+echo "    → pod 안 수동 uvicorn(8200)은 정상. 브라우저(FE)는 be-audio-test Route(플랫폼 BE) 사용."
+echo "    → GitLab master push 재배포 또는 Route가 바라보는 포트(보통 8000)에서 uvicorn 기동 필요."
+echo "  · 로컬 8200 OK + 외부 load 502 → 동일 — 수동 uvicorn ≠ 외부 URL"
+echo "  · 외부 jira/diagnose token_length:0 → 공용 BE .env JIRA_API_TOKEN 없음"
 echo "  · workspace 개인 BE 테스트 → uvicorn --port 8000 + FE URL /project/.../proxy/..."

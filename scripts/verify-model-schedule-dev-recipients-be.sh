@@ -7,11 +7,16 @@ be_root() {
     pwd
     return 0
   fi
-  if [ -f /workspace/project/main.py ]; then
+  if [ -f /workspace/project/main.py ] && [ -d /workspace/project/routers ]; then
     echo /workspace/project
     return 0
   fi
-  echo "Error: BE root not found — cd /workspace/project 후 실행" >&2
+  if [ -f package.json ] && [ -d src ] && [ ! -f main.py ]; then
+    echo "Error: FE pod(react-audio)입니다 — BE verify가 아닙니다." >&2
+    echo "  → sh scripts/verify-model-schedule-dev-recipients-fe.sh" >&2
+    exit 1
+  fi
+  echo "Error: BE root not found (main.py + routers/ 필요)" >&2
   exit 1
 }
 
