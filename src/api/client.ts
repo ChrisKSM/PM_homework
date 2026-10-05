@@ -1,26 +1,35 @@
 import axios from 'axios'
 
-const BE_AXSTUDIO = 'https://be-audio-test.apps.axstudio.lge.com/api'
-const BE_HEDEJ = 'https://be-audio-test.apps.hedej.lge.com/api'
+export const BE_AXSTUDIO = 'https://be-audio-test.apps.axstudio.lge.com/api'
+export const BE_HEDEJ = 'https://be-audio-test.apps.hedej.lge.com/api'
+
+/** react-audio FE — hedej/axstudio URL 모두 axstudio BE (회사 표준) */
+const REACT_AUDIO_HOSTS = new Set([
+  'react-audio.apps.axstudio.lge.com',
+  'react-audio.apps.hedej.lge.com',
+])
 
 function isFeHost(host: string, domain: 'axstudio' | 'hedej'): boolean {
   const suffix = `.apps.${domain}.lge.com`
   return host.endsWith(suffix) && !host.includes('be-audio-test')
 }
 
-function resolveApiBaseUrl(): string {
+export function resolveApiBaseUrl(): string {
   const env = (window as any).workspace_env ?? {}
   const host = window.location.hostname
 
-  // 배포 FE hostname → 같은 realm BE (entrypoint hedej 주입보다 우선)
-  if (host === 'react-audio.apps.axstudio.lge.com' || isFeHost(host, 'axstudio')) {
+  // react-audio — entrypoint hedej 주입·.env hedej 보다 우선
+  if (REACT_AUDIO_HOSTS.has(host)) {
     return BE_AXSTUDIO
   }
-  if (host === 'react-audio.apps.hedej.lge.com' || isFeHost(host, 'hedej')) {
+
+  if (isFeHost(host, 'axstudio')) {
+    return BE_AXSTUDIO
+  }
+  if (isFeHost(host, 'hedej')) {
     return BE_HEDEJ
   }
 
-  // AX Studio / build-time env (prod hostname 아닐 때만)
   if (env.REACT_APP__API_BASE_URL) return env.REACT_APP__API_BASE_URL
   if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
   if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
@@ -28,7 +37,6 @@ function resolveApiBaseUrl(): string {
   if (host.includes('workspace')) {
     const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
     if (m) return `${window.location.origin}${m[1]}8000/api`
-    // workspace pod — axstudio BE 기본 (회사 react-audio 표준)
     return BE_AXSTUDIO
   }
 
@@ -48,7 +56,7 @@ client.interceptors.response.use(
       console.error('Unauthorized — Jira API 인증이 필요합니다.')
     }
     return Promise.reject(error)
-  }
+  },
 )
 
 export default client

@@ -37,6 +37,7 @@ for f in \
   src/utils/modelScheduleOverviewRows.ts \
   src/utils/overviewBarStyles.ts \
   src/api/modelScheduleApi.ts \
+  src/api/client.ts \
   src/App.tsx \
   src/store/dashboardStore.ts
 do

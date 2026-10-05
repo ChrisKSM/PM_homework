@@ -31,6 +31,8 @@ checkout src/components/modelSchedule/OverviewSnapshotDialog.tsx
 checkout src/pages/ModelScheduleOverviewPage.tsx
 checkout src/utils/modelScheduleOverviewRows.ts
 checkout src/types/modelScheduleOverview.ts
+checkout src/api/client.ts
+checkout src/store/dashboardStore.ts
 
 echo ""
 echo "  npm run build"
