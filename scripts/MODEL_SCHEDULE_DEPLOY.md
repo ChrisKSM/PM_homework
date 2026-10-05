@@ -112,7 +112,9 @@ MONGO_DB=dify_mv_audiojdmtask
 
 ### BE 반영 후 확인
 
-> **포트:** BE pod 표준은 **8200** (`uv run ... --port 8200`). 로컬 README/dev 는 8000.
+> **포트:** BE pod 수동 dev는 **8200**. Route/플랫폼 기본은 **8000**.  
+> **중요:** pod 이름이 `project-be-audio-test-<사용자>-deployment` 이면 **개인 workspace pod** 입니다.  
+> FE(`react-audio`)가 치는 `https://be-audio-test.apps.axstudio.lge.com` 은 **공용 Route** — local8000 OK + external 502 이면 **다른 Deployment** 문제입니다.
 
 ```bash
 # uvicorn 재시작 후 (8200 먼저, 없으면 8000)
