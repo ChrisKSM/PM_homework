@@ -551,7 +551,7 @@ export default function ModelScheduleOverviewPage() {
         {loadError ? <p className="text-[10px] text-amber-800 mb-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">{loadError}</p> : null}
         {editing && (
           <div className="text-[10px] text-gray-500 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
-            1행=HW Event(PrePV/PV/MP) · 2행=SW Event(SIT/FC/QP) · <b>-</b> 는 빈칸 · 제품군별 정렬
+            1행=HW Event(PrePV/PV/MP) · 2행=SW Event(SIT/FC/QP) · 타임라인 셀 클릭 → Start/End 날짜 편집 · <b>-</b> 는 빈칸
           </div>
         )}
         <p className="text-[10px] text-gray-500 mb-2 bg-slate-50 border border-surface-border rounded-lg px-3 py-1.5">
@@ -596,7 +596,7 @@ export default function ModelScheduleOverviewPage() {
         onClose={() => setShowSnapshotPopup(false)}
         models={filteredModels}
         dates={dates}
-        periodLabel={`${viewMonth.year % 100}/${viewMonth.month + 1}월 ${monthLabel(viewMonth.year, viewMonth.month)}`}
+        periodLabel={`${viewMonth.year % 100}/${viewMonth.month + 1}월`}
         today={today}
         viewStart={viewStart}
         todayOff={todayOff}

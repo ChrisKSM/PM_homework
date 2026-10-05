@@ -243,7 +243,7 @@ export default function OverviewScheduleTable({
 
                 const bar = row.bars.find((b) => barOnDay(b, d, dates))
                 const seg = bar ? barOnDay(bar, d, dates) : null
-                const bc = bar ? barStyleForKind(bar.kind, bar.barType) : null
+                const bc = bar ? barStyleForKind(kind, bar.barType) : null
                 const inMultiDayBar = Boolean(seg && bc && !seg.singleDay)
 
                 return (

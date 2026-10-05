@@ -46,7 +46,12 @@ do
   echo "  + $f"
 done
 
+if [ ! -f src/components/modelSchedule/OverviewEventEditor.tsx ]; then
+  echo "Error: OverviewEventEditor.tsx 복사 실패 — git fetch 후 재실행"
+  exit 1
+fi
+
 echo ""
-echo "  다음: npm run build → git push (GitLab 재배포)"
+echo "  다음: sh scripts/verify-overview-fe-deployed.sh && npm run build → git push"
 echo "  화면: /model-schedule/overview"
 echo "=== Done ==="

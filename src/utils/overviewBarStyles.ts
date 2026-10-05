@@ -19,7 +19,7 @@ export const HW_BAR_STYLE: Record<OverviewBarType, { bg: string; text: string }>
 export const SW_BAR_STYLE: Record<OverviewBarType, { bg: string; text: string }> = {
   sit: { bg: '#FACC15', text: '#78350F' },
   dev_test: { bg: '#FDE68A', text: '#92400E' },
-  fc: { bg: '#E2E8F0', text: '#334155' },
+  fc: { bg: '#0EA5E9', text: '#fff' },
   prepv: { bg: '#FDBA74', text: '#7C2D12' },
   pv: { bg: '#BAE6FD', text: '#0C4A6E' },
   mp: { bg: '#86EFAC', text: '#14532D' },
