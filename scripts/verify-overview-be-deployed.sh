@@ -34,7 +34,7 @@ check "overview_snapshot_email.py" "[ -f services/overview_snapshot_email.py ]"
 check "email_service.py" "[ -f services/email_service.py ]"
 check "overview/load route" "grep -q 'overview/load' routers/model_schedule.py"
 check "overview/save route" "grep -q 'overview/save' routers/model_schedule.py"
-check "overview/share route" "grep -q 'overview/share' routers/model_schedule.py"
+check "share overview (snapshot_type)" "grep -q 'snapshot_type' routers/model_schedule.py"
 check "seed JSON" "[ -f scripts/seed-model-schedule-overview.json ]"
 
 if [ -f scripts/seed-model-schedule-overview.json ]; then
@@ -59,10 +59,8 @@ for path in /api/model-schedule/overview/load; do
   echo "  GET $path → HTTP $CODE"
 done
 
-CODE=$(curl -s -o /tmp/ov_share.json -w "%{http_code}" -X POST \
-  "${BASE}/api/model-schedule/overview/share" \
-  -H "Content-Type: application/json" \
-  -d '{
+SHARE_PAYLOAD='{
+    "snapshot_type": "overview",
     "period_label": "26/10월",
     "dates": ["2026-10-01","2026-10-02"],
     "models": [{
@@ -77,13 +75,18 @@ CODE=$(curl -s -o /tmp/ov_share.json -w "%{http_code}" -X POST \
     }],
     "audiences": ["개발"],
     "recipients": ["seokmin.koh@lge.com"]
-  }' 2>/dev/null || echo "000")
-echo "  POST /api/model-schedule/overview/share → HTTP $CODE"
+  }'
+CODE=$(curl -s -o /tmp/ov_share.json -w "%{http_code}" -X POST \
+  "${BASE}/api/model-schedule/share" \
+  -H "Content-Type: application/json" \
+  -d "$SHARE_PAYLOAD" 2>/dev/null || echo "000")
+echo "  POST /api/model-schedule/share (overview) → HTTP $CODE"
 case "$CODE" in
   000) echo "       → BE 미기동 — uvicorn 8200 재시작" ;;
-  404) echo "       → 404: 구버전 — sh scripts/apply-model-schedule-overview-be.sh" ;;
-  503) echo "       → 503: SMTP 미설정" ;;
+  404) echo "       → 404: /share 없음 — apply-model-schedule-share-be.sh 또는 overview-be.sh" ;;
+  503) echo "       → 503: SMTP 미설정 (구버전 BE는 overview/share 404 — /share + snapshot_type 사용)" ;;
   200) echo "       → OK  메일 발송 성공" ;;
+  400) echo "       → 400: 구버전 /share (overview 미지원) — apply-model-schedule-overview-be.sh 재실행" ;;
   *) head -c 180 /tmp/ov_share.json 2>/dev/null; echo "" ;;
 esac
 

@@ -220,8 +220,8 @@ export const modelScheduleApi = {
   }): Promise<{ message: string; subject: string; recipients: string[] }> => {
     const res = await client
       .post<{ message: string; subject: string; recipients: string[] }>(
-        '/model-schedule/overview/share',
-        payload,
+        '/model-schedule/share',
+        { ...payload, snapshot_type: 'overview' },
       )
       .then((r) => r.data)
     return res

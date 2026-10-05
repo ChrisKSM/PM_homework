@@ -1,4 +1,4 @@
-from routers.model_schedule import _resolve_share_recipients
+from routers.model_schedule import ScheduleShareRequest, _is_overview_share, _resolve_share_recipients
 
 
 def test_resolve_dqa_only():
@@ -20,3 +20,25 @@ def test_resolve_dev_only():
 def test_resolve_both_deduplicates():
     addrs = _resolve_share_recipients({"DQA", "개발"}, None)
     assert len(addrs) == 15
+
+
+def test_is_overview_share_by_snapshot_type():
+    req = ScheduleShareRequest(
+        period_label="26/10월",
+        dates=["2026-10-01"],
+        snapshot_type="overview",
+        models=[{"id": "m1"}],
+        display_rows=[{"modelId": "m1"}],
+        audiences=["개발"],
+    )
+    assert _is_overview_share(req) is True
+
+
+def test_is_overview_share_detail_rows():
+    req = ScheduleShareRequest(
+        period_label="9/15 ~ 10/26",
+        dates=["2026-10-01"],
+        rows=[{"model": "S80C"}],
+        audiences=["DQA"],
+    )
+    assert _is_overview_share(req) is False

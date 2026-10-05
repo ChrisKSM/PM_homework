@@ -11,7 +11,7 @@ if [ ! -f "$SEED" ]; then
   exit 1
 fi
 
-echo "=== POST $API_BASE/model-schedule/overview/share ==="
+echo "=== POST $API_BASE/model-schedule/share (snapshot_type=overview) ==="
 
 python3 <<PY
 import json
@@ -36,6 +36,7 @@ for m in models:
             })
             break
 payload = {
+    "snapshot_type": "overview",
     "period_label": "26/10월",
     "dates": ["2026-10-01","2026-10-02","2026-10-03","2026-10-04","2026-10-05"],
     "models": models,
@@ -55,7 +56,7 @@ open("/tmp/overview-share-payload.json","w").write(json.dumps(payload, ensure_as
 print("models:", len(models), "display_rows:", len(payload["display_rows"]))
 PY
 
-curl -sf -X POST "$API_BASE/model-schedule/overview/share" \
+curl -sf -X POST "$API_BASE/model-schedule/share" \
   -H "Content-Type: application/json" \
   -d @/tmp/overview-share-payload.json | python3 -m json.tool
 
