@@ -28,19 +28,20 @@ API="${WORKER%/}/api"
 
 python3 - <<PY
 from pathlib import Path
+api = """${API}"""
 p = Path(".env")
 lines = p.read_text(encoding="utf-8").splitlines() if p.is_file() else []
 out, found = [], False
 for line in lines:
     if line.startswith("REACT_APP_API_BASE_URL="):
-        out.append(f"REACT_APP_API_BASE_URL={API}")
+        out.append(f"REACT_APP_API_BASE_URL={api}")
         found = True
     else:
         out.append(line)
 if not found:
-    out.append(f"REACT_APP_API_BASE_URL={API}")
+    out.append(f"REACT_APP_API_BASE_URL={api}")
 p.write_text("\n".join(out) + "\n", encoding="utf-8")
-print(f"  .env REACT_APP_API_BASE_URL={API}")
+print(f"  .env REACT_APP_API_BASE_URL={api}")
 PY
 
 # runtime override (Docker entrypoint가 workspace_env.js 덮어쓸 수 있음 — .env와 병행)
