@@ -1,10 +1,22 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
+
+
+def _env_file_paths() -> tuple[str, ...]:
+    """prod(/usr/app/src) · workspace dev(/workspace/project) · cwd .env"""
+    candidates = (
+        Path("/usr/app/src/.env"),
+        Path("/workspace/project/.env"),
+        Path(".env"),
+    )
+    found = tuple(str(p) for p in candidates if p.is_file())
+    return found or (".env",)
 
 
 class Settings(BaseSettings):
-    # Jira Server 연결
+    # Jira Server 연결 — token은 .env / JIRA_API_TOKEN env (소스에 하드코딩 금지)
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
-    jira_api_token: str = "MTkyNzA5OTIzODAwOm37CoknoS/bGYa/hbrm92YTHN5P"
+    jira_api_token: str = ""
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
 
     # Board
@@ -18,7 +30,10 @@ class Settings(BaseSettings):
     release_sprint_field: str = "customfield_18834"
     chip_name_field: str = "customfield_14922"
 
-    # 계획 추적성 — 커스텀 필드 (미설정 시 description 파싱 / 기본 DoD 사용)
+    # 조달 Request DoD (Story DoD customfield_18874 와 별도)
+    procurement_dod_field: str = "customfield_10504"
+
+    # 계획 추적성 — Story DoD
     acceptance_criteria_field: str = "customfield_19604"
     dod_field: str = "customfield_18874"
     priority_rationale_field: str = "customfield_13449"
@@ -28,12 +43,29 @@ class Settings(BaseSettings):
     response_action_field: str = ""
     quality_project_key: str = ""
 
+    # 리스크 — EMV 정량 (Jira 표준 Environment 필드 텍스트 파싱)
+    risk_environment_field: str = "environment"
+    risk_schedule_reserve_days: int = 45
+    risk_priorities: str = "P0,P1,P2"
+
     # 완료 상태 카테고리 키 (Jira 표준)
     done_status_category: str = "done"
     inprogress_status_category: str = "indeterminate"
 
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.axstudio.lge.com,https://workspace.hedej.lge.com"
+    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
+
+    # 모델 현황 Snapshot 메일 공유 — audiences 별 수신 (쉼표 구분)
+    model_schedule_share_dqa_recipients: str = (
+        "rokyung.kim@lge.com,seunghwa.kim@lge.com,haengmo.jin@lge.com"
+    )
+    model_schedule_share_dev_recipients: str = (
+        "seokmin.koh@lge.com,hyunja.kim@lge.com,sungyeon.cho@lge.com,hongsoon.lee@lge.com,"
+        "yoonkyu.park@lge.com,jejun.oh@lge.com,sh12.park@lge.com,taeksu.la@lge.com,"
+        "yongseung.cho@lge.com,maeul.lee@lge.com,pilkyu.yoon@lge.com,jaecheol.lee@lge.com"
+    )
+    # legacy fallback
+    model_schedule_share_recipients: str = "seokmin.koh@lge.com"
 
     # Daily report
     report_enabled: bool = True
@@ -42,35 +74,47 @@ class Settings(BaseSettings):
     report_dashboard_url: str = ""
     report_api_key: str = ""
 
-    # SMTP
-    smtp_host: str = ""
-    smtp_port: int = 587
+    # SMTP — LGE 내부 relay 기본 (lgesmtp.lge.com:25, STARTTLS, 무인증)
+    smtp_host: str = "lgesmtp.lge.com"
+    smtp_port: int = 25
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_from: str = "DL-webOS_PMO-AudioSWPO@lge.com"
     smtp_use_tls: bool = True
-    smtp_verify_ssl: bool = False
+    smtp_verify_ssl: bool = False  # 사내 relay — 인증서 검증 생략
 
-    # LLM — 주간 스프린트 요약(사내 게이트웨이, OpenAI 호환 chat/completions 가정)
-    llm_enabled: bool = False
-    llm_user_id: str = ""
-    llm_base_url: str = ""          # 예: https://llm-gw.lge.com/v1 (끝에 /chat/completions 자동 부가)
-    llm_api_key: str = "" 
-    llm_model: str = "dej/gpt-5-nano"
-    llm_timeout: float = 30.0
-    llm_verify_ssl: bool = False
-    llm_temperature: float = 0.3
-
-
-
-    # Polarion ALM
+    # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
     polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
     polarion_project_key: str = "AVSWRelProjMgmt"
-    polarion_pat: str = "eyJraWQiOiI4YzMwOWFkZi0wYTAxYWIxMC01M2Q4YmIyNS05NDNkMzQ0NSIsInR5cCI6IkpXVCIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJzZW9rbWluLmtvaCIsImlkIjoiYmQwMjk3NDYtMGEwMWFiNzEtMWEzNWJiNjktMjkyNjNhYmMiLCJleHAiOjE3OTc2NTM0NTgsImlhdCI6MTc4OTg3NzQ1OH0.JOniYpEMcW_jB3HNuNtoqZIDYPPfs8AjdbpqIxoe8QXG3XkDXkQTjI5dnVGzej3J1ABCXUe0QxURKHPyT8npNZ3IY1IFCNg3hZSaZOI2oOkaznG4xvXN5wPUSNE9pdR4l-FiZU2OBHuHf-XGgo1WOaDEn8qUE3hhfkJHNB6a8jo7ZJEaPY8PSHKbwYFCgvfnvbs_CHKKn1nCYBK67zmavwiDsGe6rlImgnZyaVQ_GdGZQRk27cKXAuT6g92UDCFXV_F689I3Ofpi7AXSg_PuLoEuIQicWxjfpA4Do7D6TXWm-BF0Uf6oKuBO5xyiq7MY1ZijxzjP3o3N6uRCBRzyzg"
+    polarion_pat: str = ""
     polarion_verify_ssl: bool = False
+    # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
     polarion_list_path: str = "workitems"
-    model_config = {"env_file": ".env", "extra": "ignore"}
+
+    # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
+    #  ※ URL/API-key 불필요. SDK가 내부에서 dej 플랫폼 연결을 처리.
+    llm_enabled: bool = False
+    llm_model: str = "dej/gpt-5-nano"   # llm.initialize(model_name=...)
+    # 백그라운드 호출(로그인 request 없음)용 user_id. 비우면 LLM 비활성 → 규칙기반 폴백.
+    llm_user_id: str = ""
+
+    model_config = SettingsConfigDict(
+        env_file=_env_file_paths(),
+        env_file_encoding="utf-8",
+        # OpenShift에 JIRA_API_TOKEN="" 로 잡혀 있으면 .env 값을 쓰도록
+        env_ignore_empty=True,
+        extra="ignore",
+    )
 
 
-settings = Settings() 
+settings = Settings()
 
+
+def effective_smtp_host() -> str:
+    """`.env`에 SMTP_HOST= 빈 값이 있어도 LGE relay 기본 사용."""
+    host = (settings.smtp_host or "").strip()
+    return host or "lgesmtp.lge.com"
+
+
+def smtp_is_configured() -> bool:
+    return bool(effective_smtp_host())
