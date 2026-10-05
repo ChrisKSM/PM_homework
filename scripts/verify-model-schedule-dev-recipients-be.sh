@@ -1,26 +1,10 @@
 #!/bin/sh
 # BE — overview Snapshot 개발 수신자(swPm) 반영 검증
 set -e
+cd "$(dirname "$0")/.."
+. "$(dirname "$0")/pod-detect.sh"
 
-be_root() {
-  if [ -f main.py ] && [ -d routers ]; then
-    pwd
-    return 0
-  fi
-  if [ -f /workspace/project/main.py ] && [ -d /workspace/project/routers ]; then
-    echo /workspace/project
-    return 0
-  fi
-  if [ -f package.json ] && [ -d src ] && [ ! -f main.py ]; then
-    echo "Error: FE pod(react-audio)입니다 — BE verify가 아닙니다." >&2
-    echo "  → sh scripts/verify-model-schedule-dev-recipients-fe.sh" >&2
-    exit 1
-  fi
-  echo "Error: BE root not found (main.py + routers/ 필요)" >&2
-  exit 1
-}
-
-ROOT="$(be_root)"
+ROOT="$(be_project_root)"
 cd "$ROOT"
 
 ok=0
@@ -54,7 +38,6 @@ else
   PY="python3"
 fi
 
-# pytest 없어도 동작 — inline import 테스트 (BE flat layout)
 if $PY -c "
 import sys
 sys.path.insert(0, '.')
@@ -68,15 +51,6 @@ assert addrs == expected, f'got {addrs}, want {expected}'
 else
   echo "  ✗ swPm recipients logic"
   fail=$((fail + 1))
-fi
-
-# pytest 있으면 추가 실행 (optional)
-if $PY -m pytest --version >/dev/null 2>&1; then
-  if [ -f tests/test_model_schedule_share.py ]; then
-    $PY -m pytest tests/test_model_schedule_share.py -q --tb=no >/dev/null 2>&1 && \
-      echo "  ✓ pytest tests/test_model_schedule_share.py" && ok=$((ok + 1)) || \
-      echo "  ⚠ pytest skip (optional)"
-  fi
 fi
 
 BASE="${API_BASE:-http://127.0.0.1:8000/api}"
@@ -116,5 +90,4 @@ if [ "$fail" -eq 0 ]; then
 fi
 
 echo "❌ BE dev recipients FAIL ($fail failed, $ok passed)"
-echo "  cd /workspace/project && sh scripts/apply-model-schedule-dev-recipients-be.sh"
 exit 1
