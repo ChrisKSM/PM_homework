@@ -31,18 +31,28 @@ function normDate(s: string) {
 function diffD(a: Date, b: Date) {
   return Math.round((b.getTime() - a.getTime()) / 86400000)
 }
-function barCoversDay(bar: OverviewScheduleBar, d: Date) {
+/** 월 뷰 안에서 보이는 구간 (월 경계 클립) */
+function visibleBarSegment(bar: OverviewScheduleBar, dates: Date[]) {
+  if (!dates.length) return null
+  const viewStart = normDate(toISO(dates[0]))
+  const viewEnd = normDate(toISO(dates[dates.length - 1]))
+  const bs = normDate(bar.start)
+  const be = normDate(bar.end)
+  if (be < viewStart || bs > viewEnd) return null
+  const visStart = bs < viewStart ? viewStart : bs
+  const visEnd = be > viewEnd ? viewEnd : be
+  const visSpan = diffD(toD(visStart), toD(visEnd)) + 1
+  return { visStart, visEnd, visSpan }
+}
+
+function barOnDay(bar: OverviewScheduleBar, d: Date, dates: Date[]) {
   const dk = toISO(d)
-  return dk >= normDate(bar.start) && dk <= normDate(bar.end)
-}
-function isBarStartDay(bar: OverviewScheduleBar, d: Date) {
-  return toISO(d) === normDate(bar.start)
-}
-function barSpanDays(bar: OverviewScheduleBar) {
-  return diffD(toD(normDate(bar.start)), toD(normDate(bar.end))) + 1
-}
-function isSingleDayBar(bar: OverviewScheduleBar) {
-  return barSpanDays(bar) <= 1
+  const seg = visibleBarSegment(bar, dates)
+  if (!seg) return null
+  if (dk < seg.visStart || dk > seg.visEnd) return null
+  const isVisStart = dk === seg.visStart
+  const singleDay = seg.visSpan <= 1
+  return { ...seg, isVisStart, singleDay }
 }
 
 function monthSpans(dates: Date[]) {
@@ -103,7 +113,7 @@ export default function OverviewScheduleTable({
   const cell = renderMetaCell ?? defaultMeta
 
   return (
-    <table className="text-xs border-collapse table-fixed" style={{ minWidth: leftW + dates.length * CW }}>
+    <table className="text-xs border-collapse table-fixed" style={{ minWidth: leftW + dates.length * CW, overflow: 'hidden' }}>
       <thead>
         <tr className="bg-gray-50 border-b border-gray-200">
           <th
@@ -228,13 +238,15 @@ export default function OverviewScheduleTable({
                   )
                 }
 
-                const bar = row.bars.find((b) => barCoversDay(b, d))
-                const isBS = bar && isBarStartDay(bar, d)
+                const bar = row.bars.find((b) => barOnDay(b, d, dates))
+                const seg = bar ? barOnDay(bar, d, dates) : null
                 const bc = bar ? barStyleForKind(bar.kind, bar.barType) : null
-                const span = bar ? barSpanDays(bar) : 0
-                const barMinW = span * CW - 2
-                const barW = bar?.label ? Math.max(barMinW, bar.label.length * 7 + 10) : barMinW
-                const singleDay = bar ? isSingleDayBar(bar) : false
+                const visSpan = seg?.visSpan ?? 0
+                const maxW = (dates.length - di) * CW - 1
+                const barMinW = Math.min(visSpan * CW - 2, maxW)
+                const barW = bar?.label
+                  ? Math.min(Math.max(barMinW, bar.label.length * 7 + 10), maxW)
+                  : barMinW
 
                 return (
                   <td
@@ -245,10 +257,10 @@ export default function OverviewScheduleTable({
                       d.getDay() === 1 && 'border-l-2 border-l-gray-200',
                       editing && onTimelineClick && 'cursor-pointer hover:bg-blue-50/40',
                     )}
-                    style={{ width: CW, minWidth: CW, height: RH, overflow: 'visible' }}
+                    style={{ width: CW, minWidth: CW, height: RH, overflow: 'hidden' }}
                     onClick={editing && onTimelineClick ? (e) => onTimelineClick(row.modelId, kind, d, e) : undefined}
                   >
-                    {bar && bc && singleDay && (
+                    {bar && bc && seg?.singleDay && (
                       <div
                         className="absolute top-1 left-1/2 -translate-x-1/2 rounded px-1 py-0.5 text-[8px] font-bold leading-tight z-[5] pointer-events-none whitespace-nowrap"
                         style={{ backgroundColor: bc.bg, color: bc.text }}
@@ -257,10 +269,10 @@ export default function OverviewScheduleTable({
                         {bar.label}
                       </div>
                     )}
-                    {bar && bc && isBS && !singleDay && (
+                    {bar && bc && seg?.isVisStart && !seg.singleDay && (
                       <div
-                        className="absolute top-1 left-0 rounded-sm flex items-center z-[5] pointer-events-none overflow-visible"
-                        style={{ width: `${barW}px`, minWidth: `${barMinW}px`, height: RH - 8, backgroundColor: bc.bg }}
+                        className="absolute top-1 left-0 rounded-sm flex items-center z-[5] pointer-events-none"
+                        style={{ width: `${barW}px`, height: RH - 8, backgroundColor: bc.bg }}
                       >
                         {bar.label ? (
                           <span className="px-1 text-[8px] font-bold leading-none whitespace-nowrap" style={{ color: bc.text }}>
@@ -268,9 +280,6 @@ export default function OverviewScheduleTable({
                           </span>
                         ) : null}
                       </div>
-                    )}
-                    {bar && bc && !isBS && !singleDay && (
-                      <div className="absolute inset-y-1 inset-x-0 pointer-events-none z-[4]" style={{ backgroundColor: bc.bg }} />
                     )}
                     {di === todayOff && todayOff >= 0 && todayOff < dates.length && (
                       <div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-[2] pointer-events-none" style={{ transform: 'translateX(-50%)' }} />

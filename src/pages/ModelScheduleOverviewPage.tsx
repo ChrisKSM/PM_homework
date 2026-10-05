@@ -569,7 +569,7 @@ export default function ModelScheduleOverviewPage() {
           <div className="border border-surface-border rounded-xl bg-white p-8 text-center text-gray-500 text-sm">표시할 모델 데이터가 없습니다.</div>
         ) : (
           <div className="border border-surface-border rounded-xl bg-white">
-            <div className="overflow-x-auto" style={{ overflowY: 'visible' }}>
+            <div className="overflow-x-auto overflow-y-visible [&_table_tbody_td]:overflow-hidden">
               <OverviewScheduleTable
                 displayRows={displayRows}
                 dates={dates}
