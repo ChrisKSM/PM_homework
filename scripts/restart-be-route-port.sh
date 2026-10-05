@@ -54,11 +54,11 @@ echo "=== local $PORT ==="
 curl -s "http://127.0.0.1:${PORT}/api/jira/diagnose" | python3 -m json.tool 2>/dev/null | head -14
 
 echo ""
-echo "=== external (FE) ==="
-curl -s -o /dev/null -w "  issues/risks HTTP %{http_code}\n" \
-  "https://be-audio-test.apps.axstudio.lge.com/api/issues/risks" || true
-curl -s "https://be-audio-test.apps.axstudio.lge.com/api/jira/diagnose" \
-  | python3 -m json.tool 2>/dev/null | head -10 || true
+echo "=== 참고: pod 안에서 external URL curl (브라우저와 다를 수 있음) ==="
+curl -s -o /dev/null -w "  external issues/risks HTTP %{http_code}\n" \
+  "https://be-audio-test.apps.axstudio.lge.com/api/issues/risks" 2>/dev/null || true
+echo "  → local 8000 이 200이면 BE 정상. external 502는 pod 내부 hairpin일 수 있음."
+echo "  → **브라우저(FE) Network 탭** 으로 최종 확인하세요."
 
 echo ""
 echo "8200 dev uvicorn은 건드리지 않았습니다."
