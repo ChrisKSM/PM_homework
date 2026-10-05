@@ -1,12 +1,19 @@
 #!/bin/sh
-# react-audio FE — Worker Port BE URL 사용 (공용 be-audio-test token 없을 때)
+# react-audio FE pod — Worker Port BE URL (공용 be-audio-test token 없을 때)
 #
-# AX Studio Worker Port 예:
-#   https://be-audio-test--8000--seokmin-koh.apps.axstudio.lge.com
+# ⚠️ scripts/ 없으면 (최초 1회):
+#   git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
+#   git fetch github cursor/model-schedule-bar-label-fix-b14b
+#   git checkout github/cursor/model-schedule-bar-label-fix-b14b -- \
+#     scripts/patch-fe-be-worker-url.sh \
+#     src/api/client.ts
+#   chmod +x scripts/patch-fe-be-worker-url.sh
 #
 #   BE_WORKER_URL=https://be-audio-test--8000--seokmin-koh.apps.axstudio.lge.com \
 #     sh scripts/patch-fe-be-worker-url.sh
-#   npm run build && git push origin master
+#   npm run build
+#   git add .env public/workspace_env.js src/api/client.ts
+#   git commit -m "fix: FE BE URL → Worker Port" && git push origin master
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 
