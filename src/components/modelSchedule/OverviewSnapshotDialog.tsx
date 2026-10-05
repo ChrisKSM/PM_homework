@@ -101,9 +101,22 @@ export default function OverviewSnapshotDialog({
       })
       setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
     } catch (e: unknown) {
-      const err = e as { response?: { data?: { detail?: string } }; message?: string }
-      const detail = err?.response?.data?.detail || err?.message || '발송 실패'
-      setShareMsg({ type: 'err', text: String(detail) })
+      const err = e as {
+        response?: { status?: number; data?: { detail?: unknown } }
+        message?: string
+        code?: string
+      }
+      let detail = '발송 실패'
+      const raw = err?.response?.data?.detail
+      if (typeof raw === 'string') detail = raw
+      else if (Array.isArray(raw) && raw[0]?.msg) detail = String(raw[0].msg)
+      else if (err?.response?.status === 422)
+        detail = 'BE 구버전 — BE pod에서 apply-model-schedule-overview-be.sh 실행 후 uvicorn 재시작'
+      else if (err?.code === 'ERR_NETWORK' || err?.message === 'Network Error')
+        detail =
+          'Network Error — BE 응답 없음(타임아웃/게이트웨이). 메일은 발송됐을 수 있으니 수신함 확인'
+      else if (err?.message) detail = err.message
+      setShareMsg({ type: 'err', text: detail })
     } finally {
       setSharing(false)
     }
