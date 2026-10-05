@@ -5,75 +5,93 @@
       "category": "Sound Suite",
       "model": "H7_VI",
       "variant": "JDM B_HW",
-      "manufacturer": "Tymphany",
+      "manufacturer": "",
       "soc": "ax26sb",
-      "hwPm": "편인태",
-      "swPo": "김현자",
+      "hwPm": "",
+      "swPo": "",
       "swPm": "조성연",
-      "spec": "500W, 5.1.3 (9.1.6 Spatial)\nDolby Atmos, DAFC",
-      "pv": "26/11/30",
-      "mp": "26/12/14",
-      "ats": "27/2/8",
+      "spec": "500W, 5.1.3 \n(9.1.6 Spatial)\nDolby Atmos, DAFC",
+      "pv": "2026/11/30",
+      "mp": "2026/12/14",
+      "ats": "",
       "events": [
         {
           "name": "PrePV",
-          "start": "2026-10-01",
-          "end": "2026-10-20"
-        },
-        {
-          "name": "PV1",
-          "start": "2026-10-21",
-          "end": "2026-11-04"
-        },
-        {
-          "name": "PV2",
-          "start": "2026-11-05",
-          "end": "2026-12-13"
-        },
-        {
-          "name": "MP",
-          "start": "2026-12-14",
-          "end": "2027-01-31"
-        },
-        {
-          "name": "FC 1",
-          "start": "2026-10-15",
-          "end": "2026-10-23"
-        },
-        {
-          "name": "FC 2",
-          "start": "2026-10-30",
-          "end": "2026-11-06"
-        },
-        {
-          "name": "FC 3",
-          "start": "2026-11-12",
-          "end": "2026-11-16"
-        },
-        {
-          "name": "QP 1",
-          "start": "2026-11-19",
-          "end": "2026-11-27"
-        },
-        {
-          "name": "QP 2",
-          "start": "2026-12-07",
-          "end": "2026-12-11"
+          "start": "2026-08-13",
+          "end": "2026-08-21",
+          "kind": "hw"
         },
         {
           "name": "S I T1",
           "start": "2026-08-13",
-          "end": "2026-08-21"
+          "end": "2026-08-21",
+          "kind": "sw"
+        },
+        {
+          "name": "PV1",
+          "start": "2026-09-11",
+          "end": "2026-09-18",
+          "kind": "hw"
         },
         {
           "name": "S I T2",
           "start": "2026-09-11",
-          "end": "2026-09-18"
+          "end": "2026-09-18",
+          "kind": "sw"
+        },
+        {
+          "name": "PV2",
+          "start": "2026-09-29",
+          "end": "2026-10-08",
+          "kind": "hw"
         },
         {
           "name": "S I T3",
           "start": "2026-09-29",
-          "end": "2026-10-08"
+          "end": "2026-10-08",
+          "kind": "sw"
+        },
+        {
+          "name": "MP",
+          "start": "2026-10-15",
+          "end": "2026-10-23",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 1",
+          "start": "2026-10-15",
+          "end": "2026-10-23",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-10-30",
+          "end": "2026-11-06",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 2",
+          "start": "2026-10-30",
+          "end": "2026-11-06",
+          "kind": "sw"
+        },
+        {
+          "name": "FC 3",
+          "start": "2026-11-12",
+          "end": "2026-11-16",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 1",
+          "start": "2026-11-19",
+          "end": "2026-11-27",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 2",
+          "start": "2026-12-07",
+          "end": "2026-12-11",
+          "kind": "sw"
         }
       ]
     },
@@ -84,53 +102,73 @@
       "variant": "JDM Ca_HW",
       "manufacturer": "",
       "soc": "ax26sb",
-      "hwPm": "한규민",
+      "hwPm": "",
       "swPo": "",
       "swPm": "조성연",
-      "spec": "300W, 3.1.3 (7.1.5 Spatial)\nDolby Atmos, DAFC",
-      "pv": "27/12/30",
-      "mp": "27/1/11",
-      "ats": "27/3/8",
+      "spec": "300W, 3.1.3\n(7.1.5 Spatial Audio)\nDolby Atmos, DAFC",
+      "pv": "2026/12/30",
+      "mp": "2027/1/11",
+      "ats": "",
       "events": [
         {
-          "name": "PV1",
-          "start": "2026-10-01",
-          "end": "2026-11-25"
-        },
-        {
-          "name": "PV2",
-          "start": "2026-11-26",
-          "end": "2027-01-10"
-        },
-        {
-          "name": "MP",
-          "start": "2027-01-11",
-          "end": "2027-01-31"
+          "name": "PrePV",
+          "start": "2026-10-21",
+          "end": "2026-10-28",
+          "kind": "hw"
         },
         {
           "name": "FC 1",
           "start": "2026-10-21",
-          "end": "2026-10-28"
+          "end": "2026-10-28",
+          "kind": "sw"
+        },
+        {
+          "name": "PV1",
+          "start": "2026-11-06",
+          "end": "2026-11-12",
+          "kind": "hw"
         },
         {
           "name": "FC 2",
           "start": "2026-11-06",
-          "end": "2026-11-12"
+          "end": "2026-11-12",
+          "kind": "sw"
+        },
+        {
+          "name": "PV2",
+          "start": "2026-11-20",
+          "end": "2026-11-24",
+          "kind": "hw"
         },
         {
           "name": "FC 3",
           "start": "2026-11-20",
-          "end": "2026-11-24"
+          "end": "2026-11-24",
+          "kind": "sw"
+        },
+        {
+          "name": "MP",
+          "start": "2026-12-03",
+          "end": "2026-12-11",
+          "kind": "hw"
         },
         {
           "name": "QP 1",
           "start": "2026-12-03",
-          "end": "2026-12-11"
+          "end": "2026-12-11",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-12-21",
+          "end": "2026-12-23",
+          "kind": "hw"
         },
         {
           "name": "QP 2",
           "start": "2026-12-21",
-          "end": "2026-12-23"
+          "end": "2026-12-23",
+          "kind": "sw"
         }
       ]
     },
@@ -141,68 +179,91 @@
       "variant": "JDM B_HW",
       "manufacturer": "",
       "soc": "ax26sb",
-      "hwPm": "박현구",
+      "hwPm": "",
       "swPo": "",
       "swPm": "박윤규/이마을",
-      "spec": "100W, 2.1.1, DAFC",
-      "pv": "27/2/16",
-      "mp": "27/2/28",
-      "ats": "27/4/25",
+      "spec": "100W, \n2.1.1, \nDAFC",
+      "pv": "2027/2/16",
+      "mp": "2027/2/28",
+      "ats": "",
       "events": [
         {
-          "name": "PV1",
-          "start": "2026-10-01",
-          "end": "2026-11-09"
-        },
-        {
-          "name": "PV2",
-          "start": "2026-11-10",
-          "end": "2026-12-27"
-        },
-        {
-          "name": "MP",
-          "start": "2026-12-28",
-          "end": "2027-01-31"
-        },
-        {
-          "name": "FC 1",
-          "start": "2026-11-02",
-          "end": "2026-11-10"
-        },
-        {
-          "name": "FC 2",
-          "start": "2026-11-18",
-          "end": "2026-11-24"
-        },
-        {
-          "name": "FC 3",
-          "start": "2026-12-02",
-          "end": "2026-12-04"
-        },
-        {
-          "name": "QP 1",
-          "start": "2026-12-14",
-          "end": "2026-12-28"
-        },
-        {
-          "name": "QP 2",
-          "start": "2027-01-06",
-          "end": "2027-01-13"
-        },
-        {
-          "name": "QP 3",
-          "start": "2027-01-21",
-          "end": "2027-01-27"
+          "name": "PrePV",
+          "start": "2026-10-12",
+          "end": "2026-10-16",
+          "kind": "hw"
         },
         {
           "name": "SIT 1",
           "start": "2026-10-12",
-          "end": "2026-10-16"
+          "end": "2026-10-16",
+          "kind": "sw"
+        },
+        {
+          "name": "PV1",
+          "start": "2026-10-21",
+          "end": "2026-10-23",
+          "kind": "hw"
         },
         {
           "name": "SIT 2",
           "start": "2026-10-21",
-          "end": "2026-10-23"
+          "end": "2026-10-23",
+          "kind": "sw"
+        },
+        {
+          "name": "PV2",
+          "start": "2026-11-02",
+          "end": "2026-11-10",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 1",
+          "start": "2026-11-02",
+          "end": "2026-11-10",
+          "kind": "sw"
+        },
+        {
+          "name": "MP",
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 2",
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-12-02",
+          "end": "2026-12-04",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 3",
+          "start": "2026-12-02",
+          "end": "2026-12-04",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 1",
+          "start": "2026-12-14",
+          "end": "2026-12-28",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 2",
+          "start": "2027-01-06",
+          "end": "2027-01-13",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 3",
+          "start": "2027-01-21",
+          "end": "2027-01-27",
+          "kind": "sw"
         }
       ]
     },
@@ -213,28 +274,91 @@
       "variant": "JDM Ca_HW",
       "manufacturer": "",
       "soc": "ax26sb",
-      "hwPm": "박현구",
+      "hwPm": "",
       "swPo": "",
       "swPm": "박윤규/이마을",
       "spec": "60W, 1.1.1, DAFC",
-      "pv": "27/2/28",
-      "mp": "27/2/28",
-      "ats": "27/4/25",
+      "pv": "2027/2/16",
+      "mp": "2027/2/28",
+      "ats": "",
       "events": [
         {
+          "name": "PrePV",
+          "start": "2026-10-12",
+          "end": "2026-10-16",
+          "kind": "hw"
+        },
+        {
+          "name": "SIT 1",
+          "start": "2026-10-12",
+          "end": "2026-10-16",
+          "kind": "sw"
+        },
+        {
           "name": "PV1",
-          "start": "2026-10-01",
-          "end": "2026-11-09"
+          "start": "2026-10-21",
+          "end": "2026-10-23",
+          "kind": "hw"
+        },
+        {
+          "name": "SIT 2",
+          "start": "2026-10-21",
+          "end": "2026-10-23",
+          "kind": "sw"
         },
         {
           "name": "PV2",
-          "start": "2026-11-10",
-          "end": "2026-12-27"
+          "start": "2026-11-02",
+          "end": "2026-11-10",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 1",
+          "start": "2026-11-02",
+          "end": "2026-11-10",
+          "kind": "sw"
         },
         {
           "name": "MP",
-          "start": "2026-12-28",
-          "end": "2027-01-31"
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 2",
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-12-02",
+          "end": "2026-12-04",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 3",
+          "start": "2026-12-02",
+          "end": "2026-12-04",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 1",
+          "start": "2026-12-14",
+          "end": "2026-12-28",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 2",
+          "start": "2027-01-06",
+          "end": "2027-01-13",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 3",
+          "start": "2027-01-21",
+          "end": "2027-01-27",
+          "kind": "sw"
         }
       ]
     },
@@ -242,66 +366,76 @@
       "id": "ov-w5",
       "category": "Sound Suite",
       "model": "W5",
-      "variant": "JDM B_HW",
+      "variant": "JDM Ca_HW",
       "manufacturer": "",
       "soc": "BL618M",
-      "hwPm": "한규민",
-      "swPo": "조용승",
+      "hwPm": "",
+      "swPo": "",
       "swPm": "조용승",
-      "spec": "120W+120W 서브우퍼",
-      "pv": "27/1/10",
-      "mp": "27/1/22",
-      "ats": "27/3/19",
+      "spec": "120W+120W\n서브우퍼",
+      "pv": "2027/1/10",
+      "mp": "2027/2/28",
+      "ats": "",
       "events": [
         {
           "name": "PrePV",
-          "start": "2026-10-01",
-          "end": "2026-10-15"
-        },
-        {
-          "name": "PV1",
-          "start": "2026-10-16",
-          "end": "2026-12-04"
-        },
-        {
-          "name": "PV2",
-          "start": "2026-12-05",
-          "end": "2027-01-21"
-        },
-        {
-          "name": "MP",
-          "start": "2027-01-22",
-          "end": "2027-01-31"
+          "start": "2026-10-12",
+          "end": "2026-10-16",
+          "kind": "hw"
         },
         {
           "name": "Dev Test",
-          "start": "2026-09-07",
-          "end": "2026-10-16"
+          "start": "2026-10-12",
+          "end": "2026-10-16",
+          "kind": "sw"
+        },
+        {
+          "name": "PV1",
+          "start": "2026-10-21",
+          "end": "2026-10-23",
+          "kind": "hw"
         },
         {
           "name": "FC 1",
-          "start": "2026-10-19",
-          "end": "2026-10-30"
+          "start": "2026-10-21",
+          "end": "2026-10-23",
+          "kind": "sw"
+        },
+        {
+          "name": "PV2",
+          "start": "2026-11-02",
+          "end": "2026-11-10",
+          "kind": "hw"
         },
         {
           "name": "FC 2",
-          "start": "2026-11-23",
-          "end": "2026-12-03"
+          "start": "2026-11-02",
+          "end": "2026-11-10",
+          "kind": "sw"
+        },
+        {
+          "name": "MP",
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "hw"
         },
         {
           "name": "QP 1",
-          "start": "2026-12-04",
-          "end": "2026-12-18"
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-12-02",
+          "end": "2026-12-04",
+          "kind": "hw"
         },
         {
           "name": "QP 2",
-          "start": "2027-01-04",
-          "end": "2027-01-08"
-        },
-        {
-          "name": "MP approval",
-          "start": "2027-01-11",
-          "end": "2027-01-22"
+          "start": "2026-12-02",
+          "end": "2026-12-04",
+          "kind": "sw"
         }
       ]
     },
@@ -314,96 +448,41 @@
       "soc": "MT8532",
       "hwPm": "",
       "swPo": "",
-      "swPm": "박윤규/이마을",
-      "spec": "500W, 5.1.3 (9.1.6 Spatial)\nDolby Atmos, DAFC",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "swPm": "이홍순",
+      "spec": "500W, 5.1.3 \n(9.1.6 Spatial)\nDolby Atmos, DAFC",
+      "pv": "2027/1/10",
+      "mp": "2027/2/28",
+      "ats": "",
       "events": [
-        {
-          "name": "Dev Test",
-          "start": "2026-07-21",
-          "end": "2026-07-22"
-        },
-        {
-          "name": "QP 1",
-          "start": "2026-08-24",
-          "end": "2026-08-26"
-        },
-        {
-          "name": "QP 2",
-          "start": "2026-08-28",
-          "end": "2026-09-02"
-        },
-        {
-          "name": "Pre QP1",
-          "start": "2026-07-22",
-          "end": "2026-07-27"
-        },
-        {
-          "name": "Pre QP2",
-          "start": "2026-08-11",
-          "end": "2026-08-13"
-        },
-        {
-          "name": "Pre QP3",
-          "start": "2026-08-20",
-          "end": "2026-08-20"
-        },
-        {
-          "name": "Dev Test",
-          "start": "2026-08-12",
-          "end": "2026-09-07"
-        },
-        {
-          "name": "QP 1",
-          "start": "2026-09-22",
-          "end": "2026-09-23"
-        },
-        {
-          "name": "Pre QP1",
-          "start": "2026-09-08",
-          "end": "2026-09-15"
-        },
-        {
-          "name": "Pre QP2",
-          "start": "2026-09-17",
-          "end": "2026-09-19"
-        },
-        {
-          "name": "SU Test",
-          "start": "2026-10-02",
-          "end": "2026-10-02"
-        },
-        {
-          "name": "QP 1",
-          "start": "2026-10-01",
-          "end": "2026-10-02"
-        },
-        {
-          "name": "SU Test",
-          "start": "2026-11-27",
-          "end": "2026-11-27"
-        },
-        {
-          "name": "QP 1",
-          "start": "2026-11-17",
-          "end": "2026-11-20"
-        },
-        {
-          "name": "QP 2",
-          "start": "2026-11-24",
-          "end": "2026-11-26"
-        },
         {
           "name": "PreQP1",
           "start": "2026-11-04",
-          "end": "2026-11-09"
+          "end": "2026-11-09",
+          "kind": "sw"
         },
         {
           "name": "PreQP2",
           "start": "2026-11-11",
-          "end": "2026-11-13"
+          "end": "2026-11-13",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 1",
+          "start": "2026-11-17",
+          "end": "2026-11-20",
+          "kind": "sw"
+        },
+        {
+          "name": "QP 2",
+          "start": "2026-11-24",
+          "end": "2026-11-26",
+          "kind": "sw"
+        },
+        {
+          "name": "SU Test",
+          "start": "2026-11-27",
+          "end": "2026-11-27",
+          "kind": "sw"
         }
       ]
     },
@@ -417,30 +496,40 @@
       "hwPm": "",
       "swPo": "",
       "swPm": "박윤규/이마을",
-      "spec": "100W, 2.1.1, DAFC",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "100W, \n2.1.1, \nDAFC",
+      "pv": "2027/1/10",
+      "mp": "2027/2/28",
+      "ats": "",
       "events": [
         {
-          "name": "Dev Test",
-          "start": "2026-09-04",
-          "end": "2026-09-08"
+          "name": "PreQP1",
+          "start": "2026-11-04",
+          "end": "2026-11-09",
+          "kind": "sw"
+        },
+        {
+          "name": "PreQP2",
+          "start": "2026-11-11",
+          "end": "2026-11-13",
+          "kind": "sw"
         },
         {
           "name": "QP 1",
-          "start": "2026-09-09",
-          "end": "2026-09-17"
+          "start": "2026-11-17",
+          "end": "2026-11-20",
+          "kind": "sw"
         },
         {
           "name": "QP 2",
-          "start": "2026-09-18",
-          "end": "2026-09-23"
+          "start": "2026-11-24",
+          "end": "2026-11-26",
+          "kind": "sw"
         },
         {
           "name": "SU Test",
           "start": "2026-11-27",
-          "end": "2026-11-27"
+          "end": "2026-11-27",
+          "kind": "sw"
         }
       ]
     },
@@ -449,70 +538,87 @@
       "category": "사운드바(Wi-Fi)",
       "model": "S90C",
       "variant": "JDM B_HW",
-      "manufacturer": "Tonly",
-      "soc": "Amlogic",
-      "hwPm": "이현인",
-      "swPo": "김현자",
+      "manufacturer": "",
+      "soc": "ax26sb",
+      "hwPm": "",
+      "swPo": "",
       "swPm": "이홍순",
-      "spec": "710W 5.1.3Atmos, Wi-FiDTS:X",
-      "pv": "27/1/13",
-      "mp": "27/1/25",
-      "ats": "27/3/22",
+      "spec": "710W 5.1.3\nAtmos, Wi-Fi\nDTS:X",
+      "pv": "2027/1/13",
+      "mp": "2027/1/25",
+      "ats": "",
       "events": [
         {
           "name": "PrePV",
-          "start": "2026-10-01",
-          "end": "2026-11-06"
-        },
-        {
-          "name": "PV1",
-          "start": "2026-11-07",
-          "end": "2026-12-19"
-        },
-        {
-          "name": "PV2",
-          "start": "2026-12-20",
-          "end": "2027-01-24"
-        },
-        {
-          "name": "MP",
-          "start": "2027-01-25",
-          "end": "2027-01-31"
+          "start": "2026-10-30",
+          "end": "2026-11-09",
+          "kind": "hw"
         },
         {
           "name": "FC 1",
           "start": "2026-10-30",
-          "end": "2026-11-09"
+          "end": "2026-11-09",
+          "kind": "sw"
+        },
+        {
+          "name": "PV1",
+          "start": "2026-11-18",
+          "end": "2026-11-24",
+          "kind": "hw"
         },
         {
           "name": "FC 2",
           "start": "2026-11-18",
-          "end": "2026-11-24"
+          "end": "2026-11-24",
+          "kind": "sw"
+        },
+        {
+          "name": "PV2",
+          "start": "2026-12-01",
+          "end": "2026-12-04",
+          "kind": "hw"
         },
         {
           "name": "FC 3",
           "start": "2026-12-01",
-          "end": "2026-12-04"
+          "end": "2026-12-04",
+          "kind": "sw"
+        },
+        {
+          "name": "MP",
+          "start": "2026-12-14",
+          "end": "2026-12-24",
+          "kind": "hw"
         },
         {
           "name": "QP 1",
           "start": "2026-12-14",
-          "end": "2026-12-24"
+          "end": "2026-12-24",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2027-01-05",
+          "end": "2027-01-12",
+          "kind": "hw"
         },
         {
           "name": "QP 2",
           "start": "2027-01-05",
-          "end": "2027-01-12"
+          "end": "2027-01-12",
+          "kind": "sw"
         },
         {
           "name": "SIT1",
           "start": "2026-10-06",
-          "end": "2026-10-13"
+          "end": "2026-10-13",
+          "kind": "sw"
         },
         {
           "name": "SIT2",
           "start": "2026-10-21",
-          "end": "2026-10-23"
+          "end": "2026-10-23",
+          "kind": "sw"
         }
       ]
     },
@@ -521,30 +627,75 @@
       "category": "사운드바(BT)",
       "model": "S80C",
       "variant": "JDM_B_HW",
-      "manufacturer": "Tonly",
+      "manufacturer": "",
       "soc": "MLC3760",
-      "hwPm": "이규봉",
-      "swPo": "고석민",
+      "hwPm": "",
+      "swPo": "",
       "swPm": "고석민/윤필규",
-      "spec": "590W, 3.1.3Atmos, BT, DTS:X",
-      "pv": "27/12/14",
-      "mp": "27/12/28",
-      "ats": "27/2/22",
+      "spec": "590W, 3.1.3\nAtmos, BT, DTS:X",
+      "pv": "2026/12/14",
+      "mp": "2026/12/28",
+      "ats": "",
       "events": [
         {
+          "name": "PrePV",
+          "start": "2026-08-25",
+          "end": "2026-09-02",
+          "kind": "hw"
+        },
+        {
+          "name": "Dev Test",
+          "start": "2026-08-25",
+          "end": "2026-09-02",
+          "kind": "sw"
+        },
+        {
           "name": "PV1",
-          "start": "2026-10-01",
-          "end": "2026-11-09"
+          "start": "2026-09-21",
+          "end": "2026-10-02",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 1",
+          "start": "2026-09-21",
+          "end": "2026-10-02",
+          "kind": "sw"
         },
         {
           "name": "PV2",
-          "start": "2026-11-10",
-          "end": "2026-12-27"
+          "start": "2026-10-08",
+          "end": "2026-10-26",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 2",
+          "start": "2026-10-08",
+          "end": "2026-10-26",
+          "kind": "sw"
         },
         {
           "name": "MP",
-          "start": "2026-12-28",
-          "end": "2027-01-31"
+          "start": "2026-11-24",
+          "end": "2026-12-01",
+          "kind": "hw"
+        },
+        {
+          "name": "QP 1",
+          "start": "2026-11-24",
+          "end": "2026-12-01",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-12-07",
+          "end": "2026-12-09",
+          "kind": "hw"
+        },
+        {
+          "name": "QP 2",
+          "start": "2026-12-07",
+          "end": "2026-12-09",
+          "kind": "sw"
         }
       ]
     },
@@ -553,25 +704,75 @@
       "category": "Accessory",
       "model": "CB-SH",
       "variant": "JDM Cc_ACC",
-      "manufacturer": "Tonly",
-      "soc": "ES8680",
-      "hwPm": "편인태",
+      "manufacturer": "",
+      "soc": "ESS",
+      "hwPm": "",
       "swPo": "",
       "swPm": "고석민/윤필규",
-      "spec": "HDMI In 2ea (4:4:4)HDMI out 1eaHDMI eARC out 1eaOptical In 1ea",
-      "pv": "26/11/17",
-      "mp": "26/11/27",
-      "ats": "27/1/22",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
+          "name": "PrePV",
+          "start": "2026-08-25",
+          "end": "2026-09-02",
+          "kind": "hw"
+        },
+        {
+          "name": "Dev Test",
+          "start": "2026-08-25",
+          "end": "2026-09-02",
+          "kind": "sw"
+        },
+        {
+          "name": "PV1",
+          "start": "2026-09-21",
+          "end": "2026-10-02",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 1",
+          "start": "2026-09-21",
+          "end": "2026-10-02",
+          "kind": "sw"
+        },
+        {
           "name": "PV2",
-          "start": "2026-10-01",
-          "end": "2026-11-26"
+          "start": "2026-10-08",
+          "end": "2026-10-26",
+          "kind": "hw"
+        },
+        {
+          "name": "FC 2",
+          "start": "2026-10-08",
+          "end": "2026-10-26",
+          "kind": "sw"
         },
         {
           "name": "MP",
-          "start": "2026-11-27",
-          "end": "2027-01-31"
+          "start": "2026-11-24",
+          "end": "2026-12-01",
+          "kind": "hw"
+        },
+        {
+          "name": "QP 1",
+          "start": "2026-11-24",
+          "end": "2026-12-01",
+          "kind": "sw"
+        },
+        {
+          "name": "ATS",
+          "start": "2026-12-07",
+          "end": "2026-12-09",
+          "kind": "hw"
+        },
+        {
+          "name": "QP 2",
+          "start": "2026-12-07",
+          "end": "2026-12-09",
+          "kind": "sw"
         }
       ]
     },
@@ -581,19 +782,20 @@
       "model": "Power9000",
       "variant": "MR_Minor",
       "manufacturer": "",
-      "soc": "",
+      "soc": "MLC3735",
       "hwPm": "",
       "swPo": "",
       "swPm": "오제준/박시형",
-      "spec": "",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
           "name": "QP 1",
           "start": "2026-09-30",
-          "end": "2026-10-05"
+          "end": "2026-10-05",
+          "kind": "sw"
         }
       ]
     },
@@ -603,19 +805,20 @@
       "model": "Stage501",
       "variant": "MR_Minor",
       "manufacturer": "",
-      "soc": "",
+      "soc": "MLC3735",
       "hwPm": "",
       "swPo": "",
       "swPm": "오제준/박시형",
-      "spec": "",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
           "name": "QP 1",
           "start": "2026-09-30",
-          "end": "2026-10-05"
+          "end": "2026-10-05",
+          "kind": "sw"
         }
       ]
     },
@@ -625,24 +828,26 @@
       "model": "Blast",
       "variant": "MR_Minor",
       "manufacturer": "",
-      "soc": "",
+      "soc": "BES2710",
       "hwPm": "",
       "swPo": "",
       "swPm": "이재철/나택수",
-      "spec": "",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
           "name": "Dev Test",
           "start": "2026-09-28",
-          "end": "2026-09-29"
+          "end": "2026-09-29",
+          "kind": "sw"
         },
         {
           "name": "QP 1",
           "start": "2026-09-29",
-          "end": "2026-10-01"
+          "end": "2026-10-01",
+          "kind": "sw"
         }
       ]
     },
@@ -652,19 +857,20 @@
       "model": "Bounce",
       "variant": "MR_Minor",
       "manufacturer": "",
-      "soc": "",
+      "soc": "BES2710",
       "hwPm": "",
       "swPo": "",
       "swPm": "이재철/나택수",
-      "spec": "",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
           "name": "QP 1",
           "start": "2026-10-14",
-          "end": "2026-10-20"
+          "end": "2026-10-20",
+          "kind": "sw"
         }
       ]
     },
@@ -674,24 +880,26 @@
       "model": "Rock",
       "variant": "MR_Minor",
       "manufacturer": "",
-      "soc": "",
+      "soc": "BES2710",
       "hwPm": "",
       "swPo": "",
       "swPm": "이재철/나택수",
-      "spec": "",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
           "name": "Dev Test",
           "start": "2026-10-01",
-          "end": "2026-10-02"
+          "end": "2026-10-02",
+          "kind": "sw"
         },
         {
           "name": "QP 1",
           "start": "2026-10-06",
-          "end": "2026-10-13"
+          "end": "2026-10-13",
+          "kind": "sw"
         }
       ]
     },
@@ -701,24 +909,55 @@
       "model": "XT7S",
       "variant": "MR_Minor",
       "manufacturer": "",
-      "soc": "",
+      "soc": "QCC5125",
       "hwPm": "",
       "swPo": "",
       "swPm": "이재철/나택수",
-      "spec": "",
-      "pv": "NA",
-      "mp": "NA",
-      "ats": "NA",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
       "events": [
         {
           "name": "Dev Test",
           "start": "2026-09-01",
-          "end": "2026-09-04"
+          "end": "2026-09-04",
+          "kind": "sw"
         },
         {
           "name": "QP 1",
           "start": "2026-09-16",
-          "end": "2026-09-28"
+          "end": "2026-09-28",
+          "kind": "sw"
+        }
+      ]
+    },
+    {
+      "id": "ov-pc",
+      "category": "이어버드",
+      "model": "윈도우PC 앱",
+      "variant": "MR_Minor",
+      "manufacturer": "",
+      "soc": "App",
+      "hwPm": "",
+      "swPo": "",
+      "swPm": "조용승",
+      "spec": "HDMI In 2ea (4:4:4)\nHDMI out 1ea\nHDMI eARC out 1ea\nOptical In 1ea",
+      "pv": "2026/11/17",
+      "mp": "2026/11/27",
+      "ats": "",
+      "events": [
+        {
+          "name": "QP 1",
+          "start": "2026-10-20",
+          "end": "2026-10-22",
+          "kind": "sw"
+        },
+        {
+          "name": "SU Test",
+          "start": "2026-10-23",
+          "end": "2026-10-23",
+          "kind": "sw"
         }
       ]
     }
