@@ -106,23 +106,55 @@ export function inferBarType(eventName: string): OverviewBarType {
   return 'default'
 }
 
+function isMpHwBar(barType: OverviewBarType, name: string): boolean {
+  if (barType === 'mp') return true
+  const n = name.toLowerCase().replace(/\s+/g, '')
+  return n === 'mp' || n.includes('mpapproval')
+}
+
+/** HW 타임라인: MP 이후 이벤트는 표시하지 않음 (MP가 마지막) */
+export function filterEventsForTimeline(
+  events: OverviewEvent[] | null | undefined,
+  kindFilter?: OverviewEventKind,
+): OverviewEvent[] {
+  let list = (events ?? []).filter(isValidOverviewEvent)
+  if (kindFilter) list = list.filter((e) => classifyEventKind(e.name, e.kind) === kindFilter)
+
+  if (kindFilter === 'hw') {
+    const mpIdx = list.findIndex((e) => isMpHwBar(e.barType ?? inferBarType(e.name), e.name))
+    if (mpIdx >= 0) list = list.slice(0, mpIdx + 1)
+  }
+  return list
+}
+
 export function eventsToBars(
   events: OverviewEvent[] | null | undefined,
   kindFilter?: OverviewEventKind,
 ): OverviewScheduleBar[] {
-  return (events ?? [])
-    .filter(isValidOverviewEvent)
-    .map((e) => {
-      const kind = classifyEventKind(e.name, e.kind)
-      return {
-        start: e.start.slice(0, 10),
-        end: (e.end || e.start).slice(0, 10),
-        label: e.name.trim(),
-        barType: e.barType ?? inferBarType(e.name),
-        kind,
-      }
-    })
-    .filter((b) => !kindFilter || b.kind === kindFilter)
+  const filtered = filterEventsForTimeline(events, kindFilter)
+  const mpDay =
+    kindFilter === 'hw'
+      ? filtered.find((e) => isMpHwBar(e.barType ?? inferBarType(e.name), e.name))?.start.slice(0, 10) ?? null
+      : null
+
+  return filtered.map((e) => {
+    const kind = classifyEventKind(e.name, e.kind)
+    const barType = e.barType ?? inferBarType(e.name)
+    let start = e.start.slice(0, 10)
+    let end = (e.end || e.start).slice(0, 10)
+    if (kind === 'hw' && isMpHwBar(barType, e.name)) {
+      end = start
+    } else if (kind === 'hw' && mpDay && end > mpDay) {
+      end = mpDay
+    }
+    return {
+      start,
+      end,
+      label: e.name.trim(),
+      barType,
+      kind,
+    }
+  })
 }
 
 export function prepareOverviewModels(models: OverviewModel[]): OverviewModel[] {

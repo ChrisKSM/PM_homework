@@ -1,18 +1,18 @@
 import type { OverviewBarType, OverviewEventKind } from '../types/modelScheduleOverview'
 
-/** HW Event (I~K) — 주황/하늘/녹색 계열 */
+/** HW Event (I~K) — 회색톤 (PrePV/PV/MP) */
 export const HW_BAR_STYLE: Record<OverviewBarType, { bg: string; text: string }> = {
-  prepv: { bg: '#FB923C', text: '#fff' },
-  pv: { bg: '#0EA5E9', text: '#fff' },
-  mp: { bg: '#16A34A', text: '#fff' },
-  ats: { bg: '#64748B', text: '#fff' },
-  sit: { bg: '#CBD5E1', text: '#334155' },
-  dev_test: { bg: '#CBD5E1', text: '#334155' },
-  fc: { bg: '#CBD5E1', text: '#334155' },
-  preqp: { bg: '#CBD5E1', text: '#334155' },
-  qp: { bg: '#CBD5E1', text: '#334155' },
-  su: { bg: '#CBD5E1', text: '#334155' },
-  default: { bg: '#94A3B8', text: '#fff' },
+  prepv: { bg: '#9CA3AF', text: '#fff' },
+  pv: { bg: '#6B7280', text: '#fff' },
+  mp: { bg: '#4B5563', text: '#fff' },
+  ats: { bg: '#D1D5DB', text: '#374151' },
+  sit: { bg: '#D1D5DB', text: '#374151' },
+  dev_test: { bg: '#D1D5DB', text: '#374151' },
+  fc: { bg: '#D1D5DB', text: '#374151' },
+  preqp: { bg: '#D1D5DB', text: '#374151' },
+  qp: { bg: '#D1D5DB', text: '#374151' },
+  su: { bg: '#D1D5DB', text: '#374151' },
+  default: { bg: '#9CA3AF', text: '#fff' },
 }
 
 /** SW Event (L~N) — SIT/FC/QP 등 구분 */
