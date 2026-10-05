@@ -4,7 +4,7 @@ Jira Dashboard Backend — FastAPI 메인 애플리케이션
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import settings
+from config import effective_cors_origins, settings
 from cache import clear_cache
 from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan, mr_quality
 
@@ -19,7 +19,7 @@ app = FastAPI(
 # CORS — React FE 도메인 허용 (config.CORS_ORIGINS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
+    allow_origins=effective_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
