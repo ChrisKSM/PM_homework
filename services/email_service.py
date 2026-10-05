@@ -83,7 +83,9 @@ def send_html_email(*, subject: str, html_body: str, recipients: list[str] | Non
     if not settings.smtp_host:
         raise ValueError("SMTP_HOST가 설정되지 않았습니다.")
 
-    sender = settings.smtp_from or settings.smtp_user or "DL-webOS_PMO-AudioSWPO@lge.com"
+    sender = _normalize_sender(
+        settings.smtp_from or settings.smtp_user or "DL-webOS_PMO-AudioSWPO@lge.com"
+    )
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
