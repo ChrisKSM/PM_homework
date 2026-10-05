@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Loader2, Mail, X } from 'lucide-react'
 import clsx from 'clsx'
 import type { OverviewModel } from '../../types/modelScheduleOverview'
 import { expandOverviewToDisplayRows } from '../../utils/modelScheduleOverviewRows'
+import { captureOverviewPageImages } from '../../utils/captureOverviewPages'
 import { modelScheduleApi } from '../../api/modelScheduleApi'
 import OverviewScheduleTable from './OverviewScheduleTable'
 
@@ -42,6 +43,10 @@ export default function OverviewSnapshotDialog({
 }) {
   const pages = useMemo(() => splitModelsIntoPages(models), [models])
   const allDisplayRows = useMemo(() => expandOverviewToDisplayRows(models), [models])
+  const pageDisplayRows = useMemo(
+    () => pages.map((pm) => expandOverviewToDisplayRows(pm)),
+    [pages],
+  )
   const [page, setPage] = useState(0)
   const [shareDev, setShareDev] = useState(true)
   const [sharing, setSharing] = useState(false)
@@ -78,10 +83,18 @@ export default function OverviewSnapshotDialog({
     setSharing(true)
     setShareMsg(null)
     try {
+      let pageImages: Array<{ page: number; data: string }> = []
+      try {
+        pageImages = await captureOverviewPageImages(pageDisplayRows, dates, todayOff)
+      } catch (capErr) {
+        console.warn('overview snapshot capture failed:', capErr)
+      }
+
       const res = await modelScheduleApi.shareOverviewSnapshot({
         period_label: periodLabel,
         dates: dates.map(toISO),
         models,
+        page_images: pageImages.length ? pageImages : undefined,
         display_rows: allDisplayRows.map((r) => ({
           modelId: r.modelId,
           category: r.category,

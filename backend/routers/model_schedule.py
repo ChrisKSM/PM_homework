@@ -7,8 +7,13 @@ from typing import Any
 
 from config import settings, smtp_is_configured
 from services import mongo_helper
-from services.email_service import send_html_email
-from services.overview_snapshot_email import build_overview_snapshot_html, build_overview_subject
+from services.email_service import decode_page_image_data, send_html_email, send_plain_and_html_email
+from services.overview_snapshot_email import (
+    build_overview_plain_text,
+    build_overview_snapshot_html,
+    build_overview_subject,
+    _split_model_pages,
+)
 from services.schedule_snapshot_email import build_snapshot_html, build_snapshot_subject
 
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
@@ -25,6 +30,11 @@ class OverviewSaveRequest(BaseModel):
     models: list[dict[str, Any]]
 
 
+class OverviewPageImage(BaseModel):
+    page: int = Field(..., ge=1, description="1-based page number")
+    data: str = Field(..., description="PNG base64 (data:image/png;base64,... 또는 raw)")
+
+
 class ScheduleShareRequest(BaseModel):
     period_label: str = Field(..., description="예: 9/15 ~ 10/26")
     dates: list[str] = Field(..., description="Gantt 열 날짜 YYYY-MM-DD")
@@ -35,6 +45,7 @@ class ScheduleShareRequest(BaseModel):
     )
     models: list[dict[str, Any]] | None = Field(default=None, description="전 모델 일정 models")
     display_rows: list[dict[str, Any]] | None = Field(default=None, description="전 모델 일정 display_rows")
+    page_images: list[OverviewPageImage] | None = Field(default=None, description="overview snapshot PNG")
     audiences: list[str] = Field(..., description="DQA, 개발 — 하나 이상")
     recipients: list[str] | None = Field(default=None, description="테스트용 수신자 override")
 
@@ -44,6 +55,10 @@ class OverviewShareRequest(BaseModel):
     dates: list[str]
     models: list[dict[str, Any]]
     display_rows: list[dict[str, Any]]
+    page_images: list[OverviewPageImage] | None = Field(
+        default=None,
+        description="Page 1/2 snapshot PNG (FE html2canvas)",
+    )
     audiences: list[str] = Field(..., description="개발 (전 모델 일정은 개발만)")
     recipients: list[str] | None = Field(default=None, description="테스트용 수신자 override")
 
@@ -171,6 +186,83 @@ def _is_overview_share(req: ScheduleShareRequest) -> bool:
     return req.snapshot_type == "overview" or (req.models is not None and req.display_rows is not None)
 
 
+def _overview_page_images_raw(page_images: list[OverviewPageImage] | None) -> list[dict[str, Any]]:
+    if not page_images:
+        return []
+    return [{"page": img.page, "data": img.data} for img in page_images]
+
+
+def _send_overview_share_email(
+    *,
+    req: ScheduleShareRequest | OverviewShareRequest,
+    audiences: set[str],
+) -> dict[str, Any]:
+    page_total = len(_split_model_pages(req.models or []))
+    page_images_raw = _overview_page_images_raw(getattr(req, "page_images", None))
+    has_images = bool(page_images_raw)
+
+    subject = build_overview_subject(date.today())
+    plain = build_overview_plain_text(
+        period_label=req.period_label,
+        models=req.models or [],
+        page_total=page_total,
+        has_attachments=has_images,
+    )
+    html = build_overview_snapshot_html(
+        period_label=req.period_label,
+        dates=req.dates,
+        models=req.models or [],
+        display_rows=req.display_rows or [],
+        audiences=sorted(audiences),
+        page_images=page_images_raw,
+    )
+
+    inline: list[tuple[str, bytes, str]] = []
+    attach: list[tuple[str, bytes, str]] = []
+    for img in page_images_raw:
+        page_no = int(img.get("page", 0))
+        if page_no < 1:
+            continue
+        try:
+            raw = decode_page_image_data(str(img.get("data", "")))
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Page {page_no} 이미지 decode 실패: {e}") from e
+        cid = f"overview-page-{page_no}"
+        inline.append((cid, raw, "image/png"))
+        attach.append((f"overview-page-{page_no}.png", raw, "image/png"))
+
+    if not smtp_is_configured():
+        raise HTTPException(
+            status_code=503,
+            detail="SMTP 미설정 — BE .env 에 SMTP_HOST 를 설정하세요 (기본: lgesmtp.lge.com).",
+        )
+
+    to_addrs = _resolve_share_recipients(audiences, req.recipients)
+    if not to_addrs:
+        raise HTTPException(status_code=400, detail="수신자 목록이 비어 있습니다.")
+
+    try:
+        send_plain_and_html_email(
+            subject=subject,
+            plain_body=plain,
+            html_body=html,
+            recipients=to_addrs,
+            inline_images=inline or None,
+            attachments=attach or None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"메일 발송 실패: {e}") from e
+
+    return {
+        "message": "메일 발송 완료",
+        "subject": subject,
+        "recipients": to_addrs,
+        "audiences": sorted(audiences),
+    }
+
+
 def _send_share_email(
     *,
     subject: str,
@@ -216,20 +308,7 @@ async def share_schedule_snapshot(req: ScheduleShareRequest):
         if not req.display_rows:
             raise HTTPException(status_code=400, detail="발송할 display_rows 가 없습니다.")
 
-        subject = build_overview_subject(date.today())
-        html = build_overview_snapshot_html(
-            period_label=req.period_label,
-            dates=req.dates,
-            models=req.models,
-            display_rows=req.display_rows,
-            audiences=sorted(aud),
-        )
-        return _send_share_email(
-            subject=subject,
-            html=html,
-            audiences=aud,
-            recipients=req.recipients,
-        )
+        return _send_overview_share_email(req=req, audiences=aud)
 
     allowed = {"DQA", "개발"}
     aud = {a.strip() for a in req.audiences if a and str(a).strip() in allowed}
@@ -264,6 +343,7 @@ async def share_overview_snapshot(req: OverviewShareRequest):
             snapshot_type="overview",
             models=req.models,
             display_rows=req.display_rows,
+            page_images=req.page_images,
             audiences=req.audiences,
             recipients=req.recipients,
         )

@@ -215,6 +215,7 @@ export const modelScheduleApi = {
     dates: string[]
     models: any[]
     display_rows: any[]
+    page_images?: Array<{ page: number; data: string }>
     audiences: string[]
     recipients?: string[]
   }): Promise<{ message: string; subject: string; recipients: string[] }> => {

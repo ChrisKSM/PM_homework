@@ -40,6 +40,7 @@ for f in \
   src/data/modelScheduleOverviewMock.ts \
   src/types/modelScheduleOverview.ts \
   src/utils/modelScheduleOverviewRows.ts \
+  src/utils/captureOverviewPages.ts \
   src/utils/overviewBarStyles.ts \
   src/api/client.ts \
   src/App.tsx \

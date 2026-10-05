@@ -25,7 +25,7 @@ HW_BAR_COLORS: dict[str, str] = {
 
 def build_overview_subject(today: date | None = None) -> str:
     d = today or date.today()
-    return f"[{d.isoformat()}] 전 모델 SW 일정 Snapshot"
+    return f"[{d.isoformat()}] 전 모델 개발 일정"
 
 
 def _escape(text: str) -> str:
@@ -59,25 +59,29 @@ def _split_model_pages(models: list[dict[str, Any]], max_per_page: int = 8) -> l
     return [models[:mid], models[mid:]]
 
 
+def _sw_events_for_model(model: dict[str, Any]) -> list[dict[str, Any]]:
+    events = model.get("events") if isinstance(model.get("events"), list) else []
+    sw_events: list[dict[str, Any]] = []
+    for e in events:
+        if not isinstance(e, dict):
+            continue
+        name = str(e.get("name", "")).strip()
+        if not name or name == "-":
+            continue
+        kind = str(e.get("kind", "")).lower()
+        n = name.lower().replace(" ", "")
+        is_hw = kind == "hw" or n in ("prepv", "mp", "ats") or n.startswith("pv")
+        if kind == "sw" or not is_hw:
+            sw_events.append(e)
+    return sw_events
+
+
 def _sw_events_summary(models: list[dict[str, Any]]) -> str:
     rows: list[str] = []
     for m in models:
         cat = _escape(str(m.get("category", "")))
         model = _escape(str(m.get("model", "")))
-        events = m.get("events") if isinstance(m.get("events"), list) else []
-        sw_events = []
-        for e in events:
-            if not isinstance(e, dict):
-                continue
-            name = str(e.get("name", "")).strip()
-            if not name or name == "-":
-                continue
-            kind = str(e.get("kind", "")).lower()
-            n = name.lower().replace(" ", "")
-            is_hw = kind == "hw" or n in ("prepv", "mp", "ats") or n.startswith("pv")
-            if kind == "sw" or not is_hw:
-                sw_events.append(e)
-        for e in sw_events:
+        for e in _sw_events_for_model(m):
             ev_name = str(e.get("name", "")).strip()
             rows.append(
                 "<tr>"
@@ -102,6 +106,51 @@ def _sw_events_summary(models: list[dict[str, Any]]) -> str:
       </thead>
       <tbody>{"".join(rows)}</tbody>
     </table>"""
+
+
+def build_overview_plain_text(
+    *,
+    period_label: str,
+    models: list[dict[str, Any]],
+    page_total: int,
+    has_attachments: bool,
+) -> str:
+    lines = [
+        "전 모델 개발 일정 Snapshot",
+        f"기간: {period_label}",
+        "",
+        "■ 모델별 SW 이벤트 일정",
+        "",
+    ]
+    any_event = False
+    for m in models:
+        cat = str(m.get("category", "")).strip()
+        model = str(m.get("model", "")).strip()
+        sw_events = _sw_events_for_model(m)
+        if not sw_events:
+            continue
+        any_event = True
+        header = f"[{cat}] {model}" if cat else model
+        lines.append(header)
+        for e in sw_events:
+            name = str(e.get("name", "")).strip()
+            period = _fmt_range(str(e.get("start", "")), str(e.get("end", "")))
+            lines.append(f"  · {name} : {period}")
+        lines.append("")
+
+    if not any_event:
+        lines.append("(SW 이벤트 없음)")
+        lines.append("")
+
+    lines.append("■ 타임라인 Snapshot")
+    if has_attachments:
+        for i in range(1, page_total + 1):
+            lines.append(f"  · Page {i}/{page_total} — 첨부 이미지 참고")
+    else:
+        lines.append("  · (스냅샷 이미지 없음 — FE 최신 빌드에서 재발송)")
+    lines.append("")
+    lines.append("— Jira Dashboard 자동 발송")
+    return "\n".join(lines)
 
 
 def _bar_color(kind: str, bar_type: str) -> str:
@@ -254,23 +303,41 @@ def build_overview_snapshot_html(
     models: list[dict[str, Any]],
     display_rows: list[dict[str, Any]],
     audiences: list[str],
+    page_images: list[dict[str, Any]] | None = None,
 ) -> str:
     pages = _split_model_pages(models)
     page_total = len(pages)
+    image_by_page = {
+        int(img.get("page", 0)): str(img.get("data", "")).strip()
+        for img in (page_images or [])
+        if img.get("data")
+    }
 
-    # display rows per page — match model split
+    # display rows per page — match model split (fallback when no PNG)
     model_ids_by_page: list[set[str]] = []
     for page_models in pages:
         ids = {str(m.get("id", m.get("model", ""))) for m in page_models}
         model_ids_by_page.append(ids)
 
-    page_html = ""
-    for idx, page_models in enumerate(pages, start=1):
-        ids = model_ids_by_page[idx - 1]
-        page_rows = [r for r in display_rows if str(r.get("modelId", "")) in ids]
-        margin = "28px" if idx > 1 else "0"
-        border = "border-top:2px solid #cbd5e1;padding-top:16px;" if idx > 1 else ""
-        page_html += f"""
+    snapshot_html = ""
+    for idx in range(1, page_total + 1):
+        b64 = image_by_page.get(idx, "")
+        if b64:
+            snapshot_html += f"""
+        <div style="margin-top:{'28px' if idx > 1 else '0'};">
+          <p style="font-size:12px;font-weight:bold;margin:0 0 6px;color:#334155;">
+            Page {idx} / {page_total}
+          </p>
+          <img src="cid:overview-page-{idx}" alt="Page {idx} Snapshot"
+               style="max-width:100%;border:1px solid #e2e8f0;display:block;"/>
+        </div>"""
+        else:
+            page_models = pages[idx - 1]
+            ids = model_ids_by_page[idx - 1]
+            page_rows = [r for r in display_rows if str(r.get("modelId", "")) in ids]
+            margin = "28px" if idx > 1 else "0"
+            border = "border-top:2px solid #cbd5e1;padding-top:16px;" if idx > 1 else ""
+            snapshot_html += f"""
         <div style="margin-top:{margin};{border}">
           <h3 style="font-size:14px;margin:0 0 8px;color:#334155;">
             Page {idx} / {page_total} · 모델 {len(page_models)}개
@@ -284,13 +351,13 @@ def build_overview_snapshot_html(
     return f"""<!DOCTYPE html>
 <html><head><meta charset="utf-8"/></head>
 <body style="font-family:Malgun Gothic,Apple SD Gothic Neo,sans-serif;color:#111;padding:16px;">
-  <h2 style="font-size:16px;margin:0 0 8px;">전 모델 일정 Snapshot</h2>
+  <h2 style="font-size:16px;margin:0 0 8px;">전 모델 개발 일정</h2>
   <p style="font-size:12px;color:#555;margin:0 0 12px;">
     기간: {_escape(period_label)} · 수신: {_escape(audience_text)} · {len(models)}모델 · {page_total}페이지
   </p>
-  <h3 style="font-size:13px;margin:16px 0 8px;color:#1e40af;">주요 SW 이벤트 일정</h3>
+  <h3 style="font-size:13px;margin:16px 0 8px;color:#1e40af;">모델별 SW 이벤트 일정</h3>
   {sw_summary}
   <h3 style="font-size:13px;margin:16px 0 8px;color:#334155;">타임라인 Snapshot</h3>
-  {page_html}
+  {snapshot_html}
   <p style="font-size:10px;color:#999;margin-top:24px;">Jira Dashboard — 자동 발송</p>
 </body></html>"""
