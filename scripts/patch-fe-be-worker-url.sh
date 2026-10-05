@@ -52,13 +52,38 @@ window.workspace_env = {
 EOF
 echo "  public/workspace_env.js → ${API}"
 
-git fetch github cursor/model-schedule-bar-label-fix-b14b 2>/dev/null || true
-git show github/cursor/model-schedule-bar-label-fix-b14b:src/api/client.ts > src/api/client.ts 2>/dev/null \
-  || echo "  WARN: client.ts 수동 확인 — resolveApiBaseUrl override 우선"
+if [ ! -f src/api/client.ts ]; then
+  git fetch github cursor/model-schedule-bar-label-fix-b14b 2>/dev/null || true
+  git show github/cursor/model-schedule-bar-label-fix-b14b:src/api/client.ts > src/api/client.ts
+fi
+
+# .env / build/ 는 .gitignore → GitLab CI 재빌드 시 BE_AXSTUDIO 상수를 직접 교체 (가장 확실)
+python3 - <<PY
+import re
+from pathlib import Path
+api = "${API}"
+p = Path("src/api/client.ts")
+t = p.read_text(encoding="utf-8")
+t2, n = re.subn(
+    r"export const BE_AXSTUDIO = '[^']*'",
+    f"export const BE_AXSTUDIO = '{api}'",
+    t,
+    count=1,
+)
+if n != 1:
+    raise SystemExit("BE_AXSTUDIO replace failed — client.ts 확인")
+p.write_text(t2, encoding="utf-8")
+print(f"  src/api/client.ts BE_AXSTUDIO → {api}")
+PY
+
+echo ""
+echo "=== 확인 ==="
+grep "BE_AXSTUDIO" src/api/client.ts | head -1
 
 echo ""
 echo "=== 다음 (FE pod) ==="
 echo "  npm run build"
-echo "  git add .env public/workspace_env.js src/api/client.ts"
+echo "  git add src/api/client.ts public/workspace_env.js"
 echo "  git commit -m 'fix: FE BE URL → Worker Port' && git push origin master"
+echo "  # GitLab CI 재배포 후 Ctrl+Shift+R — Network URL에 seokmin-koh 포함 확인"
 echo "=== Done ==="
