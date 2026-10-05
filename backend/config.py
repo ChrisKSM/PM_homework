@@ -108,3 +108,13 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def effective_smtp_host() -> str:
+    """`.env`에 SMTP_HOST= 빈 값이 있어도 LGE relay 기본 사용."""
+    host = (settings.smtp_host or "").strip()
+    return host or "lgesmtp.lge.com"
+
+
+def smtp_is_configured() -> bool:
+    return bool(effective_smtp_host())
