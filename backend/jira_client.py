@@ -389,8 +389,9 @@ async def diagnose_jira() -> dict[str, Any]:
         "jira_ping": None,
         "error": None,
         "fix_hint": (
-            "be-audio-test pod: .env JIRA_API_TOKEN 설정 → "
-            "cp /workspace/project/.env /usr/app/src/.env → uvicorn 8200 재시작"
+            "JIRA_API_TOKEN 설정: (1) AX Studio 프로젝트 Variables, "
+            "(2) /workspace/project/.env + cp → /usr/app/src/.env, "
+            "(3) Route 포트 8000 uvicorn 재시작 (8200은 pod dev용)"
         ),
     }
     source, length = _token_source_info()
