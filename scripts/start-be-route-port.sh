@@ -22,10 +22,10 @@ if [ -f /workspace/project/.env ]; then
 fi
 
 if curl -sf "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
-  echo "  port $PORT already UP — $(curl -s http://127.0.0.1:${PORT}/api/jira/diagnose | head -c 80)"
-  echo "  external check:"
-  curl -s -o /dev/null -w "  external diagnose HTTP %{http_code}\n" \
-    "https://be-audio-test.apps.axstudio.lge.com/api/jira/diagnose" || true
+  echo "  port $PORT already UP"
+  curl -s "http://127.0.0.1:${PORT}/api/jira/diagnose" | python3 -m json.tool 2>/dev/null | head -8 || true
+  echo ""
+  echo "  token 없으면: sh scripts/restart-be-route-port.sh  (8000 재시작)"
   exit 0
 fi
 
