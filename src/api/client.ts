@@ -14,11 +14,22 @@ function isFeHost(host: string, domain: 'axstudio' | 'hedej'): boolean {
   return host.endsWith(suffix) && !host.includes('be-audio-test')
 }
 
-export function resolveApiBaseUrl(): string {
+function readApiBaseUrlOverride(): string | undefined {
   const env = (window as any).workspace_env ?? {}
+  return (
+    env.REACT_APP__API_BASE_URL ??
+    env.REACT_APP_API_BASE_URL ??
+    process.env.REACT_APP_API_BASE_URL
+  )
+}
+
+export function resolveApiBaseUrl(): string {
   const host = window.location.hostname
 
-  // react-audio — entrypoint hedej 주입·.env hedej 보다 우선
+  // react-audio 포함 — entrypoint / workspace_env.js / .env override 최우선
+  const override = readApiBaseUrlOverride()
+  if (override) return override
+
   if (REACT_AUDIO_HOSTS.has(host)) {
     return BE_AXSTUDIO
   }
@@ -29,10 +40,6 @@ export function resolveApiBaseUrl(): string {
   if (isFeHost(host, 'hedej')) {
     return BE_HEDEJ
   }
-
-  if (env.REACT_APP__API_BASE_URL) return env.REACT_APP__API_BASE_URL
-  if (env.REACT_APP_API_BASE_URL) return env.REACT_APP_API_BASE_URL
-  if (process.env.REACT_APP_API_BASE_URL) return process.env.REACT_APP_API_BASE_URL
 
   if (host.includes('workspace')) {
     const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
