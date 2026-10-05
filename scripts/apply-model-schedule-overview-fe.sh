@@ -31,13 +31,13 @@ for f in \
   src/pages/ModelScheduleOverviewPage.tsx \
   src/components/modelSchedule/OverviewEventEditor.tsx \
   src/components/modelSchedule/OverviewSnapshotDialog.tsx \
+  src/api/modelScheduleApi.ts \
   src/components/modelSchedule/OverviewScheduleTable.tsx \
   src/components/modelSchedule/MetaTooltipCell.tsx \
   src/data/modelScheduleOverviewMock.ts \
   src/types/modelScheduleOverview.ts \
   src/utils/modelScheduleOverviewRows.ts \
   src/utils/overviewBarStyles.ts \
-  src/api/modelScheduleApi.ts \
   src/api/client.ts \
   src/App.tsx \
   src/store/dashboardStore.ts

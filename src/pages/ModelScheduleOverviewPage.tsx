@@ -27,6 +27,7 @@ import {
   expandOverviewToDisplayRows,
   inferBarType,
   isValidOverviewEvent,
+  normalizeOverviewCategory,
   prepareOverviewModels,
   type OverviewMetaKey,
 } from '../utils/modelScheduleOverviewRows'
@@ -67,6 +68,23 @@ function monthLabel(year: number, month: number) {
 }
 function uniqSorted(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'))
+}
+
+const ADD_MODEL_CATEGORY_PRESETS = [
+  'Sound Suite',
+  '사운드바(Wi-Fi)',
+  '사운드바(BT)',
+  'Accessory',
+  '무선스피커',
+  '파티스피커',
+  '이어버드',
+]
+
+function defaultVariantForCategory(category: string) {
+  const c = normalizeOverviewCategory(category)
+  if (c === 'Sound Suite') return 'JDM B_HW'
+  if (/무선|파티|이어/.test(c)) return 'MR_Minor'
+  return 'JDM B_HW'
 }
 
 function exportOverviewCSV(models: OverviewModel[]) {
@@ -158,6 +176,7 @@ export default function ModelScheduleOverviewPage() {
   })
   const [fCat, setFCat] = useState('')
   const [fModel, setFModel] = useState('')
+  const [addCategory, setAddCategory] = useState('Sound Suite')
   const [showSnapshotPopup, setShowSnapshotPopup] = useState(false)
   const [picker, setPicker] = useState<{
     modelId: string
@@ -213,6 +232,18 @@ export default function ModelScheduleOverviewPage() {
 
   const sortedModels = useMemo(() => prepareOverviewModels(models), [models])
   const categoryOptions = useMemo(() => uniqSorted(sortedModels.map((m) => m.category)), [sortedModels])
+  const addCategoryOptions = useMemo(
+    () => uniqSorted([...categoryOptions, ...ADD_MODEL_CATEGORY_PRESETS]),
+    [categoryOptions],
+  )
+  const soundSuiteCount = useMemo(
+    () => sortedModels.filter((m) => normalizeOverviewCategory(m.category) === 'Sound Suite').length,
+    [sortedModels],
+  )
+
+  useEffect(() => {
+    if (fCat) setAddCategory(fCat)
+  }, [fCat])
   const modelOptions = useMemo(() => {
     const pool = fCat ? sortedModels.filter((m) => m.category === fCat) : sortedModels
     return uniqSorted(pool.map((m) => m.model))
@@ -295,15 +326,16 @@ export default function ModelScheduleOverviewPage() {
     }
   }
 
-  const addModel = () => {
+  const addModel = (category?: string) => {
+    const cat = normalizeOverviewCategory(category || addCategory || fCat || 'Sound Suite')
     const ts = Date.now()
     setModels((p) => [
       ...p,
       {
         id: `new-${ts}`,
-        category: 'Sound Suite',
+        category: cat,
         model: '새 모델',
-        variant: 'JDM B_HW',
+        variant: defaultVariantForCategory(cat),
         soc: '',
         swPm: '',
         spec: '',
@@ -312,6 +344,30 @@ export default function ModelScheduleOverviewPage() {
         events: [],
       },
     ])
+  }
+
+  const syncSeedData = async () => {
+    if (!window.confirm('최신 seed 17모델로 덮어쓰고 DB에 저장합니다. 계속하시겠습니까?')) return
+    const seed = prepareOverviewModels(OVERVIEW_MOCK_MODELS)
+    setModels(seed)
+    if (mockPreview) {
+      setSaveMessage({ type: 'warn', text: 'Mock 미리보기 — seed 적용됨 (DB 저장 생략)' })
+      return
+    }
+    setSaving(true)
+    setSaveMessage(null)
+    try {
+      const res = await modelScheduleApi.saveOverview(seed)
+      setDataSource(res.source)
+      setSaveMessage({
+        type: res.source === 'mongo' ? 'success' : 'warn',
+        text: `Seed 동기화 완료 (${seed.length}모델, Sound Suite 7) — ${res.message}`,
+      })
+    } catch {
+      setSaveMessage({ type: 'warn', text: 'Seed 저장 실패' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   const deleteModel = (modelId: string) => setModels((p) => p.filter((m) => m.id !== modelId))
@@ -463,10 +519,28 @@ export default function ModelScheduleOverviewPage() {
             </span>
           )}
           {editing && (
-            <button type="button" onClick={addModel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-600 border border-blue-200">
-              <Plus size={14} />
-              모델 추가
-            </button>
+            <div className="flex items-center gap-1">
+              <select
+                value={addCategory}
+                onChange={(e) => setAddCategory(e.target.value)}
+                className="text-[11px] px-2 py-1.5 rounded-lg border border-blue-200 bg-white text-blue-800 max-w-[140px]"
+                title="추가할 제품군"
+              >
+                {addCategoryOptions.map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => addModel(addCategory)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-600 border border-blue-200"
+              >
+                <Plus size={14} />
+                모델 추가
+              </button>
+            </div>
           )}
           {editing ? (
             <>
@@ -549,6 +623,21 @@ export default function ModelScheduleOverviewPage() {
         </div>
 
         {loadError ? <p className="text-[10px] text-amber-800 mb-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">{loadError}</p> : null}
+        {!mockPreview && soundSuiteCount < 7 && (
+          <p className="text-[11px] text-amber-900 mb-2 bg-amber-50 border border-amber-300 rounded-lg px-3 py-2 flex flex-wrap items-center gap-2">
+            <span>
+              Sound Suite {soundSuiteCount}/7 — DB/캐시 데이터가 오래되었습니다. (?mock=1 은 7모델)
+            </span>
+            <button
+              type="button"
+              onClick={syncSeedData}
+              disabled={saving}
+              className="px-2 py-1 rounded text-[10px] font-semibold bg-amber-600 text-white hover:bg-amber-500 disabled:opacity-50"
+            >
+              Seed 17모델 동기화
+            </button>
+          </p>
+        )}
         {editing && (
           <div className="text-[10px] text-gray-500 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">
             1행=HW Event(PrePV/PV/MP) · 2행=SW Event(SIT/FC/QP) · 타임라인 셀 클릭 → Start/End 날짜 편집 · <b>-</b> 는 빈칸

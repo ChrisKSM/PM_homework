@@ -209,4 +209,21 @@ export const modelScheduleApi = {
       .then((r) => r.data)
     return res
   },
+
+  shareOverviewSnapshot: async (payload: {
+    period_label: string
+    dates: string[]
+    models: any[]
+    display_rows: any[]
+    audiences: string[]
+    recipients?: string[]
+  }): Promise<{ message: string; subject: string; recipients: string[] }> => {
+    const res = await client
+      .post<{ message: string; subject: string; recipients: string[] }>(
+        '/model-schedule/overview/share',
+        payload,
+      )
+      .then((r) => r.data)
+    return res
+  },
 }

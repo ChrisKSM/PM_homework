@@ -1,13 +1,19 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, Mail, X } from 'lucide-react'
+import clsx from 'clsx'
 import type { OverviewModel } from '../../types/modelScheduleOverview'
 import { expandOverviewToDisplayRows } from '../../utils/modelScheduleOverviewRows'
+import { modelScheduleApi } from '../../api/modelScheduleApi'
 import OverviewScheduleTable from './OverviewScheduleTable'
 
 const MIN_SCALE = 0.75
 
 function fmt(d: Date) {
   return `${d.getMonth() + 1}/${d.getDate()}`
+}
+
+function toISO(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function splitModelsIntoPages(models: OverviewModel[]): OverviewModel[][] {
@@ -23,7 +29,6 @@ export default function OverviewSnapshotDialog({
   dates,
   periodLabel,
   today,
-  viewStart,
   todayOff,
 }: {
   open: boolean
@@ -36,14 +41,22 @@ export default function OverviewSnapshotDialog({
   todayOff: number
 }) {
   const pages = useMemo(() => splitModelsIntoPages(models), [models])
+  const allDisplayRows = useMemo(() => expandOverviewToDisplayRows(models), [models])
   const [page, setPage] = useState(0)
+  const [shareDev, setShareDev] = useState(true)
+  const [sharing, setSharing] = useState(false)
+  const [shareMsg, setShareMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
 
   useEffect(() => {
-    if (open) setPage(0)
-  }, [open])
+    if (open) {
+      setPage(0)
+      setShareDev(true)
+      setShareMsg(null)
+    }
+  }, [open, models])
 
   useLayoutEffect(() => {
     if (!open || !wrapRef.current || !innerRef.current) return
@@ -59,6 +72,42 @@ export default function OverviewSnapshotDialog({
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
   }, [open, page, models, dates])
+
+  const handleShare = async () => {
+    if (!shareDev || sharing) return
+    setSharing(true)
+    setShareMsg(null)
+    try {
+      const res = await modelScheduleApi.shareOverviewSnapshot({
+        period_label: periodLabel,
+        dates: dates.map(toISO),
+        models,
+        display_rows: allDisplayRows.map((r) => ({
+          modelId: r.modelId,
+          category: r.category,
+          model: r.model,
+          variant: r.variant,
+          soc: r.soc,
+          swPm: r.swPm,
+          spec: r.spec,
+          pv: r.pv,
+          mp: r.mp,
+          timelineKind: r.timelineKind,
+          lineIndex: r.lineIndex,
+          bars: r.bars,
+        })),
+        audiences: ['개발'],
+        recipients: ['seokmin.koh@lge.com'],
+      })
+      setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } }; message?: string }
+      const detail = err?.response?.data?.detail || err?.message || '발송 실패'
+      setShareMsg({ type: 'err', text: String(detail) })
+    } finally {
+      setSharing(false)
+    }
+  }
 
   if (!open) return null
 
@@ -97,9 +146,45 @@ export default function OverviewSnapshotDialog({
             <OverviewScheduleTable displayRows={displayRows} dates={dates} todayOff={todayOff} />
           </div>
         </div>
-        <p className="text-[10px] text-gray-400 px-4 py-2 border-t border-surface-border shrink-0">
-          오늘: {fmt(today)} · {models.length}모델 · 1행 HW / 2행 SW
-        </p>
+        <div className="px-4 py-3 border-t border-surface-border shrink-0 bg-white space-y-2">
+          <div className="flex flex-wrap items-center gap-4">
+            <span className="text-xs font-semibold text-gray-700">메일 공유</span>
+            <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={shareDev}
+                onChange={(e) => setShareDev(e.target.checked)}
+                className="rounded border-gray-300"
+              />
+              개발
+            </label>
+            <button
+              type="button"
+              disabled={!shareDev || sharing}
+              onClick={handleShare}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+                shareDev && !sharing
+                  ? 'bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-500'
+                  : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed',
+              )}
+            >
+              {sharing ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+              공유 (메일)
+            </button>
+            <span className="text-[10px] text-gray-400">
+              테스트: seokmin.koh@lge.com · SW 이벤트 + Page 1/2 · {models.length}모델
+            </span>
+          </div>
+          {shareMsg && (
+            <p className={clsx('text-[11px]', shareMsg.type === 'ok' ? 'text-emerald-600' : 'text-red-600')}>
+              {shareMsg.text}
+            </p>
+          )}
+          <p className="text-[10px] text-gray-400">
+            오늘: {fmt(today)} · {models.length}모델 · 1행 HW / 2행 SW
+          </p>
+        </div>
       </div>
     </div>
   )

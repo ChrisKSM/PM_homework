@@ -123,10 +123,14 @@ def forward_fill_rows(rows: list[dict]) -> list[dict]:
     for row in rows:
         filled = dict(row)
         if not is_null_meta(row.get("모델명")):
+            prev_category = state.get("제품군")
             state = {
                 k: (None if is_null_meta(row.get(k)) else row.get(k))
                 for k in META_KEYS
             }
+            # 모델만 바뀌고 제품군 null → 이전 제품군 유지 (Sound Suite 등)
+            if is_null_meta(row.get("제품군")) and prev_category:
+                state["제품군"] = prev_category
         else:
             for k in META_KEYS:
                 if not is_null_meta(row.get(k)):
