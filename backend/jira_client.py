@@ -54,17 +54,37 @@ def _normalize_token(raw: Any) -> str:
     return str(raw).strip()
 
 
-def _resolve_jira_token() -> str:
+def _token_source_info() -> tuple[str, int]:
+    """토큰 출처·길이만 반환 (값 노출 금지)."""
     token = _normalize_token(settings.jira_api_token)
     if token:
-        return token
+        return "settings.jira_api_token", len(token)
     token = _read_token_from_dotenv()
     if token:
-        return token
+        for path in _DOTENV_PATHS:
+            if path.is_file():
+                return f"dotenv:{path}", len(token)
+        return "dotenv", len(token)
     for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
         token = _normalize_token(os.getenv(key))
         if token:
+            return f"env:{key}", len(token)
+    return "none", 0
+
+
+def _resolve_jira_token() -> str:
+    source, length = _token_source_info()
+    if length > 0:
+        token = _normalize_token(settings.jira_api_token)
+        if token:
             return token
+        token = _read_token_from_dotenv()
+        if token:
+            return token
+        for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+            token = _normalize_token(os.getenv(key))
+            if token:
+                return token
     raise ValueError(
         "JIRA_API_TOKEN이 비어 있습니다. /usr/app/src/.env 또는 /workspace/project/.env 확인."
     )
@@ -349,6 +369,71 @@ class JiraClient:
         if jql:
             return jql
         return f"filter = {filter_id}"
+
+
+async def diagnose_jira() -> dict[str, Any]:
+    """
+    BE pod Jira 연결 진단 — 토큰·경로·Agile API ping.
+    항상 200 JSON (오류는 필드에 기록).
+    """
+    import socket
+
+    env_token_len = len(_normalize_token(os.getenv("JIRA_API_TOKEN")))
+    result: dict[str, Any] = {
+        "ok": False,
+        "hostname": socket.gethostname(),
+        "cwd": str(Path.cwd()),
+        "jira_base_url": settings.jira_base_url,
+        "board_id": settings.board_id,
+        "jira_verify_ssl": settings.jira_verify_ssl,
+        "token_source": "none",
+        "token_length": 0,
+        "env_jira_api_token_length": env_token_len,
+        "settings_jira_api_token_length": len(_normalize_token(settings.jira_api_token)),
+        "dotenv_paths": [
+            {"path": str(p), "exists": p.is_file()} for p in _DOTENV_PATHS
+        ],
+        "jira_ping": None,
+        "error": None,
+        "fix_hint": (
+            "JIRA_API_TOKEN: (1) AX Studio Variables → 프로젝트 **재시작**(uvicorn만 X), "
+            "(2) /workspace/project/.env + cp /usr/app/src/.env, "
+            "(3) FE URL vs Worker Port URL hostname 비교 (diagnose.hostname)"
+        ),
+    }
+    source, length = _token_source_info()
+    result["token_source"] = source
+    result["token_length"] = length
+    if length == 0:
+        result["error"] = "JIRA_API_TOKEN 미설정 (settings·dotenv·env 모두 비어 있음)"
+        return result
+
+    try:
+        _resolve_jira_token()
+    except ValueError as e:
+        result["error"] = str(e)
+        return result
+
+    board_path = f"/rest/agile/1.0/board/{settings.board_id}"
+    try:
+        async with _make_client() as client:
+            url = f"{settings.jira_base_url.rstrip('/')}{board_path}"
+            resp = await client.get(url, timeout=15.0)
+            result["jira_ping"] = {
+                "path": board_path,
+                "http_status": resp.status_code,
+            }
+            if resp.status_code >= 400:
+                result["error"] = f"Jira HTTP {resp.status_code}: {resp.text[:200]}"
+                return result
+            body = resp.json()
+            result["jira_ping"]["board_name"] = body.get("name")
+            result["ok"] = True
+    except httpx.HTTPError as e:
+        result["error"] = f"Jira 연결 실패: {e}"
+    except Exception as e:
+        result["error"] = f"진단 오류: {e}"
+    return result
 
 
 # 싱글톤

@@ -9,6 +9,13 @@ set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 PORT="${BE_ROUTE_PORT:-8000}"
 
+if [ ! -f main.py ] || [ ! -d routers ]; then
+  echo "Error: BE pod가 아닙니다 (main.py + routers/ 없음)"
+  echo "  hostname: $(hostname 2>/dev/null || echo unknown)"
+  echo "  → project-be-audio-test-* pod에서 실행하세요"
+  exit 1
+fi
+
 if [ ! -f .env ] && [ ! -f /workspace/project/.env ]; then
   echo "Error: .env 없음"
   exit 1
@@ -54,11 +61,11 @@ echo "=== local $PORT ==="
 curl -s "http://127.0.0.1:${PORT}/api/jira/diagnose" | python3 -m json.tool 2>/dev/null | head -14
 
 echo ""
-echo "=== external (FE) ==="
-curl -s -o /dev/null -w "  issues/risks HTTP %{http_code}\n" \
-  "https://be-audio-test.apps.axstudio.lge.com/api/issues/risks" || true
-curl -s "https://be-audio-test.apps.axstudio.lge.com/api/jira/diagnose" \
-  | python3 -m json.tool 2>/dev/null | head -10 || true
+echo "=== 참고: pod 안에서 external URL curl (브라우저와 다를 수 있음) ==="
+curl -s -o /dev/null -w "  external issues/risks HTTP %{http_code}\n" \
+  "https://be-audio-test.apps.axstudio.lge.com/api/issues/risks" 2>/dev/null || true
+echo "  → local 8000 이 200이면 BE 정상. external 502는 pod 내부 hairpin일 수 있음."
+echo "  → **브라우저(FE) Network 탭** 으로 최종 확인하세요."
 
 echo ""
 echo "8200 dev uvicorn은 건드리지 않았습니다."
