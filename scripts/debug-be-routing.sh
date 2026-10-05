@@ -19,6 +19,10 @@ for p in 8200 8000; do
   echo "  port $p load HTTP $code — $(head -c 80 /tmp/local_load.json 2>/dev/null; echo)"
   code=$(curl -s -o /tmp/local_diag.json -w "%{http_code}" "http://127.0.0.1:${p}/api/model-schedule/diagnose" 2>/dev/null || echo "000")
   echo "  port $p diagnose HTTP $code"
+  code=$(curl -s -o /tmp/local_jira_diag.json -w "%{http_code}" "http://127.0.0.1:${p}/api/jira/diagnose" 2>/dev/null || echo "000")
+  echo "  port $p jira/diagnose HTTP $code"
+  code=$(curl -s -o /tmp/local_risks.json -w "%{http_code}" "http://127.0.0.1:${p}/api/issues/risks" 2>/dev/null || echo "000")
+  echo "  port $p issues/risks HTTP $code — $(head -c 60 /tmp/local_risks.json 2>/dev/null; echo)"
 done
 
 echo ""
@@ -27,6 +31,13 @@ code=$(curl -s -o /tmp/ext_load.json -w "%{http_code}" "${EXT}/api/model-schedul
 echo "  load HTTP $code — $(head -c 120 /tmp/ext_load.json 2>/dev/null; echo)"
 code=$(curl -s -o /tmp/ext_diag.json -w "%{http_code}" "${EXT}/api/model-schedule/diagnose" 2>/dev/null || echo "000")
 echo "  diagnose HTTP $code"
+code=$(curl -s -o /tmp/ext_jira_diag.json -w "%{http_code}" "${EXT}/api/jira/diagnose" 2>/dev/null || echo "000")
+echo "  jira/diagnose HTTP $code"
+if [ -f /tmp/ext_jira_diag.json ] && [ -s /tmp/ext_jira_diag.json ]; then
+  python3 -m json.tool /tmp/ext_jira_diag.json 2>/dev/null | head -20 || cat /tmp/ext_jira_diag.json
+fi
+code=$(curl -s -o /tmp/ext_risks.json -w "%{http_code}" "${EXT}/api/issues/risks" 2>/dev/null || echo "000")
+echo "  issues/risks HTTP $code — $(head -c 120 /tmp/ext_risks.json 2>/dev/null; echo)"
 if [ -f /tmp/ext_diag.json ] && [ -s /tmp/ext_diag.json ]; then
   python3 -m json.tool /tmp/ext_diag.json 2>/dev/null | head -40 || cat /tmp/ext_diag.json
 fi
