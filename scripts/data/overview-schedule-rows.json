@@ -14,8 +14,8 @@
     "SW Event": "S I T1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -28,8 +28,8 @@
     "SW Event": "S I T2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -42,8 +42,8 @@
     "SW Event": "S I T3"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -56,8 +56,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -70,8 +70,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -84,8 +84,8 @@
     "SW Event": "FC 3"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -98,8 +98,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -112,7 +112,7 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
+    "제품군": "Sound Suite",
     "모델명": "H5",
     "개발등급": "JDM Ca_HW",
     "SoC": "ax26sb",
@@ -126,8 +126,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -140,8 +140,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -154,8 +154,8 @@
     "SW Event": "FC 3"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -168,8 +168,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -182,7 +182,7 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
+    "제품군": "Sound Suite",
     "모델명": "M7_VI",
     "개발등급": "JDM B_HW",
     "SoC": "ax26sb",
@@ -196,8 +196,8 @@
     "SW Event": "SIT 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -210,8 +210,8 @@
     "SW Event": "SIT 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -224,8 +224,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -238,8 +238,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -252,8 +252,8 @@
     "SW Event": "FC 3"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -266,8 +266,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -280,8 +280,8 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -294,7 +294,7 @@
     "SW Event": "QP 3"
   },
   {
-    "제품군": null,
+    "제품군": "Sound Suite",
     "모델명": "M5_VI",
     "개발등급": "JDM Ca_HW",
     "SoC": "ax26sb",
@@ -308,8 +308,8 @@
     "SW Event": "SIT 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -322,8 +322,8 @@
     "SW Event": "SIT 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -336,8 +336,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -350,8 +350,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -364,8 +364,8 @@
     "SW Event": "FC 3"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -378,8 +378,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -392,8 +392,8 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M5_VI",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -406,7 +406,7 @@
     "SW Event": "QP 3"
   },
   {
-    "제품군": null,
+    "제품군": "Sound Suite",
     "모델명": "W5",
     "개발등급": "JDM Ca_HW",
     "SoC": "BL618M",
@@ -420,8 +420,8 @@
     "SW Event": "Dev Test"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "W5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -434,8 +434,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "W5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -448,8 +448,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "W5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -462,8 +462,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "W5",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -476,7 +476,7 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
+    "제품군": "Sound Suite",
     "모델명": "H7 MR10(11월)",
     "개발등급": "MR_Minor",
     "SoC": "MT8532",
@@ -490,8 +490,8 @@
     "SW Event": "PreQP1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7 MR10(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -504,8 +504,8 @@
     "SW Event": "PreQP2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7 MR10(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -518,8 +518,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7 MR10(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -532,8 +532,8 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "H7 MR10(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -546,7 +546,7 @@
     "SW Event": "SU Test"
   },
   {
-    "제품군": null,
+    "제품군": "Sound Suite",
     "모델명": "M7/W7 MR9(11월)",
     "개발등급": "MR_Minor",
     "SoC": "MT8532",
@@ -560,8 +560,8 @@
     "SW Event": "PreQP1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7/W7 MR9(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -574,8 +574,8 @@
     "SW Event": "PreQP2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7/W7 MR9(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -588,8 +588,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7/W7 MR9(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -602,8 +602,8 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Sound Suite",
+    "모델명": "M7/W7 MR9(11월)",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -630,8 +630,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(Wi-Fi)",
+    "모델명": "S90C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -644,8 +644,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(Wi-Fi)",
+    "모델명": "S90C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -658,8 +658,8 @@
     "SW Event": "FC 3"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(Wi-Fi)",
+    "모델명": "S90C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -672,8 +672,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(Wi-Fi)",
+    "모델명": "S90C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -686,8 +686,8 @@
     "SW Event": "QP 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(Wi-Fi)",
+    "모델명": "S90C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -700,8 +700,8 @@
     "SW Event": "SIT1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(Wi-Fi)",
+    "모델명": "S90C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -728,8 +728,8 @@
     "SW Event": "Dev Test"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(BT)",
+    "모델명": "S80C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -742,8 +742,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(BT)",
+    "모델명": "S80C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -756,8 +756,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(BT)",
+    "모델명": "S80C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -770,8 +770,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "사운드바(BT)",
+    "모델명": "S80C",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -798,8 +798,8 @@
     "SW Event": "Dev Test"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Accessory",
+    "모델명": "CB-SH",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -812,8 +812,8 @@
     "SW Event": "FC 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Accessory",
+    "모델명": "CB-SH",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -826,8 +826,8 @@
     "SW Event": "FC 2"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Accessory",
+    "모델명": "CB-SH",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -840,8 +840,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "Accessory",
+    "모델명": "CB-SH",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -868,8 +868,8 @@
     "SW Event": "Dev Test"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "무선 스피커",
+    "모델명": "XT7S",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -882,7 +882,7 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
+    "제품군": "무선 스피커",
     "모델명": "Bounce",
     "개발등급": "MR_Minor",
     "SoC": "BES2710",
@@ -896,7 +896,7 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
+    "제품군": "무선 스피커",
     "모델명": "Blast",
     "개발등급": "MR_Minor",
     "SoC": "BES2710",
@@ -910,8 +910,8 @@
     "SW Event": "Dev Test"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "무선 스피커",
+    "모델명": "Blast",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -924,7 +924,7 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
+    "제품군": "무선 스피커",
     "모델명": "Rock",
     "개발등급": "MR_Minor",
     "SoC": "BES2710",
@@ -938,8 +938,8 @@
     "SW Event": "Dev Test"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "무선 스피커",
+    "모델명": "Rock",
     "개발등급": null,
     "SoC": null,
     "SW": null,
@@ -966,7 +966,7 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
+    "제품군": "무선 스피커",
     "모델명": "Stage501",
     "개발등급": "MR_Minor",
     "SoC": "MLC3735",
@@ -994,8 +994,8 @@
     "SW Event": "QP 1"
   },
   {
-    "제품군": null,
-    "모델명": null,
+    "제품군": "이어버드",
+    "모델명": "윈도우PC 앱",
     "개발등급": null,
     "SoC": null,
     "SW": "조용승",
