@@ -53,7 +53,11 @@ class Settings(BaseSettings):
     inprogress_status_category: str = "indeterminate"
 
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:5173,"
+        "https://react-audio.apps.axstudio.lge.com,https://react-audio.apps.hedej.lge.com,"
+        "https://workspace.hedej.lge.com,https://workspace.axstudio.lge.com"
+    )
 
     # 모델 현황 Snapshot 메일 공유 — audiences 별 수신 (쉼표 구분)
     model_schedule_share_dqa_recipients: str = (
