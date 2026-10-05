@@ -45,7 +45,10 @@ for f in \
   scripts/patch-be-main-model-schedule.sh:scripts/patch-be-main-model-schedule.sh \
   scripts/patch-config-snapshot-smtp.sh:scripts/patch-config-snapshot-smtp.sh \
   scripts/patch-env-snapshot-smtp.sh:scripts/patch-env-snapshot-smtp.sh \
-  scripts/patch-env-cors-axstudio.sh:scripts/patch-env-cors-axstudio.sh
+  scripts/patch-env-cors-axstudio.sh:scripts/patch-env-cors-axstudio.sh \
+  scripts/patch-be-config-cors.sh:scripts/patch-be-config-cors.sh \
+  scripts/patch-be-main-cors.sh:scripts/patch-be-main-cors.sh \
+  scripts/apply-be-cors-axstudio.sh:scripts/apply-be-cors-axstudio.sh
 do
   src="${f%%:*}"
   dst="${f##*:}"
