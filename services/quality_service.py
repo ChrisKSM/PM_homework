@@ -21,10 +21,10 @@ EVENT_PHASES: dict[str, list[dict[str, str]]] = {
         {"phase": "3", "label": "DEV 3차", "jiraLabel": "DEV3_BUG"},
     ],
     "FC": [
-        {"phase": "1", "label": "FC 1차", "jiraLabel": "FC1_BUG"},
-        {"phase": "2", "label": "FC 2차", "jiraLabel": "FC2_BUG"},
-        {"phase": "3", "label": "FC 3차", "jiraLabel": "FC3_BUG"},
-        {"phase": "4", "label": "FC 4차", "jiraLabel": "FC4_BUG"},
+        {"phase": "1", "label": "FC 1차", "jiraLabel": "FC1_ISSUE"},
+        {"phase": "2", "label": "FC 2차", "jiraLabel": "FC2_ISSUE"},
+        {"phase": "3", "label": "FC 3차", "jiraLabel": "FC3_ISSUE"},
+        {"phase": "4", "label": "FC 4차", "jiraLabel": "FC4_ISSUE"},
     ],
     "PV": [
         {"phase": "1", "label": "PV 1차", "jiraLabel": "PV1"},
