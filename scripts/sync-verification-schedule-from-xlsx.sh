@@ -12,6 +12,14 @@ XLSX="${1:-$DEFAULT_XLSX}"
 USER_PROVIDED=
 if [ -n "$1" ]; then
   USER_PROVIDED=1
+  # /workspace/project/파일.xlsx 만 넘긴 경우 → scripts/data/ 자동 탐색
+  if [ ! -f "$XLSX" ]; then
+    base="$(basename "$XLSX")"
+    if [ -f "scripts/data/$base" ]; then
+      echo "  → scripts/data/$base 사용"
+      XLSX="scripts/data/$base"
+    fi
+  fi
 fi
 
 if ! python3 -c "import openpyxl" 2>/dev/null; then
