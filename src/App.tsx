@@ -49,6 +49,22 @@ export default function App() {
           <Route path="quality" element={<Navigate to="/s80c/quality" replace />} />
           <Route path="procurement" element={<Navigate to="/s80c/procurement" replace />} />
           <Route path="risk" element={<Navigate to="/s80c/risk" replace />} />
+
+          <Route
+            path="*"
+            element={
+              <div className="pt-20 px-6 text-sm text-gray-700">
+                <p className="font-semibold text-gray-900 mb-2">페이지를 찾을 수 없습니다.</p>
+                <p className="mb-2">
+                  모델 검증 일정 mock:{' '}
+                  <a className="text-blue-600 underline" href="/model-schedule/verification?mock=1">
+                    /model-schedule/verification?mock=1
+                  </a>
+                </p>
+                <p className="text-xs text-gray-500">URL에 경로가 두 번 붙지 않았는지 확인하세요.</p>
+              </div>
+            }
+          />
         </Route>
       </Routes>
     </BrowserRouter>

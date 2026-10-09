@@ -50,7 +50,21 @@ python3 scripts/import-verification-schedule-from-xlsx.py "$XLSX" \
   -o scripts/seed-model-schedule-data.json \
   --ts src/data/modelScheduleVerificationMock.ts
 
+mkdir -p public
+python3 - <<'PY'
+import json
+from pathlib import Path
+seed = json.loads(Path("scripts/seed-model-schedule-data.json").read_text(encoding="utf-8"))
+out = {"rows": seed["rows"], "timelineStart": seed.get("timelineStart")}
+Path("public/model-schedule-verification-mock.json").write_text(
+    json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
+)
+print("  + public/model-schedule-verification-mock.json")
+PY
+
 echo "=== Done ==="
 echo "  JSON: scripts/seed-model-schedule-data.json"
 echo "  Mock: src/data/modelScheduleVerificationMock.ts"
-echo "  UI:   /model-schedule/verification?mock=1"
+echo "  Public: public/model-schedule-verification-mock.json (build 후 배포)"
+echo "  UI:   https://react-audio.../model-schedule/verification?mock=1"
+echo "  ⚠ URL 오타 금지: .../verification?mock=1 (verificationmodel-schedule X)"

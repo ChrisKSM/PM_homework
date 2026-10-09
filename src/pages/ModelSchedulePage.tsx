@@ -220,15 +220,33 @@ export default function ModelSchedulePage(){
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
   const [changesPopup,setChangesPopup]=useState<{model:string;cat:string;event:string}|null>(null)
   const [showSnapshotPopup,setShowSnapshotPopup]=useState(false)
+  const [mockHint,setMockHint]=useState<string|null>(null)
 
   // MongoDB / localStorage 로드 (페이지 진입 시마다)
   useEffect(()=>{
     if(mockPreview){
-      setData(prepareModelScheduleRows(VERIFICATION_MOCK_ROWS))
-      setStartDate(parseTimelineStart(VERIFICATION_MOCK_TIMELINE_START))
-      setDataSource('default')
-      setLoading(false)
-      return
+      let cancelled=false
+      setLoading(true)
+      setMockHint(null)
+      const applyMock=(rows:ModelRow[],timelineStart?:string|null,source='bundled')=>{
+        if(cancelled)return
+        setData(prepareModelScheduleRows(rows))
+        setStartDate(parseTimelineStart(timelineStart ?? VERIFICATION_MOCK_TIMELINE_START))
+        setDataSource('default')
+        setMockHint(source==='public'?`${rows.length}행 · public JSON`: `${rows.length}행 · bundled TS`)
+        setLoading(false)
+      }
+      fetch(`/model-schedule-verification-mock.json?_=${Date.now()}`)
+        .then(r=>{if(!r.ok)throw new Error(String(r.status));return r.json()})
+        .then((payload:{rows?:ModelRow[];timelineStart?:string})=>{
+          const rows=Array.isArray(payload?.rows)?payload.rows:[]
+          if(!rows.length)throw new Error('empty rows')
+          applyMock(rows,payload.timelineStart,'public')
+        })
+        .catch(()=>{
+          applyMock(VERIFICATION_MOCK_ROWS,VERIFICATION_MOCK_TIMELINE_START,'bundled')
+        })
+      return ()=>{cancelled=true}
     }
     let cancelled=false
     setLoading(true)
@@ -392,8 +410,9 @@ export default function ModelSchedulePage(){
         {mockPreview && (
           <p className="text-[11px] text-blue-900 mb-2 bg-blue-50 border border-blue-300 rounded-lg px-3 py-2 font-medium">
             Excel → JSON mock —{' '}
-            <code className="text-[10px] bg-white px-1 rounded">?mock=1</code> · 갱신:{' '}
-            <code className="text-[10px] bg-white px-1 rounded">sh scripts/sync-verification-schedule-from-xlsx.sh</code>
+            <code className="text-[10px] bg-white px-1 rounded">/model-schedule/verification?mock=1</code>
+            {mockHint ? ` · ${mockHint}` : ''} · sync 후{' '}
+            <code className="text-[10px] bg-white px-1 rounded">npm run build</code> 필수
           </p>
         )}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
