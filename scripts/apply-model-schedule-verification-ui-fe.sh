@@ -11,7 +11,8 @@ set -e
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
 
-REF="${REF:-ba21fb8f530ddbae79f4b0184832bcdfe816a097}"
+# commit 전체 SHA 또는 브랜치명 (짧은 SHA 404 날 수 있음)
+REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
 mkdir -p src/pages src/api src/utils src/components/modelSchedule
