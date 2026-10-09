@@ -15,6 +15,7 @@ import {
   STATUS_LIST,
   groupKey,
   isModelGroupSettled,
+  normalizeCategoryForSort,
   prepareModelScheduleRows,
   rowsNeedRepair,
   sortModelRows,
@@ -288,7 +289,7 @@ export default function ModelSchedulePage(){
   const hasFilter=!!(fCat||fModel||fStatus)
   const sortedData=useMemo(()=>sortModelRows(data),[data])
   const filtered=useMemo(()=>sortedData.filter(r=>(!fCat||r.category===fCat)&&(!fModel||r.model===fModel)&&(!fStatus||r.status===fStatus)),[sortedData,fCat,fModel,fStatus])
-  const catMerge=useMemo(()=>calcMerge(filtered,r=>r.category),[filtered])
+  const catMerge=useMemo(()=>calcMerge(filtered,r=>normalizeCategoryForSort(r.category)),[filtered])
   const modelMerge=useMemo(()=>calcMerge(filtered,groupKey),[filtered])
 
   const today=dayStart(new Date())
@@ -433,7 +434,7 @@ export default function ModelSchedulePage(){
         subtitle={
           mockPreview
             ? 'Mock 미리보기 · Excel(openpyxl) import JSON (DB 미반영)'
-            : '모델별 개발/검증 일정 Gantt — 편집 · 엑셀 · MongoDB'
+            : '모델별 Gantt · 월 단위(10/1~10/31) · MongoDB 저장 · Snapshot 메일 diff'
         }
       />
       <div className="pt-16 p-4">
@@ -519,10 +520,10 @@ export default function ModelSchedulePage(){
 
                   return(
                     <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB,groupSettled&&MODEL_MUTED_TEXT)} style={{height:RH}}>
-                      {!cm.hidden&&<td rowSpan={cm.rowSpan} className={clsx('sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',groupSettled?MODEL_MUTED_BG: 'text-gray-600')}>
+                      {!cm.hidden&&<td rowSpan={cm.rowSpan} className={clsx('sticky left-0 z-10 border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',groupSettled?MODEL_MUTED_BG:'bg-white text-gray-600')}>
                         {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,row.event,'category',v)}/>:row.category}
                       </td>}
-                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky left-20 z-10 bg-white border-r border-surface-border px-1.5 font-semibold text-[11px] whitespace-nowrap align-middle text-center',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'text-gray-900')}>
+                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky left-20 z-10 border-r border-surface-border px-1.5 font-semibold text-[11px] whitespace-nowrap align-middle text-center',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'bg-white text-gray-900')}>
                         {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;const oe=row.event;setData(p=>p.map(r=>r.model===om&&r.category===oc&&r.event===oe?{...r,model:v}:r))}}/>:row.model}
                       </td>}
                       <MergedCell ri={ri}>{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,row.event,'event',v)}/>:<span className="text-gray-600">{row.event}</span>}</MergedCell>
