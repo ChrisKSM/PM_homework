@@ -373,15 +373,24 @@ export function sortModelRows(rows: ModelRow[]): ModelRow[] {
   })
 }
 
-export function prepareModelScheduleRows(raw: unknown[]): ModelRow[] {
-  return sortModelRows(
-    unifyCategoryLabels(ensureSoundSuiteDetailRows(repairLegacyRows(normRows(raw)))),
-  )
+export type PrepareModelScheduleOptions = {
+  /** Excel seed에 없는 Sound Suite 행을 코드로 추가 (구 bundled xlsx 전용) */
+  supplementSoundSuite?: boolean
 }
 
-export function rowsNeedRepair(raw: unknown[]): boolean {
+export function prepareModelScheduleRows(
+  raw: unknown[],
+  options?: PrepareModelScheduleOptions,
+): ModelRow[] {
+  const supplement = options?.supplementSoundSuite === true
+  let rows = repairLegacyRows(normRows(raw))
+  if (supplement) rows = ensureSoundSuiteDetailRows(rows)
+  return sortModelRows(unifyCategoryLabels(rows))
+}
+
+export function rowsNeedRepair(raw: unknown[], options?: PrepareModelScheduleOptions): boolean {
   const before = sortModelRows(unifyCategoryLabels(repairLegacyRows(normRows(raw))))
-  const after = prepareModelScheduleRows(raw)
+  const after = prepareModelScheduleRows(raw, options)
   const sig = (list: ModelRow[]) =>
     JSON.stringify(
       list.map((r) => ({

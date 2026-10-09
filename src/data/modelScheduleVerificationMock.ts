@@ -3,6 +3,75 @@ import type { ModelRow } from '../utils/modelScheduleRows'
 
 export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
   {
+    "id": "ms-h7-mr8-rollback-일반성능",
+    "category": "사운드바(Wi-Fi)",
+    "model": "H7",
+    "event": "MR8_Rollback",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "O26",
+    "staff": "김로경",
+    "testType": "일반성능",
+    "changes": "4. DTS:X 지원",
+    "status": "예정",
+    "bars": [
+      {
+        "start": "2026-09-29",
+        "end": "2026-09-29",
+        "type": "planned",
+        "label": "MR8-1"
+      },
+      {
+        "start": "2026-09-30",
+        "end": "2026-10-01",
+        "type": "su_fota",
+        "label": "배포"
+      }
+    ]
+  },
+  {
+    "id": "ms-h7-mr8-rollback-호환성",
+    "category": "사운드바(Wi-Fi)",
+    "model": "H7",
+    "event": "MR8_Rollback",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "O26",
+    "staff": "김로경",
+    "testType": "호환성",
+    "changes": "4. DTS:X 지원",
+    "status": "예정",
+    "bars": []
+  },
+  {
+    "id": "ms-h7-mr8-rollback-안정성",
+    "category": "사운드바(Wi-Fi)",
+    "model": "H7",
+    "event": "MR8_Rollback",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "O26",
+    "staff": "김로경",
+    "testType": "안정성",
+    "changes": "4. DTS:X 지원",
+    "status": "검증제외",
+    "bars": []
+  },
+  {
+    "id": "ms-h7-mr8-rollback-시너지",
+    "category": "사운드바(Wi-Fi)",
+    "model": "H7",
+    "event": "MR8_Rollback",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "O26",
+    "staff": "김로경",
+    "testType": "시너지",
+    "changes": "4. DTS:X 지원",
+    "status": "검증제외",
+    "bars": []
+  },
+  {
     "id": "ms-h7-mr8차-일반성능",
     "category": "사운드바(Wi-Fi)",
     "model": "H7",
@@ -78,6 +147,69 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
     "bars": []
   },
   {
+    "id": "ms-m7-m5-mr8차-일반성능",
+    "category": "사운드바(Wi-Fi)",
+    "model": "M7/M5",
+    "event": "MR8차",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "MT8532",
+    "staff": "김승화",
+    "testType": "일반성능",
+    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
+    "status": "예정",
+    "bars": [
+      {
+        "start": "2026-09-19",
+        "end": "2026-09-20",
+        "type": "event_ng",
+        "label": "MR8-2차"
+      }
+    ]
+  },
+  {
+    "id": "ms-m7-m5-mr8차-호환성",
+    "category": "사운드바(Wi-Fi)",
+    "model": "M7/M5",
+    "event": "MR8차",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "MT8532",
+    "staff": "김승화",
+    "testType": "호환성",
+    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
+    "status": "예정",
+    "bars": []
+  },
+  {
+    "id": "ms-m7-m5-mr8차-안정성",
+    "category": "사운드바(Wi-Fi)",
+    "model": "M7/M5",
+    "event": "MR8차",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "MT8532",
+    "staff": "김승화",
+    "testType": "안정성",
+    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
+    "status": "예정",
+    "bars": []
+  },
+  {
+    "id": "ms-m7-m5-mr8차-시너지",
+    "category": "사운드바(Wi-Fi)",
+    "model": "M7/M5",
+    "event": "MR8차",
+    "variant": "MR Minor",
+    "manufacturer": "Tympany",
+    "soc": "MT8532",
+    "staff": "김승화",
+    "testType": "시너지",
+    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
+    "status": "예정",
+    "bars": []
+  },
+  {
     "id": "ms-w7-mr5차-일반성능",
     "category": "사운드바(Wi-Fi)",
     "model": "W7",
@@ -149,138 +281,6 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
     "staff": "김로경",
     "testType": "시너지",
     "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원\n4. ThinQ 제품 카드에서 W7 연결 표시",
-    "status": "검증제외",
-    "bars": []
-  },
-  {
-    "id": "ms-m7-m5-mr8차-일반성능",
-    "category": "사운드바(Wi-Fi)",
-    "model": "M7/M5",
-    "event": "MR8차",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "MT8532",
-    "staff": "김승화",
-    "testType": "일반성능",
-    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
-    "status": "예정",
-    "bars": [
-      {
-        "start": "2026-09-19",
-        "end": "2026-09-20",
-        "type": "event_ng",
-        "label": "MR8-2차"
-      }
-    ]
-  },
-  {
-    "id": "ms-m7-m5-mr8차-호환성",
-    "category": "사운드바(Wi-Fi)",
-    "model": "M7/M5",
-    "event": "MR8차",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "MT8532",
-    "staff": "김승화",
-    "testType": "호환성",
-    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
-    "status": "예정",
-    "bars": []
-  },
-  {
-    "id": "ms-m7-m5-mr8차-안정성",
-    "category": "사운드바(Wi-Fi)",
-    "model": "M7/M5",
-    "event": "MR8차",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "MT8532",
-    "staff": "김승화",
-    "testType": "안정성",
-    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
-    "status": "예정",
-    "bars": []
-  },
-  {
-    "id": "ms-m7-m5-mr8차-시너지",
-    "category": "사운드바(Wi-Fi)",
-    "model": "M7/M5",
-    "event": "MR8차",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "MT8532",
-    "staff": "김승화",
-    "testType": "시너지",
-    "changes": "1. MCC 대응\n2. 6GHz 지원\n3. 5G DFS 채널 지원",
-    "status": "예정",
-    "bars": []
-  },
-  {
-    "id": "ms-h7-mr8-rollback-일반성능",
-    "category": "사운드바(Wi-Fi)",
-    "model": "H7",
-    "event": "MR8_Rollback",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "O26",
-    "staff": "김로경",
-    "testType": "일반성능",
-    "changes": "4. DTS:X 지원",
-    "status": "예정",
-    "bars": [
-      {
-        "start": "2026-09-29",
-        "end": "2026-09-29",
-        "type": "planned",
-        "label": "MR8-1"
-      },
-      {
-        "start": "2026-09-30",
-        "end": "2026-10-01",
-        "type": "su_fota",
-        "label": "배포"
-      }
-    ]
-  },
-  {
-    "id": "ms-h7-mr8-rollback-호환성",
-    "category": "사운드바(Wi-Fi)",
-    "model": "H7",
-    "event": "MR8_Rollback",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "O26",
-    "staff": "김로경",
-    "testType": "호환성",
-    "changes": "4. DTS:X 지원",
-    "status": "예정",
-    "bars": []
-  },
-  {
-    "id": "ms-h7-mr8-rollback-안정성",
-    "category": "사운드바(Wi-Fi)",
-    "model": "H7",
-    "event": "MR8_Rollback",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "O26",
-    "staff": "김로경",
-    "testType": "안정성",
-    "changes": "4. DTS:X 지원",
-    "status": "검증제외",
-    "bars": []
-  },
-  {
-    "id": "ms-h7-mr8-rollback-시너지",
-    "category": "사운드바(Wi-Fi)",
-    "model": "H7",
-    "event": "MR8_Rollback",
-    "variant": "MR Minor",
-    "manufacturer": "Tympany",
-    "soc": "O26",
-    "staff": "김로경",
-    "testType": "시너지",
-    "changes": "4. DTS:X 지원",
     "status": "검증제외",
     "bars": []
   },
@@ -498,6 +498,75 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
     "bars": []
   },
   {
+    "id": "ms-stage501-mr1차-일반성능",
+    "category": "파티스피커(Bluetooth)",
+    "model": "STAGE501",
+    "event": "MR1차",
+    "variant": "MR Minor",
+    "manufacturer": "Tonly",
+    "soc": "MLC3735",
+    "staff": "김승화",
+    "testType": "일반성능",
+    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
+    "status": "완료",
+    "bars": [
+      {
+        "start": "2026-09-19",
+        "end": "2026-09-22",
+        "type": "inprogress",
+        "label": "검증"
+      },
+      {
+        "start": "2026-09-23",
+        "end": "2026-09-24",
+        "type": "event_ok",
+        "label": "인정"
+      }
+    ]
+  },
+  {
+    "id": "ms-stage501-mr1차-호환성",
+    "category": "파티스피커(Bluetooth)",
+    "model": "STAGE501",
+    "event": "MR1차",
+    "variant": "MR Minor",
+    "manufacturer": "Tonly",
+    "soc": "MLC3735",
+    "staff": "김승화",
+    "testType": "호환성",
+    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
+    "status": "완료",
+    "bars": []
+  },
+  {
+    "id": "ms-stage501-mr1차-안정성",
+    "category": "파티스피커(Bluetooth)",
+    "model": "STAGE501",
+    "event": "MR1차",
+    "variant": "MR Minor",
+    "manufacturer": "Tonly",
+    "soc": "MLC3735",
+    "staff": "김승화",
+    "testType": "안정성",
+    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
+    "status": "완료",
+    "bars": []
+  },
+  {
+    "id": "ms-stage501-mr1차-시너지",
+    "category": "파티스피커(Bluetooth)",
+    "model": "STAGE501",
+    "event": "MR1차",
+    "variant": "MR Minor",
+    "manufacturer": "Tonly",
+    "soc": "MLC3735",
+    "staff": "김승화",
+    "testType": "시너지",
+    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
+    "status": "검증제외",
+    "bars": []
+  },
+  {
     "id": "ms-mini-mr3차-일반성능",
     "category": "무선스피커(Bluetooth)",
     "model": "Mini",
@@ -636,69 +705,6 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
     "bars": []
   },
   {
-    "id": "ms-xboom-thinq-앱-bounce-mr4차-일반성능",
-    "category": "무선스피커(Bluetooth)",
-    "model": "xboom ThinQ 앱 (Bounce)",
-    "event": "MR4차",
-    "variant": "MR Minor",
-    "manufacturer": "Cosonic",
-    "soc": "BES2710IA",
-    "staff": "김승화",
-    "testType": "일반성능",
-    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
-    "status": "완료",
-    "bars": [
-      {
-        "start": "2026-09-22",
-        "end": "2026-09-24",
-        "type": "event_ok",
-        "label": "인정"
-      }
-    ]
-  },
-  {
-    "id": "ms-xboom-thinq-앱-bounce-mr4차-호환성",
-    "category": "무선스피커(Bluetooth)",
-    "model": "xboom ThinQ 앱 (Bounce)",
-    "event": "MR4차",
-    "variant": "MR Minor",
-    "manufacturer": "Cosonic",
-    "soc": "BES2710IA",
-    "staff": "김승화",
-    "testType": "호환성",
-    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
-    "status": "검증제외",
-    "bars": []
-  },
-  {
-    "id": "ms-xboom-thinq-앱-bounce-mr4차-안정성",
-    "category": "무선스피커(Bluetooth)",
-    "model": "xboom ThinQ 앱 (Bounce)",
-    "event": "MR4차",
-    "variant": "MR Minor",
-    "manufacturer": "Cosonic",
-    "soc": "BES2710IA",
-    "staff": "김승화",
-    "testType": "안정성",
-    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
-    "status": "검증제외",
-    "bars": []
-  },
-  {
-    "id": "ms-xboom-thinq-앱-bounce-mr4차-시너지",
-    "category": "무선스피커(Bluetooth)",
-    "model": "xboom ThinQ 앱 (Bounce)",
-    "event": "MR4차",
-    "variant": "MR Minor",
-    "manufacturer": "Cosonic",
-    "soc": "BES2710IA",
-    "staff": "김승화",
-    "testType": "시너지",
-    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
-    "status": "검증제외",
-    "bars": []
-  },
-  {
     "id": "ms-xt7s-점검-중-일반성능",
     "category": "무선스피커(Bluetooth)",
     "model": "XT7S",
@@ -762,6 +768,69 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
     "bars": []
   },
   {
+    "id": "ms-xboom-thinq-앱-bounce-mr4차-일반성능",
+    "category": "무선스피커(Bluetooth)",
+    "model": "xboom ThinQ 앱 (Bounce)",
+    "event": "MR4차",
+    "variant": "MR Minor",
+    "manufacturer": "Cosonic",
+    "soc": "BES2710IA",
+    "staff": "김승화",
+    "testType": "일반성능",
+    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
+    "status": "완료",
+    "bars": [
+      {
+        "start": "2026-09-22",
+        "end": "2026-09-24",
+        "type": "event_ok",
+        "label": "인정"
+      }
+    ]
+  },
+  {
+    "id": "ms-xboom-thinq-앱-bounce-mr4차-호환성",
+    "category": "무선스피커(Bluetooth)",
+    "model": "xboom ThinQ 앱 (Bounce)",
+    "event": "MR4차",
+    "variant": "MR Minor",
+    "manufacturer": "Cosonic",
+    "soc": "BES2710IA",
+    "staff": "김승화",
+    "testType": "호환성",
+    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
+    "status": "검증제외",
+    "bars": []
+  },
+  {
+    "id": "ms-xboom-thinq-앱-bounce-mr4차-안정성",
+    "category": "무선스피커(Bluetooth)",
+    "model": "xboom ThinQ 앱 (Bounce)",
+    "event": "MR4차",
+    "variant": "MR Minor",
+    "manufacturer": "Cosonic",
+    "soc": "BES2710IA",
+    "staff": "김승화",
+    "testType": "안정성",
+    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
+    "status": "검증제외",
+    "bars": []
+  },
+  {
+    "id": "ms-xboom-thinq-앱-bounce-mr4차-시너지",
+    "category": "무선스피커(Bluetooth)",
+    "model": "xboom ThinQ 앱 (Bounce)",
+    "event": "MR4차",
+    "variant": "MR Minor",
+    "manufacturer": "Cosonic",
+    "soc": "BES2710IA",
+    "staff": "김승화",
+    "testType": "시너지",
+    "changes": "1. LG Radio+ 서비스 개편 (TV 적용 수평전개)\n2. My Button 사용성 개선",
+    "status": "검증제외",
+    "bars": []
+  },
+  {
     "id": "ms-xboom-thinq-앱-미정-점검-중-일반성능",
     "category": "무선스피커(Bluetooth)",
     "model": "xboom ThinQ 앱 (미정)",
@@ -814,75 +883,6 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
     "staff": "김승화",
     "testType": "시너지",
     "changes": "1. 앱 아이콘 변경 (9월 일정 수립 예정)",
-    "status": "검증제외",
-    "bars": []
-  },
-  {
-    "id": "ms-stage501-mr1차-일반성능",
-    "category": "파티스피커(Bluetooth)",
-    "model": "STAGE501",
-    "event": "MR1차",
-    "variant": "MR Minor",
-    "manufacturer": "Tonly",
-    "soc": "MLC3735",
-    "staff": "김승화",
-    "testType": "일반성능",
-    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
-    "status": "완료",
-    "bars": [
-      {
-        "start": "2026-09-19",
-        "end": "2026-09-22",
-        "type": "inprogress",
-        "label": "검증"
-      },
-      {
-        "start": "2026-09-23",
-        "end": "2026-09-24",
-        "type": "event_ok",
-        "label": "인정"
-      }
-    ]
-  },
-  {
-    "id": "ms-stage501-mr1차-호환성",
-    "category": "파티스피커(Bluetooth)",
-    "model": "STAGE501",
-    "event": "MR1차",
-    "variant": "MR Minor",
-    "manufacturer": "Tonly",
-    "soc": "MLC3735",
-    "staff": "김승화",
-    "testType": "호환성",
-    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
-    "status": "완료",
-    "bars": []
-  },
-  {
-    "id": "ms-stage501-mr1차-안정성",
-    "category": "파티스피커(Bluetooth)",
-    "model": "STAGE501",
-    "event": "MR1차",
-    "variant": "MR Minor",
-    "manufacturer": "Tonly",
-    "soc": "MLC3735",
-    "staff": "김승화",
-    "testType": "안정성",
-    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
-    "status": "완료",
-    "bars": []
-  },
-  {
-    "id": "ms-stage501-mr1차-시너지",
-    "category": "파티스피커(Bluetooth)",
-    "model": "STAGE501",
-    "event": "MR1차",
-    "variant": "MR Minor",
-    "manufacturer": "Tonly",
-    "soc": "MLC3735",
-    "staff": "김승화",
-    "testType": "시너지",
-    "changes": "1. USB Audio Multi Link 지원\n2. 기동음/효과음 소리 출력 크기 변경\n3. BT 버전 변경 (5.4 → 6.1)",
     "status": "검증제외",
     "bars": []
   },

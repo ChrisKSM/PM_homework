@@ -225,8 +225,14 @@ def sort_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(rows, key=sort_key)
 
 
-def prepare_model_schedule_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    prepared = ensure_sound_suite_detail_rows(repair_legacy_rows(rows))
+def prepare_model_schedule_rows(
+    rows: list[dict[str, Any]],
+    *,
+    supplement_sound_suite: bool = False,
+) -> list[dict[str, Any]]:
+    prepared = repair_legacy_rows(rows)
+    if supplement_sound_suite:
+        prepared = ensure_sound_suite_detail_rows(prepared)
     for r in prepared:
         r["model"] = canonical_model_name(str(r.get("model", "")))
         r["category"] = canonical_category(str(r.get("category", "")))
@@ -234,12 +240,30 @@ def prepare_model_schedule_rows(rows: list[dict[str, Any]]) -> list[dict[str, An
 
 
 def main() -> None:
-    seed_path = Path(sys.argv[1] if len(sys.argv) > 1 else "scripts/seed-model-schedule-data.json")
+    import argparse
+
+    ap = argparse.ArgumentParser(description="seed JSON 정렬·라벨 보정 (기본: Excel strict)")
+    ap.add_argument(
+        "seed",
+        nargs="?",
+        default="scripts/seed-model-schedule-data.json",
+        help="seed JSON path",
+    )
+    ap.add_argument(
+        "--supplement-sound-suite",
+        action="store_true",
+        help="Excel에 없는 Sound Suite 4모델 행 보충",
+    )
+    args = ap.parse_args()
+    seed_path = Path(args.seed)
     data = json.loads(seed_path.read_text(encoding="utf-8"))
     rows = data.get("rows") if isinstance(data, dict) else data
     if not isinstance(rows, list):
         raise SystemExit("seed JSON must contain rows[]")
-    prepared = prepare_model_schedule_rows(rows)
+    prepared = prepare_model_schedule_rows(
+        rows,
+        supplement_sound_suite=args.supplement_sound_suite,
+    )
     if isinstance(data, dict):
         data["rows"] = prepared
         data["count"] = len(prepared)

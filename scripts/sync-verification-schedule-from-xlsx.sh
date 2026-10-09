@@ -38,10 +38,13 @@ if [ ! -f "$XLSX" ]; then
   XLSX="$DEFAULT_XLSX"
 fi
 
-echo "=== Import: $XLSX ==="
+echo "=== Import (Excel strict — 런타임 Sound Suite 보충 없음): $XLSX ==="
 python3 scripts/import-verification-schedule-from-xlsx.py "$XLSX" \
   -o scripts/seed-model-schedule-data.json \
   --ts src/data/modelScheduleVerificationMock.ts
+
+echo ""
+python3 scripts/validate-verification-seed-groups.py scripts/seed-model-schedule-data.json
 
 mkdir -p public
 python3 - <<'PY'

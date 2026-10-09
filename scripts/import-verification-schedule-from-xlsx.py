@@ -222,14 +222,29 @@ def merged_value(ws: Worksheet, row: int, col: int) -> Any:
     return ws.cell(row, col).value
 
 
-def read_meta(ws: Worksheet, row: int, cols: dict[str, int], carry: dict[str, str]) -> dict[str, str]:
-    out = dict(carry)
+def build_fill_down_column(ws: Worksheet, col: int, start_row: int, end_row: int) -> dict[int, str]:
+    """통합셀 제거 후 '아래로 채우기'와 동일 — 각 행의 표시값을 전파."""
+    out: dict[int, str] = {}
+    current = ""
+    for r in range(start_row, end_row + 1):
+        raw = norm_text(ws.cell(r, col).value)
+        if raw:
+            current = raw
+        out[r] = current
+    return out
+
+
+def read_meta(
+    ws: Worksheet,
+    row: int,
+    cols: dict[str, int],
+    fill_down: dict[str, dict[int, str]],
+) -> dict[str, str]:
+    out: dict[str, str] = {}
     for key, col in cols.items():
         if key == "testType":
             continue
-        val = norm_text(merged_value(ws, row, col))
-        if val:
-            out[key] = val
+        out[key] = fill_down.get(key, {}).get(row, "")
     tt_col = cols.get("testType")
     if tt_col:
         out["testType"] = norm_text(merged_value(ws, row, tt_col))
@@ -283,26 +298,26 @@ def import_sheet(ws: Worksheet) -> tuple[list[dict[str, Any]], str | None]:
     dates, date_col_start = find_timeline(ws, header_row, meta_cols)
 
     rows_out: list[dict[str, Any]] = []
-    carry: dict[str, str] = {
-        "category": "",
-        "model": "",
-        "event": "",
-        "variant": "",
-        "manufacturer": "",
-        "soc": "",
-        "staff": "",
-        "changes": "",
-    }
+    data_start = header_row + 1
+    data_end = ws.max_row
+    fill_down: dict[str, dict[int, str]] = {}
+    for key, col in meta_cols.items():
+        if key == "testType":
+            continue
+        fill_down[key] = build_fill_down_column(ws, col, data_start, data_end)
+    changes_fill = (
+        build_fill_down_column(ws, meta_cols["changes"], data_start, data_end)
+        if meta_cols.get("changes")
+        else {}
+    )
 
-    r = header_row + 1
-    while r <= ws.max_row:
-        meta = read_meta(ws, r, meta_cols, carry)
+    r = data_start
+    while r <= data_end:
+        meta = read_meta(ws, r, meta_cols, fill_down)
         tt_raw = meta.get("testType", "")
         if not meta.get("model") and not tt_raw:
             r += 1
             continue
-        if meta.get("model"):
-            carry = {k: meta.get(k, carry.get(k, "")) for k in carry}
         test_type = norm_test_type(tt_raw)
         if test_type not in TEST_TYPES and not tt_raw:
             r += 1
@@ -310,24 +325,23 @@ def import_sheet(ws: Worksheet) -> tuple[list[dict[str, Any]], str | None]:
 
         status_col = meta_cols.get("status")
         status = norm_status(norm_text(merged_value(ws, r, status_col)) if status_col else "")
-        changes_col = meta_cols.get("changes")
-        changes = norm_text(merged_value(ws, r, changes_col)) if changes_col else carry.get("changes", "")
+        changes = changes_fill.get(r, "")
 
         bars: list[dict[str, Any]] = []
         if test_type == "일반성능":
             bars = extract_bars(ws, r, dates, date_col_start)
 
-        row_id = slug_id(carry.get("model", ""), carry.get("event", ""), test_type)
+        row_id = slug_id(meta.get("model", ""), meta.get("event", ""), test_type)
         rows_out.append(
             {
                 "id": f"ms-{row_id}",
-                "category": carry.get("category", ""),
-                "model": carry.get("model", ""),
-                "event": carry.get("event", ""),
-                "variant": carry.get("variant", ""),
-                "manufacturer": carry.get("manufacturer", ""),
-                "soc": carry.get("soc", ""),
-                "staff": carry.get("staff", ""),
+                "category": meta.get("category", ""),
+                "model": meta.get("model", ""),
+                "event": meta.get("event", ""),
+                "variant": meta.get("variant", ""),
+                "manufacturer": meta.get("manufacturer", ""),
+                "soc": meta.get("soc", ""),
+                "staff": meta.get("staff", ""),
                 "testType": test_type,
                 "changes": changes,
                 "status": status,
@@ -355,7 +369,12 @@ def _canonical_category(category: str) -> str:
     return raw
 
 
-def import_workbook(path: Path, sheet: str | None = None) -> dict[str, Any]:
+def import_workbook(
+    path: Path,
+    sheet: str | None = None,
+    *,
+    supplement_sound_suite: bool = False,
+) -> dict[str, Any]:
     wb = load_workbook(path, data_only=True)
     ws = wb[sheet] if sheet else wb.active
     rows, timeline_start = import_sheet(ws)
@@ -365,10 +384,16 @@ def import_workbook(path: Path, sheet: str | None = None) -> dict[str, Any]:
     try:
         from prepare_model_schedule_seed import prepare_model_schedule_rows
 
-        rows = prepare_model_schedule_rows(rows)
+        rows = prepare_model_schedule_rows(rows, supplement_sound_suite=supplement_sound_suite)
     except ImportError:
         pass
-    return {"rows": rows, "count": len(rows), "timelineStart": timeline_start, "source": str(path.name)}
+    return {
+        "rows": rows,
+        "count": len(rows),
+        "timelineStart": timeline_start,
+        "source": str(path.name),
+        "importMode": "excel-strict" if not supplement_sound_suite else "excel+supplement",
+    }
 
 
 def main() -> None:
@@ -377,12 +402,21 @@ def main() -> None:
     ap.add_argument("-o", "--output", type=Path, default=Path("scripts/seed-model-schedule-data.json"))
     ap.add_argument("--sheet", default=None, help="시트 이름 (기본: active)")
     ap.add_argument("--ts", type=Path, default=None, help="FE mock TS 출력 (optional)")
+    ap.add_argument(
+        "--supplement-sound-suite",
+        action="store_true",
+        help="Excel에 없는 Sound Suite MR9/H7_VI 행을 코드로 보충 (구 bundled xlsx 전용)",
+    )
     args = ap.parse_args()
 
     if not args.xlsx.is_file():
         raise SystemExit(f"파일 없음: {args.xlsx}")
 
-    payload = import_workbook(args.xlsx, args.sheet)
+    payload = import_workbook(
+        args.xlsx,
+        args.sheet,
+        supplement_sound_suite=args.supplement_sound_suite,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote {args.output} — {payload['count']} rows, timelineStart={payload.get('timelineStart')}")

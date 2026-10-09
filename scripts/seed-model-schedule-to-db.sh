@@ -38,8 +38,7 @@ suite = sum(
 )
 print(f"  rows: {n} (사운드스위트: {suite}, H7_VI: {h7}, FC-event rows: {fc})", file=sys.stderr)
 if os.environ.get("FORCE_BAD_SEED") != "1" and h7 < 4:
-    print("ERROR: seed에 H7_VI(개발모델) 4구분 없음 — scripts/prepare_model_schedule_seed.py 실행", file=sys.stderr)
-    sys.exit(1)
+    print("WARN: seed에 H7_VI 4구분 없음 — 사용자 Excel import 후 seed 재생성 권장", file=sys.stderr)
 if os.environ.get("FORCE_BAD_SEED") != "1" and (n > 120 or fc > 0):
     print("ERROR: overview(FC1) seed — GitHub에서 eeb69b5+ seed JSON 다시 받으세요.", file=sys.stderr)
     sys.exit(1)
