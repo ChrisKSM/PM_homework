@@ -197,6 +197,13 @@ def collection_error(name: str) -> str:
     )
 
 
+def _flush_collection(collection: str) -> None:
+    try:
+        get_client().flush(collection_name=collection)
+    except Exception as exc:
+        logger.warning("flush(%s) failed: %s", collection, exc)
+
+
 def get_all_documents(collection: str, use_cache: bool = False) -> list[dict]:
     del use_cache
     try:
@@ -237,6 +244,7 @@ def insert_documents(collection: str, documents: list[dict]) -> bool:
         if not batch:
             return True
         client.insert(collection_name=collection, data=batch)
+        _flush_collection(collection)
         return True
     except Exception as exc:
         logger.error("insert_documents failed: %s", exc)
@@ -277,6 +285,7 @@ def delete_all_documents(collection: str) -> bool:
         if not client.has_collection(collection):
             return True
         client.delete(collection_name=collection, filter='row_id != ""')
+        _flush_collection(collection)
         return True
     except Exception as exc:
         logger.error("delete_all_documents failed: %s", exc)
