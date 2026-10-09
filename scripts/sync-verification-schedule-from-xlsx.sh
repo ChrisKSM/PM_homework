@@ -3,11 +3,16 @@
 #
 #   pip install openpyxl
 #   sh scripts/sync-verification-schedule-from-xlsx.sh
-#   sh scripts/sync-verification-schedule-from-xlsx.sh path/to/your.xlsx
+#   sh scripts/sync-verification-schedule-from-xlsx.sh /workspace/project/SW검증현황261008.xlsx
 set -e
 cd "$(dirname "$0")/.."
 
-XLSX="${1:-scripts/data/verification-schedule-detail.xlsx}"
+DEFAULT_XLSX="scripts/data/verification-schedule-detail.xlsx"
+XLSX="${1:-$DEFAULT_XLSX}"
+USER_PROVIDED=
+if [ -n "$1" ]; then
+  USER_PROVIDED=1
+fi
 
 if ! python3 -c "import openpyxl" 2>/dev/null; then
   echo "Installing openpyxl..."
@@ -15,10 +20,24 @@ if ! python3 -c "import openpyxl" 2>/dev/null; then
 fi
 
 if [ ! -f "$XLSX" ]; then
-  echo "=== $XLSX 없음 — seed JSON에서 템플릿 xlsx 생성 ==="
+  if [ -n "$USER_PROVIDED" ]; then
+    echo "Error: 지정한 Excel 파일이 pod에 없습니다:" >&2
+    echo "  $XLSX" >&2
+    echo "" >&2
+    echo "  1) AX Studio 파일 업로드로 pod /workspace/project/ 에 넣었는지 확인" >&2
+    echo "  2) pod에서 확인:" >&2
+    echo "       ls -la /workspace/project/*.xlsx" >&2
+    echo "       ls -la /workspace/project/scripts/data/" >&2
+    echo "  3) 업로드 후 다시:" >&2
+    echo "       sh scripts/sync-verification-schedule-from-xlsx.sh \"\$PWD/파일명.xlsx\"" >&2
+    exit 1
+  fi
+  echo "=== $DEFAULT_XLSX 없음 — seed JSON에서 템플릿 xlsx 생성 ==="
   python3 scripts/export-verification-schedule-to-xlsx.py
+  XLSX="$DEFAULT_XLSX"
 fi
 
+echo "=== Import: $XLSX ==="
 python3 scripts/import-verification-schedule-from-xlsx.py "$XLSX" \
   -o scripts/seed-model-schedule-data.json \
   --ts src/data/modelScheduleVerificationMock.ts
