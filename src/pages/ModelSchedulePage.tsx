@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { Fragment, useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import Header from '../components/layout/Header'
 import { Download, Pencil, Check, ChevronLeft, ChevronRight, Filter, X, Plus, Trash2, Undo2, Loader2, Camera } from 'lucide-react'
@@ -15,11 +15,15 @@ import {
   STATUS_LIST,
   groupKey,
   isModelGroupSettled,
-  canonicalCategory,
-  normalizeCategoryForSort,
+  categoryAddGroup,
+  defaultCategoryForAddGroup,
+  insertIndexForAddGroup,
   prepareModelScheduleRows,
-  rowsNeedRepair,
   sortModelRows,
+  VERIFICATION_ADD_GROUPS,
+  type VerificationAddGroup,
+  normalizeCategoryForSort,
+  rowsNeedRepair,
 } from '../utils/modelScheduleRows'
 import {
   computeScheduleChanges,
@@ -362,30 +366,44 @@ export default function ModelSchedulePage(){
   const updateField=(id:string,f:keyof ModelRow,v:string)=>setData(p=>p.map(r=>r.id===id?{...r,[f]:v}:r))
   const updateGroup=(m:string,c:string,e:string,f:keyof ModelRow,v:string)=>setData(p=>p.map(r=>r.model===m&&r.category===c&&r.event===e?{...r,[f]:v}:r))
 
-  const addModel=()=>{
+  const addModelForCategory=(group:VerificationAddGroup)=>{
     const ts=Date.now()
-    const lastCat=sortedData.map(r=>r.category).filter(Boolean).pop()
-    const cat=canonicalCategory(fCat||lastCat||'사운드스위트(Wi-Fi)')
+    const category=defaultCategoryForAddGroup(group)
     const model=`새 모델-${String(ts).slice(-5)}`
     const event='MR1'
-    setData(p=>[
-      ...p,
-      ...TEST_TYPES.map((tt,i)=>({
-        id:`new-${ts}-${i}`,
-        category:cat,
-        model,
-        event,
-        variant:'',
-        manufacturer:'',
-        soc:'',
-        staff:'',
-        testType:tt,
-        changes:'',
-        status:'예정' as StatusType,
-        bars:[],
-      })),
-    ])
+    const newRows:ModelRow[]=TEST_TYPES.map((tt,i)=>({
+      id:`new-${ts}-${i}`,
+      category,
+      model,
+      event,
+      variant:'',
+      manufacturer:'',
+      soc:'',
+      staff:'',
+      testType:tt,
+      changes:'',
+      status:'예정' as StatusType,
+      bars:[],
+    }))
+    setData((p)=>{
+      const sorted=sortModelRows(p)
+      const at=insertIndexForAddGroup(sorted,group)
+      return sortModelRows([...sorted.slice(0,at),...newRows,...sorted.slice(at)])
+    })
   }
+
+  const isLastRowOfAddGroup=useCallback((ri:number)=>{
+    if(ri>=filtered.length-1)return true
+    const g0=categoryAddGroup(filtered[ri].category)
+    const g1=categoryAddGroup(filtered[ri+1].category)
+    return g0!==g1
+  },[filtered])
+
+  const missingAddGroups=useMemo(()=>{
+    if(!editing||hasFilter)return []
+    const present=new Set(sortedData.map(r=>categoryAddGroup(r.category)))
+    return VERIFICATION_ADD_GROUPS.filter(g=>!present.has(g))
+  },[editing,hasFilter,sortedData])
   const deleteModel=(m:string,c:string,e:string)=>setData(p=>p.filter(r=>!(r.model===m&&r.category===c&&r.event===e)))
 
   const handleCellClick=(e:React.MouseEvent,rowId:string,date:Date)=>{
@@ -462,6 +480,28 @@ export default function ModelSchedulePage(){
     return <td rowSpan={modelMerge[ri].rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',settled&&MODEL_MUTED_BG,settled&&MODEL_MUTED_TEXT,className)}>{children}</td>
   }
 
+  const metaColCount=10+(editing?1:0)
+  const tableColSpan=metaColCount+dates.length
+
+  const renderCategoryAddRow=(group:VerificationAddGroup)=>(
+    <tr key={`add-row-${group}`} className="bg-blue-50/50 border-b-2 border-b-blue-200">
+      <td colSpan={tableColSpan} className="px-3 py-2 sticky left-0">
+        <button
+          type="button"
+          onClick={()=>addModelForCategory(group)}
+          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] font-semibold text-blue-700 bg-white border border-blue-300 hover:bg-blue-50"
+        >
+          <Plus size={14}/>{group} — 모델 추가
+        </button>
+      </td>
+    </tr>
+  )
+
+  const addGroupFromCategory=(cat:string):VerificationAddGroup|null=>{
+    const g=categoryAddGroup(cat)
+    return (VERIFICATION_ADD_GROUPS as readonly string[]).includes(g)?(g as VerificationAddGroup):null
+  }
+
   if(loading)return(<><Header title="모델 검증 일정 상세" subtitle="로딩 중..."/><div className="pt-16 p-6 flex justify-center items-center h-40"><Loader2 size={24} className="animate-spin text-gray-400"/></div></>)
 
   return(
@@ -499,7 +539,6 @@ export default function ModelSchedulePage(){
           {!saving&&!saveMessage&&dataSource!=='default'&&(
             <span className="text-[10px] text-gray-400">{dataSource==='mongo'?'MongoDB':'브라우저'}에서 불러옴</span>
           )}
-          {editing&&<button onClick={addModel} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-50 text-blue-600 border border-blue-200"><Plus size={14}/>모델 추가</button>}
           {editing?(
             <>
               <button onClick={cancelEdit} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-50 text-gray-600 border border-gray-300"><Undo2 size={14}/>취소</button>
@@ -523,7 +562,7 @@ export default function ModelSchedulePage(){
           <span className="text-[10px] text-gray-400 ml-auto">{filtered.length}/{sortedData.length}건</span>
         </div>
 
-        {editing&&<div className="text-[10px] text-gray-500 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">💡 일정 셀 <b>클릭</b> → 타입+라벨 · <b>변경점</b> 클릭 → 팝업 편집 · <b>취소</b> = 복원 · <b>편집 완료</b> = MongoDB 저장</div>}
+        {editing&&<div className="text-[10px] text-gray-500 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5">💡 각 <b>카테고리 마지막</b>의 「모델 추가」로 4구분(일반성능~시너지) 한 세트 추가 · 일정 셀 클릭 → 타입+라벨 · <b>편집 완료</b> = MongoDB 저장</div>}
 
         <div className="border border-surface-border rounded-xl bg-white">
           <div className="overflow-x-auto" ref={scrollRef}>
@@ -556,9 +595,11 @@ export default function ModelSchedulePage(){
                   const borderB=isModelLast(ri)?'border-b-2 border-b-gray-400':'border-b border-b-surface-border/60'
                   const groupSettled=isModelGroupSettled(data,row.model,row.category,row.event)
                   const mutedBg=groupSettled?MODEL_MUTED_BG:''
+                  const addGroup=editing&&isLastRowOfAddGroup(ri)?addGroupFromCategory(row.category):null
 
                   return(
-                    <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB)} style={{height:RH}}>
+                    <Fragment key={row.id}>
+                    <tr className={clsx('hover:bg-gray-50/30',borderB,addGroup&&'border-b-0')} style={{height:RH}}>
                       {!cm.hidden&&<td rowSpan={cm.rowSpan} className="sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle text-gray-600" style={{minWidth:STICKY_CAT_W,maxWidth:STICKY_CAT_W}}>
                         {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,row.event,'category',v)}/>:row.category}
                       </td>}
@@ -636,8 +677,11 @@ export default function ModelSchedulePage(){
                         )
                       })}
                     </tr>
+                    {addGroup&&renderCategoryAddRow(addGroup)}
+                    </Fragment>
                   )
                 })}
+                {missingAddGroups.map(g=>renderCategoryAddRow(g))}
               </tbody>
             </table>
           </div>

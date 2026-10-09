@@ -41,6 +41,56 @@ const CATEGORY_ORDER = [
   '이어버드',
 ]
 
+/** UI — 카테고리별 「모델 추가」 (5개) */
+export const VERIFICATION_ADD_GROUPS = [
+  '사운드스위트(Wi-Fi)',
+  '사운드바',
+  '파티스피커',
+  '무선스피커',
+  '이어버드',
+] as const
+
+export type VerificationAddGroup = (typeof VERIFICATION_ADD_GROUPS)[number]
+
+const ADD_GROUP_DEFAULT_CATEGORY: Record<VerificationAddGroup, string> = {
+  '사운드스위트(Wi-Fi)': '사운드스위트(Wi-Fi)',
+  '사운드바': '사운드바(Wi-Fi)',
+  '파티스피커': '파티스피커(Bluetooth)',
+  '무선스피커': '무선스피커(Bluetooth)',
+  '이어버드': '이어버드',
+}
+
+export function categoryAddGroup(category: string): VerificationAddGroup | string {
+  const n = normalizeCategoryForSort(category)
+  if (n === '사운드스위트(Wi-Fi)' || /사운드스위트/i.test(n)) return '사운드스위트(Wi-Fi)'
+  if (/^사운드바/i.test(n)) return '사운드바'
+  if (/파티/i.test(n)) return '파티스피커'
+  if (/무선/i.test(n)) return '무선스피커'
+  if (/이어버드/i.test(n)) return '이어버드'
+  return canonicalCategory(category)
+}
+
+export function defaultCategoryForAddGroup(group: VerificationAddGroup): string {
+  return ADD_GROUP_DEFAULT_CATEGORY[group]
+}
+
+export function insertIndexForAddGroup(rows: ModelRow[], group: VerificationAddGroup): number {
+  const g = (c: string) => categoryAddGroup(c)
+  let lastIdx = -1
+  for (let i = 0; i < rows.length; i++) {
+    if (g(rows[i].category) === group) lastIdx = i
+  }
+  if (lastIdx >= 0) return lastIdx + 1
+
+  const order = [...VERIFICATION_ADD_GROUPS]
+  const want = order.indexOf(group)
+  for (let i = 0; i < rows.length; i++) {
+    const og = order.indexOf(g(rows[i].category) as VerificationAddGroup)
+    if (og >= 0 && og > want) return i
+  }
+  return rows.length
+}
+
 const BAR_TYPES: BarType[] = ['planned', 'inprogress', 'event_ng', 'event_ok', 'event_done_est', 'su_fota']
 const TYPE_BY_LABEL: Record<string, BarType> = {
   '진행 예정': 'planned',
