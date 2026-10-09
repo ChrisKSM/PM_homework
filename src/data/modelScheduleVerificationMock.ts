@@ -431,7 +431,7 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
   {
     "id": "ms-lg-soundbar-앱-s9str-mr8차-일반성능",
     "category": "사운드바",
-    "model": "LG Soundbar 앱 S9STR",
+    "model": "LG Soundbar 앱 S95TR",
     "event": "MR8차",
     "variant": "MR Minor",
     "manufacturer": "LG",
@@ -458,7 +458,7 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
   {
     "id": "ms-lg-soundbar-앱-s9str-mr8차-호환성",
     "category": "사운드바",
-    "model": "LG Soundbar 앱 S9STR",
+    "model": "LG Soundbar 앱 S95TR",
     "event": "MR8차",
     "variant": "MR Minor",
     "manufacturer": "LG",
@@ -472,7 +472,7 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
   {
     "id": "ms-lg-soundbar-앱-s9str-mr8차-안정성",
     "category": "사운드바",
-    "model": "LG Soundbar 앱 S9STR",
+    "model": "LG Soundbar 앱 S95TR",
     "event": "MR8차",
     "variant": "MR Minor",
     "manufacturer": "LG",
@@ -486,7 +486,7 @@ export const VERIFICATION_MOCK_ROWS: ModelRow[] = [
   {
     "id": "ms-lg-soundbar-앱-s9str-mr8차-시너지",
     "category": "사운드바",
-    "model": "LG Soundbar 앱 S9STR",
+    "model": "LG Soundbar 앱 S95TR",
     "event": "MR8차",
     "variant": "MR Minor",
     "manufacturer": "LG",

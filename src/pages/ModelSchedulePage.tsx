@@ -287,7 +287,16 @@ export default function ModelSchedulePage(){
             }catch{/* ignore */}
           }
         }else{
-          setDataSource(res.source)
+          try{
+            const payload=await fetch(`/model-schedule-verification-mock.json?_=${Date.now()}`).then(r=>r.json())
+            const rows=Array.isArray(payload?.rows)?payload.rows:[]
+            if(!cancelled&&rows.length>0){
+              setData(prepareModelScheduleRows(rows))
+              setDataSource('default')
+            }else if(!cancelled)setDataSource(res.source)
+          }catch{
+            if(!cancelled)setDataSource(res.source)
+          }
         }
       })
       .finally(()=>{if(!cancelled)setLoading(false)})

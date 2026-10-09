@@ -66,9 +66,10 @@ const CATEGORY_ORDER = [
   '이어버드',
 ]
 
-/** UI — 카테고리별 「모델 추가」 (5개) */
+/** UI — 카테고리별 「모델 추가」 (mockup: 스위트 / Wi-Fi 사운드바 / 사운드바 분리) */
 export const VERIFICATION_ADD_GROUPS = [
   '사운드스위트(Wi-Fi)',
+  '사운드바(Wi-Fi)',
   '사운드바',
   '파티스피커',
   '무선스피커',
@@ -79,7 +80,8 @@ export type VerificationAddGroup = (typeof VERIFICATION_ADD_GROUPS)[number]
 
 const ADD_GROUP_DEFAULT_CATEGORY: Record<VerificationAddGroup, string> = {
   '사운드스위트(Wi-Fi)': '사운드스위트(Wi-Fi)',
-  '사운드바': '사운드바(Wi-Fi)',
+  '사운드바(Wi-Fi)': '사운드바(Wi-Fi)',
+  '사운드바': '사운드바',
   '파티스피커': '파티스피커(Bluetooth)',
   '무선스피커': '무선스피커(Bluetooth)',
   '이어버드': '이어버드',
@@ -88,7 +90,9 @@ const ADD_GROUP_DEFAULT_CATEGORY: Record<VerificationAddGroup, string> = {
 export function categoryAddGroup(category: string): VerificationAddGroup | string {
   const n = normalizeCategoryForSort(category)
   if (n === '사운드스위트(Wi-Fi)' || /사운드스위트/i.test(n)) return '사운드스위트(Wi-Fi)'
-  if (/^사운드바/i.test(n)) return '사운드바'
+  if (n === '사운드바(Wi-Fi)') return '사운드바(Wi-Fi)'
+  if (n === '사운드바') return '사운드바'
+  if (/^사운드바/i.test(n)) return '사운드바(Wi-Fi)'
   if (/파티/i.test(n)) return '파티스피커'
   if (/무선/i.test(n)) return '무선스피커'
   if (/이어버드/i.test(n)) return '이어버드'
@@ -128,9 +132,10 @@ const TYPE_BY_LABEL: Record<string, BarType> = {
 
 /** Excel/DB 표기 (H7 VI, H7VI) → H7_VI */
 export function canonicalModelName(model: string): string {
-  const m = String(model ?? '').trim()
+  let m = String(model ?? '').trim()
   if (!m) return m
   if (/^H7[\s_]*VI$/i.test(m.replace(/\s+/g, ' '))) return 'H7_VI'
+  if (/S9STR/i.test(m)) return 'LG Soundbar 앱 S95TR'
   return m
 }
 
@@ -327,6 +332,26 @@ export function repairLegacyRows(rows: ModelRow[]): ModelRow[] {
   return out
 }
 
+/** 첨부 mockup — 사운드스위트(Wi-Fi) 모델 순서 */
+const SOUND_SUITE_MODEL_ORDER = ['H7', 'W7', 'M7/M5', 'H7_VI']
+
+/** 첨부 mockup — 사운드바(plain) 모델 순서 */
+const SOUNDBAR_PLAIN_MODEL_ORDER = ['S80C', 'Connect Box', 'LG Soundbar 앱 S95TR']
+
+function modelOrderIndex(category: string, model: string): number | null {
+  const cat = normalizeCategoryForSort(category)
+  const m = canonicalModelName(model)
+  if (cat === SOUND_SUITE_WIFI_CATEGORY) {
+    const i = SOUND_SUITE_MODEL_ORDER.indexOf(m)
+    return i >= 0 ? i : SOUND_SUITE_MODEL_ORDER.length
+  }
+  if (cat === '사운드바') {
+    const i = SOUNDBAR_PLAIN_MODEL_ORDER.indexOf(m)
+    return i >= 0 ? i : SOUNDBAR_PLAIN_MODEL_ORDER.length
+  }
+  return null
+}
+
 export function sortModelRows(rows: ModelRow[]): ModelRow[] {
   const catIdx = (c: string) => {
     const n = normalizeCategoryForSort(c)
@@ -337,6 +362,9 @@ export function sortModelRows(rows: ModelRow[]): ModelRow[] {
   return [...rows].sort((a, b) => {
     const byCat = catIdx(a.category) - catIdx(b.category)
     if (byCat !== 0) return byCat
+    const oa = modelOrderIndex(a.category, a.model)
+    const ob = modelOrderIndex(b.category, b.model)
+    if (oa !== null && ob !== null && oa !== ob) return oa - ob
     const byModel = a.model.localeCompare(b.model, 'ko')
     if (byModel !== 0) return byModel
     const byEvent = a.event.localeCompare(b.event, 'ko')

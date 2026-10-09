@@ -29,6 +29,9 @@ SOUND_SUITE_DETAIL_GROUPS: list[dict[str, Any]] = [
     },
 ]
 
+SOUND_SUITE_MODEL_ORDER = ["H7", "W7", "M7/M5", "H7_VI"]
+SOUNDBAR_PLAIN_MODEL_ORDER = ["S80C", "Connect Box", "LG Soundbar 앱 S95TR"]
+
 CATEGORY_ORDER = [
     "사운드스위트(Wi-Fi)",
     "사운드바(Wi-Fi)",
@@ -47,6 +50,8 @@ def canonical_model_name(model: str) -> str:
         return m
     if re.match(r"^H7[\s_]*VI$", m, re.I):
         return "H7_VI"
+    if re.search(r"S9STR", m, re.I):
+        return "LG Soundbar 앱 S95TR"
     return m
 
 
@@ -175,6 +180,22 @@ def ensure_sound_suite_detail_rows(rows: list[dict[str, Any]]) -> list[dict[str,
     return out
 
 
+def model_order_index(category: str, model: str) -> int | None:
+    cat = canonical_category(category)
+    m = canonical_model_name(model)
+    if cat == SOUND_SUITE_WIFI_CATEGORY:
+        try:
+            return SOUND_SUITE_MODEL_ORDER.index(m)
+        except ValueError:
+            return len(SOUND_SUITE_MODEL_ORDER)
+    if cat == "사운드바":
+        try:
+            return SOUNDBAR_PLAIN_MODEL_ORDER.index(m)
+        except ValueError:
+            return len(SOUNDBAR_PLAIN_MODEL_ORDER)
+    return None
+
+
 def sort_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     def cat_idx(c: str) -> int:
         n = canonical_category(c)
@@ -189,15 +210,19 @@ def sort_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         except ValueError:
             return 0
 
-    return sorted(
-        rows,
-        key=lambda r: (
-            cat_idx(str(r.get("category", ""))),
-            str(r.get("model", "")),
+    def sort_key(r: dict[str, Any]) -> tuple:
+        cat = str(r.get("category", ""))
+        model = str(r.get("model", ""))
+        mo = model_order_index(cat, model)
+        model_key = (0, mo) if mo is not None else (1, model)
+        return (
+            cat_idx(cat),
+            model_key,
             str(r.get("event", "")),
             tt_idx(str(r.get("testType", ""))),
-        ),
-    )
+        )
+
+    return sorted(rows, key=sort_key)
 
 
 def prepare_model_schedule_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
