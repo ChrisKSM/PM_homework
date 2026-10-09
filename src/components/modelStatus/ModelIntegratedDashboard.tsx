@@ -5,6 +5,7 @@ import KpiCard from '../cards/KpiCard'
 import ModelStatusEventsTable from './ModelStatusEventsTable'
 import ModelStatusMetaCard from './ModelStatusMetaCard'
 import ManagerDashboardBody from './ManagerDashboardBody'
+import ModelStatusInitiativePanel from './ModelStatusInitiativePanel'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
   MODEL_STATUS_TABS,
@@ -273,10 +274,7 @@ export default function ModelIntegratedDashboard({
       )}
 
       {tab === 'initiative' && (
-        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
-          Initiative 로드맵 · Epic 연동 영역 (Jira board 연결 예정)
-          <p className="text-xs mt-2 text-gray-400">모델: {modelCode.replace(/_/g, ' ')}</p>
-        </div>
+        <ModelStatusInitiativePanel modelCode={modelCode} productGroupLabel={group.label} />
       )}
 
       {tab === 'prd' && (
