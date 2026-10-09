@@ -14,10 +14,23 @@ import {
   TEST_TYPES,
   STATUS_LIST,
   groupKey,
+  isModelGroupSettled,
   prepareModelScheduleRows,
   rowsNeedRepair,
   sortModelRows,
 } from '../utils/modelScheduleRows'
+import {
+  computeScheduleChanges,
+  monthScheduleSummary,
+} from '../utils/modelScheduleDiff'
+import {
+  daysInMonth,
+  periodLabelForMonth,
+  shiftViewMonth,
+  todayOffsetInMonth,
+  viewMonthLabel,
+  type ViewMonth,
+} from '../utils/modelScheduleMonth'
 import {
   VERIFICATION_MOCK_ROWS,
   VERIFICATION_MOCK_TIMELINE_START,
@@ -117,10 +130,8 @@ function exportCSV(data:ModelRow[]){
   a.download=`모델현황_${new Date().toISOString().slice(0,10)}.csv`;a.click()
 }
 
-function isModelAllDone(data:ModelRow[],model:string,cat:string,event:string):boolean{
-  const group=data.filter(r=>r.model===model&&r.category===cat&&r.event===event)
-  return group.length>0&&group.every(r=>r.status==='완료')
-}
+const MODEL_MUTED_BG = 'bg-slate-200'
+const MODEL_MUTED_TEXT = 'text-slate-600'
 
 // ── 병합 ─────────────────────────────────────────────────────────────────────
 
@@ -198,7 +209,7 @@ function EI({value,onChange}:{value:string;onChange:(v:string)=>void}){
 
 // ── 페이지 ───────────────────────────────────────────────────────────────────
 
-const DAYS=42,CW=28,RH=28
+const CW=28,RH=28
 
 export default function ModelSchedulePage(){
   const location=useLocation()
@@ -212,9 +223,11 @@ export default function ModelSchedulePage(){
   const [loading,setLoading]=useState(true)
   const [saveMessage,setSaveMessage]=useState<{type:'success'|'warn';text:string}|null>(null)
   const [dataSource,setDataSource]=useState<'mongo'|'local'|'default'>('default')
-  const [startDate,setStartDate]=useState(()=>
-    mockPreview?parseTimelineStart(VERIFICATION_MOCK_TIMELINE_START):toD('2026-09-15'),
-  )
+  const [viewMonth,setViewMonth]=useState<ViewMonth>(()=>{
+    const base=mockPreview?parseTimelineStart(VERIFICATION_MOCK_TIMELINE_START):new Date()
+    return { year: base.getFullYear(), month: base.getMonth() }
+  })
+  const [emailDiffBaseline,setEmailDiffBaseline]=useState<ModelRow[]|null>(null)
   const scrollRef=useRef<HTMLDivElement>(null)
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
@@ -231,7 +244,8 @@ export default function ModelSchedulePage(){
       const applyMock=(rows:ModelRow[],timelineStart?:string|null,source='bundled')=>{
         if(cancelled)return
         setData(prepareModelScheduleRows(rows))
-        setStartDate(parseTimelineStart(timelineStart ?? VERIFICATION_MOCK_TIMELINE_START))
+        const base=parseTimelineStart(timelineStart ?? VERIFICATION_MOCK_TIMELINE_START)
+        setViewMonth({ year: base.getFullYear(), month: base.getMonth() })
         setDataSource('default')
         setMockHint(source==='public'?`${rows.length}행 · public JSON`: `${rows.length}행 · bundled TS`)
         setLoading(false)
@@ -278,16 +292,32 @@ export default function ModelSchedulePage(){
   const modelMerge=useMemo(()=>calcMerge(filtered,groupKey),[filtered])
 
   const today=dayStart(new Date())
-  const dates=useMemo(()=>Array.from({length:DAYS},(_,i)=>dayStart(addDays(startDate,i))),[startDate])
-  const todayOff=useMemo(()=>diffD(startDate,today),[startDate,today])
+  const dates=useMemo(()=>daysInMonth(viewMonth),[viewMonth])
+  const todayOff=useMemo(()=>todayOffsetInMonth(today,viewMonth),[today,viewMonth])
+  const periodLabel=useMemo(()=>periodLabelForMonth(viewMonth),[viewMonth])
+  const scheduleChanges=useMemo(()=>{
+    if(!emailDiffBaseline)return []
+    return computeScheduleChanges(emailDiffBaseline,data,viewMonth)
+  },[emailDiffBaseline,data,viewMonth])
+  const monthSummary=useMemo(()=>monthScheduleSummary(sortedData,viewMonth),[sortedData,viewMonth])
 
   const isModelLast=useCallback((ri:number)=>{
     if(ri>=filtered.length-1)return true
     return groupKey(filtered[ri])!==groupKey(filtered[ri+1])
   },[filtered])
 
-  const startEdit=()=>{setSnapshot(JSON.parse(JSON.stringify(data)));setEditing(true)}
-  const cancelEdit=()=>{if(snapshot)setData(snapshot);setSnapshot(null);setEditing(false);setPicker(null)}
+  const startEdit=()=>{
+    setSnapshot(JSON.parse(JSON.stringify(data)))
+    setEmailDiffBaseline(JSON.parse(JSON.stringify(data)))
+    setEditing(true)
+  }
+  const cancelEdit=()=>{
+    if(snapshot)setData(snapshot)
+    setSnapshot(null)
+    setEmailDiffBaseline(null)
+    setEditing(false)
+    setPicker(null)
+  }
   const finishEdit=async()=>{
     setEditing(false);setPicker(null);setSnapshot(null)
     if(mockPreview){
@@ -390,8 +420,8 @@ export default function ModelSchedulePage(){
 
   const MergedCell=({ri,children,className=''}:{ri:number;children:React.ReactNode;className?:string})=>{
     if(modelMerge[ri].hidden)return null
-    const allDone=isModelAllDone(data,filtered[ri].model,filtered[ri].category,filtered[ri].event)
-    return <td rowSpan={modelMerge[ri].rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',allDone&&'bg-gray-100',className)}>{children}</td>
+    const settled=isModelGroupSettled(data,filtered[ri].model,filtered[ri].category,filtered[ri].event)
+    return <td rowSpan={modelMerge[ri].rowSpan} className={clsx('border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',settled&&MODEL_MUTED_BG,settled&&MODEL_MUTED_TEXT,className)}>{children}</td>
   }
 
   if(loading)return(<><Header title="모델 검증 일정 상세" subtitle="로딩 중..."/><div className="pt-16 p-6 flex justify-center items-center h-40"><Loader2 size={24} className="animate-spin text-gray-400"/></div></>)
@@ -416,9 +446,9 @@ export default function ModelSchedulePage(){
           </p>
         )}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <button onClick={()=>setStartDate(p=>addDays(p,-7))} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page"><ChevronLeft size={16}/></button>
-          <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center">{fmt(startDate)} ~ {fmt(addDays(startDate,DAYS-1))}</span>
-          <button onClick={()=>setStartDate(p=>addDays(p,7))} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page"><ChevronRight size={16}/></button>
+          <button type="button" onClick={()=>setViewMonth(v=>shiftViewMonth(v,-1))} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page"><ChevronLeft size={16}/></button>
+          <span className="text-sm font-medium text-gray-700 min-w-[160px] text-center">{viewMonthLabel(viewMonth)} · {periodLabel}</span>
+          <button type="button" onClick={()=>setViewMonth(v=>shiftViewMonth(v,1))} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page"><ChevronRight size={16}/></button>
           <div className="w-px h-6 bg-gray-200 mx-1"/>
           <div className="flex items-center gap-3 flex-wrap text-[10px] font-medium">
             {Object.entries(BAR_CONFIG).map(([k,c])=>(<div key={k} className="flex items-center gap-1"><div className="w-4 h-2.5 rounded-sm" style={{backgroundColor:c.color}}/><span className="text-gray-600">{c.label}</span></div>))}
@@ -459,7 +489,7 @@ export default function ModelSchedulePage(){
 
         <div className="border border-surface-border rounded-xl bg-white">
           <div className="overflow-x-auto" ref={scrollRef}>
-            <table className="text-xs border-collapse" style={{minWidth:`${720+DAYS*CW}px`,overflow:'visible'}}>
+            <table className="text-xs border-collapse" style={{minWidth:`${720+dates.length*CW}px`,overflow:'visible'}}>
               <thead>
                 <tr className="bg-gray-50 border-b-2 border-gray-300">
                   {['카테고리','모델명','이벤트','개발등급','생산업체','SoC','담당','구분','주요 변경점','Status'].map((h,i)=>(
@@ -484,15 +514,15 @@ export default function ModelSchedulePage(){
                 {filtered.map((row,ri)=>{
                   const cm=catMerge[ri];const mm=modelMerge[ri]
                   const borderB=isModelLast(ri)?'border-b-2 border-b-gray-400':'border-b border-b-surface-border/60'
-                  const allDone=isModelAllDone(data,row.model,row.category,row.event)
-                  const doneBg=allDone?'bg-gray-100':''
+                  const groupSettled=isModelGroupSettled(data,row.model,row.category,row.event)
+                  const mutedBg=groupSettled?MODEL_MUTED_BG:''
 
                   return(
-                    <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB)} style={{height:RH}}>
-                      {!cm.hidden&&<td rowSpan={cm.rowSpan} className={clsx('sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-gray-600 text-[10px] whitespace-nowrap align-middle',allDone&&'bg-gray-100')}>
+                    <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB,groupSettled&&MODEL_MUTED_TEXT)} style={{height:RH}}>
+                      {!cm.hidden&&<td rowSpan={cm.rowSpan} className={clsx('sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',groupSettled?MODEL_MUTED_BG: 'text-gray-600')}>
                         {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,row.event,'category',v)}/>:row.category}
                       </td>}
-                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky left-20 z-10 bg-white border-r border-surface-border px-1.5 text-gray-900 font-semibold text-[11px] whitespace-nowrap align-middle text-center',allDone&&'bg-gray-100')}>
+                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky left-20 z-10 bg-white border-r border-surface-border px-1.5 font-semibold text-[11px] whitespace-nowrap align-middle text-center',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'text-gray-900')}>
                         {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;const oe=row.event;setData(p=>p.map(r=>r.model===om&&r.category===oc&&r.event===oe?{...r,model:v}:r))}}/>:row.model}
                       </td>}
                       <MergedCell ri={ri}>{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,row.event,'event',v)}/>:<span className="text-gray-600">{row.event}</span>}</MergedCell>
@@ -541,7 +571,8 @@ export default function ModelSchedulePage(){
 
                         return(
                           <td key={di} className={clsx('border-r border-surface-border/40 px-0 py-0 relative overflow-visible',
-                            isW&&'bg-gray-50/50',d.getDay()===1&&'border-l-2 border-l-gray-200',
+                            groupSettled&&MODEL_MUTED_BG,
+                            !groupSettled&&isW&&'bg-gray-50/50',d.getDay()===1&&'border-l-2 border-l-gray-200',
                             editing&&'cursor-pointer hover:bg-blue-50/40'
                           )} style={{width:CW,minWidth:CW,height:RH,overflow:'visible'}}
                             onClick={editing?(e)=>handleCellClick(e,row.id,d):undefined}
@@ -560,7 +591,7 @@ export default function ModelSchedulePage(){
                             {bar&&bc&&!isBS&&(
                               <div className="absolute inset-y-1 inset-x-0 rounded-sm pointer-events-none" style={{backgroundColor:bc.color}}/>
                             )}
-                            {di===todayOff&&<div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-20 pointer-events-none" style={{transform:'translateX(-50%)'}}/>}
+                            {todayOff>=0&&di===todayOff&&<div className="absolute inset-y-0 left-1/2 w-0.5 bg-red-600 z-20 pointer-events-none" style={{transform:'translateX(-50%)'}}/>}
                           </td>
                         )
                       })}
@@ -580,11 +611,14 @@ export default function ModelSchedulePage(){
         open={showSnapshotPopup}
         onClose={()=>setShowSnapshotPopup(false)}
         rows={filtered}
-        allRows={filtered}
+        allRows={sortedData}
         dates={dates}
-        periodLabel={`${fmt(startDate)} ~ ${fmt(addDays(startDate,DAYS-1))}`}
+        periodLabel={periodLabel}
         today={today}
-        startDate={startDate}
+        viewMonth={viewMonth}
+        scheduleChanges={scheduleChanges}
+        monthSummary={monthSummary}
+        onShareSuccess={() => setEmailDiffBaseline(null)}
       />
     </>
   )

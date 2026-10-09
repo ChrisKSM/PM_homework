@@ -31,10 +31,13 @@ export const TEST_TYPES: TestCategory[] = ['일반성능', '호환성', '안정�
 export const STATUS_LIST: StatusType[] = ['예정', '진행중', '지연', 'NG', '완료', '검증제외']
 
 const CATEGORY_ORDER = [
+  '사운드스위트(Wi-Fi)',
   '사운드바(Wi-Fi)',
   '사운드바',
-  '무선스피커(Bluetooth)',
   '파티스피커(Bluetooth)',
+  '파티스피커',
+  '무선스피커(Bluetooth)',
+  '무선스피커',
   '이어버드',
 ]
 
@@ -94,12 +97,36 @@ export function normRows(rows: unknown[]): ModelRow[] {
 }
 
 /** 카테고리 표기 흔들림(Wi-FI 등) 정규화 — 정렬용 */
-export function normalizeCategoryForSort(category: string): string {
-  const compact = category.trim().replace(/\s+/g, '')
+export function canonicalCategory(category: string): string {
+  const raw = String(category ?? '').trim()
+  const compact = raw.replace(/\s+/g, '')
+
+  if (/사운드스위트|soundsuite/i.test(compact)) return '사운드스위트(Wi-Fi)'
   if (/^사운드바\(wi.?fi\)$/i.test(compact)) return '사운드바(Wi-Fi)'
-  if (/^무선스피커/i.test(compact) && /bluetooth/i.test(compact)) return '무선스피커(Bluetooth)'
-  if (/^파티스피커/i.test(compact) && /bluetooth/i.test(compact)) return '파티스피커(Bluetooth)'
-  return category.trim()
+  if (/^사운드바$/i.test(compact) || (raw.includes('사운드바') && !/wi.?fi/i.test(compact))) return '사운드바'
+  if (/파티스피커/i.test(raw)) return '파티스피커(Bluetooth)'
+  if (/무선스피커/i.test(raw)) return '무선스피커(Bluetooth)'
+  if (/이어버드/i.test(raw)) return '이어버드'
+
+  return raw
+}
+
+export function normalizeCategoryForSort(category: string): string {
+  return canonicalCategory(category)
+}
+
+/** 동일 카테고리 표기(이어버드 등) 통일 */
+export function unifyCategoryLabels(rows: ModelRow[]): ModelRow[] {
+  return rows.map((r) => ({ ...r, category: canonicalCategory(r.category) }))
+}
+
+/** 4구분 모두 완료 또는 검증제외만 */
+export function isModelGroupSettled(data: ModelRow[], model: string, cat: string, event: string): boolean {
+  const group = data.filter(
+    (r) => r.model === model && normalizeCategoryForSort(r.category) === normalizeCategoryForSort(cat) && r.event === event,
+  )
+  if (group.length < 4) return false
+  return group.every((r) => r.status === '완료' || r.status === '검증제외')
 }
 
 export function groupKey(r: ModelRow): string {
@@ -158,7 +185,7 @@ export function sortModelRows(rows: ModelRow[]): ModelRow[] {
 }
 
 export function prepareModelScheduleRows(raw: unknown[]): ModelRow[] {
-  return sortModelRows(repairLegacyRows(normRows(raw)))
+  return sortModelRows(unifyCategoryLabels(repairLegacyRows(normRows(raw))))
 }
 
 export function rowsNeedRepair(raw: unknown[]): boolean {
