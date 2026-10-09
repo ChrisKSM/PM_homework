@@ -15,6 +15,7 @@ import {
   STATUS_LIST,
   groupKey,
   isModelGroupSettled,
+  canonicalCategory,
   normalizeCategoryForSort,
   prepareModelScheduleRows,
   rowsNeedRepair,
@@ -200,17 +201,19 @@ function ChangesPopup({value,onSave,onClose}:{value:string;onSave:(v:string)=>vo
 
 // ── 인라인 Input (Enter 확정) ────────────────────────────────────────────────
 
-function EI({value,onChange}:{value:string;onChange:(v:string)=>void}){
+function EI({value,onChange,className=''}:{value:string;onChange:(v:string)=>void;className?:string}){
   const [local,setLocal]=useState(value)
   useEffect(()=>{setLocal(value)},[value])
   const commit=()=>{if(local!==value)onChange(local)}
-  return <input className="w-full px-1 py-0.5 border border-gray-300 rounded text-[10px] bg-white" value={local}
+  return <input className={clsx('block w-full min-w-0 max-w-full box-border px-1 py-0.5 border border-gray-300 rounded text-[10px] bg-white',className)} value={local}
     onChange={e=>setLocal(e.target.value)} onBlur={commit} onKeyDown={e=>{if(e.key==='Enter'){commit();(e.target as HTMLInputElement).blur()}}}/>
 }
 
 // ── 페이지 ───────────────────────────────────────────────────────────────────
 
 const CW=28,RH=28
+const STICKY_CAT_W=96
+const STICKY_MODEL_W=96
 
 export default function ModelSchedulePage(){
   const location=useLocation()
@@ -344,10 +347,27 @@ export default function ModelSchedulePage(){
 
   const addModel=()=>{
     const ts=Date.now()
-    setData(p=>[...p,...TEST_TYPES.map((tt,i)=>({
-      id:`new-${ts}-${i}`,category:'',model:'새 모델',event:'',variant:'',manufacturer:'',soc:'',
-      staff:'',testType:tt,changes:'',status:'예정' as StatusType,bars:[],
-    }))])
+    const lastCat=sortedData.map(r=>r.category).filter(Boolean).pop()
+    const cat=canonicalCategory(fCat||lastCat||'사운드스위트(Wi-Fi)')
+    const model=`새 모델-${String(ts).slice(-5)}`
+    const event='MR1'
+    setData(p=>[
+      ...p,
+      ...TEST_TYPES.map((tt,i)=>({
+        id:`new-${ts}-${i}`,
+        category:cat,
+        model,
+        event,
+        variant:'',
+        manufacturer:'',
+        soc:'',
+        staff:'',
+        testType:tt,
+        changes:'',
+        status:'예정' as StatusType,
+        bars:[],
+      })),
+    ])
   }
   const deleteModel=(m:string,c:string,e:string)=>setData(p=>p.filter(r=>!(r.model===m&&r.category===c&&r.event===e)))
 
@@ -495,9 +515,11 @@ export default function ModelSchedulePage(){
                 <tr className="bg-gray-50 border-b-2 border-gray-300">
                   {['카테고리','모델명','이벤트','개발등급','생산업체','SoC','담당','구분','주요 변경점','Status'].map((h,i)=>(
                     <th key={i} className={clsx('border-r border-surface-border px-1.5 py-2 text-gray-500 font-semibold text-[10px] whitespace-nowrap',
-                      i===0&&'sticky left-0 z-10 bg-gray-50 w-20',i===1&&'sticky left-20 z-10 bg-gray-50 w-16',
+                      i===0&&'sticky left-0 z-10 bg-gray-50',
+                      i===1&&'sticky z-10 bg-gray-50',
+                      i===2&&'min-w-[80px]',
                       i===8&&'min-w-[140px]'
-                    )}>{h}</th>
+                    )} style={i===0?{minWidth:STICKY_CAT_W,maxWidth:STICKY_CAT_W}:i===1?{left:STICKY_CAT_W,minWidth:STICKY_MODEL_W,maxWidth:STICKY_MODEL_W}:undefined}>{h}</th>
                   ))}
                   {editing&&<th className="border-r border-surface-border px-1 py-2 text-gray-400 text-[9px] w-8">삭제</th>}
                   {dates.map((d,i)=>(
@@ -519,19 +541,19 @@ export default function ModelSchedulePage(){
                   const mutedBg=groupSettled?MODEL_MUTED_BG:''
 
                   return(
-                    <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB,groupSettled&&MODEL_MUTED_TEXT)} style={{height:RH}}>
-                      {!cm.hidden&&<td rowSpan={cm.rowSpan} className={clsx('sticky left-0 z-10 border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle',groupSettled?MODEL_MUTED_BG:'bg-white text-gray-600')}>
+                    <tr key={row.id} className={clsx('hover:bg-gray-50/30',borderB)} style={{height:RH}}>
+                      {!cm.hidden&&<td rowSpan={cm.rowSpan} className="sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle text-gray-600" style={{minWidth:STICKY_CAT_W,maxWidth:STICKY_CAT_W}}>
                         {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,row.event,'category',v)}/>:row.category}
                       </td>}
-                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky left-20 z-10 border-r border-surface-border px-1.5 font-semibold text-[11px] whitespace-nowrap align-middle text-center',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'bg-white text-gray-900')}>
+                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky z-10 border-r border-surface-border px-1.5 font-semibold text-[11px] align-middle text-center',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'bg-white text-gray-900')} style={{left:STICKY_CAT_W,minWidth:STICKY_MODEL_W,maxWidth:STICKY_MODEL_W}}>
                         {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;const oe=row.event;setData(p=>p.map(r=>r.model===om&&r.category===oc&&r.event===oe?{...r,model:v}:r))}}/>:row.model}
                       </td>}
-                      <MergedCell ri={ri}>{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,row.event,'event',v)}/>:<span className="text-gray-600">{row.event}</span>}</MergedCell>
+                      <MergedCell ri={ri} className="min-w-[80px] max-w-[120px]">{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,row.event,'event',v)}/>:<span className="text-gray-600 block truncate">{row.event}</span>}</MergedCell>
                       <MergedCell ri={ri}>{editing?<EI value={row.variant} onChange={v=>updateGroup(row.model,row.category,row.event,'variant',v)}/>:<span className="text-gray-600">{row.variant}</span>}</MergedCell>
                       <MergedCell ri={ri}>{editing?<EI value={row.manufacturer} onChange={v=>updateGroup(row.model,row.category,row.event,'manufacturer',v)}/>:<span className="text-gray-600">{row.manufacturer}</span>}</MergedCell>
                       <MergedCell ri={ri}>{editing?<EI value={row.soc} onChange={v=>updateGroup(row.model,row.category,row.event,'soc',v)}/>:<span className="text-gray-600 font-mono">{row.soc}</span>}</MergedCell>
                       <MergedCell ri={ri}>{editing?<EI value={row.staff} onChange={v=>updateField(row.id,'staff',v)}/>:<span className="text-gray-600">{row.staff}</span>}</MergedCell>
-                      <td className="border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap">
+                      <td className={clsx('border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap',groupSettled&&MODEL_MUTED_BG)}>
                         <span className={clsx('px-1 py-0.5 rounded text-[9px] font-bold',TT_STYLE[row.testType])}>{row.testType}</span>
                       </td>
                       {/* 주요 변경점 — 툴팁 + 팝업 편집 */}
@@ -547,9 +569,9 @@ export default function ModelSchedulePage(){
                           </div>
                         )}
                       </MergedCell>
-                      <td className="border-r border-surface-border px-1.5">
+                      <td className={clsx('border-r border-surface-border px-1.5',groupSettled&&MODEL_MUTED_BG)}>
                         {editing?(
-                          <select value={row.status} onChange={e=>updateField(row.id,'status',e.target.value)} className="text-[9px] px-1 py-0.5 border border-gray-300 rounded bg-white">
+                          <select value={row.status} onChange={e=>updateField(row.id,'status',e.target.value)} className="text-[9px] px-1 py-0.5 border border-gray-300 rounded bg-white max-w-full">
                             {STATUS_LIST.map(s=><option key={s} value={s}>{s}</option>)}
                           </select>
                         ):(()=>{const s=STATUS_STYLE[row.status];return<span className={`px-1 py-0.5 rounded text-[9px] font-bold whitespace-nowrap ${s.bg} ${s.text}`}>{row.status}</span>})()}
@@ -616,7 +638,6 @@ export default function ModelSchedulePage(){
         dates={dates}
         periodLabel={periodLabel}
         today={today}
-        viewMonth={viewMonth}
         scheduleChanges={scheduleChanges}
         monthSummary={monthSummary}
         onShareSuccess={() => setEmailDiffBaseline(null)}

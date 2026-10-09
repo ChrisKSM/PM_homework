@@ -50,6 +50,25 @@ python3 scripts/import-verification-schedule-from-xlsx.py "$XLSX" \
   -o scripts/seed-model-schedule-data.json \
   --ts src/data/modelScheduleVerificationMock.ts
 
+echo "=== Merge Sound Suite (H7_VI 등) ==="
+python3 scripts/append-sound-suite-verification-rows.py scripts/seed-model-schedule-data.json
+
+# mock TS 재생성 (merge 반영)
+python3 - <<'PY'
+import json
+from pathlib import Path
+seed = json.loads(Path("scripts/seed-model-schedule-data.json").read_text(encoding="utf-8"))
+ts = Path("src/data/modelScheduleVerificationMock.ts")
+body = (
+    "/** Auto-generated — import + Sound Suite merge */\n"
+    "import type { ModelRow } from '../utils/modelScheduleRows'\n\n"
+    f"export const VERIFICATION_MOCK_ROWS: ModelRow[] = {json.dumps(seed['rows'], ensure_ascii=False, indent=2)} as ModelRow[]\n\n"
+    f"export const VERIFICATION_MOCK_TIMELINE_START = {json.dumps(seed.get('timelineStart'))}\n"
+)
+ts.write_text(body, encoding="utf-8")
+print("  + src/data/modelScheduleVerificationMock.ts (merged)")
+PY
+
 mkdir -p public
 python3 - <<'PY'
 import json
