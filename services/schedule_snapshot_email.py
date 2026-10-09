@@ -234,12 +234,60 @@ def _render_table(rows: list[dict[str, Any]], dates: list[str]) -> str:
     </div>"""
 
 
+def _render_month_schedule_summary(summary: list[dict[str, Any]]) -> str:
+    if not summary:
+        return ""
+    body = "".join(
+        f"<tr><td style='padding:6px 8px;border:1px solid #ddd;font-size:11px;font-weight:bold;'>"
+        f"{_escape(str(item.get('model', '')))}</td>"
+        f"<td style='padding:6px 8px;border:1px solid #ddd;font-size:11px;'>"
+        f"{_escape(str(item.get('schedule', '')))}</td></tr>"
+        for item in summary
+    )
+    return f"""
+    <div style="margin:0 0 20px;">
+      <h3 style="font-size:14px;margin:0 0 8px;color:#334155;">이번 달 주요 일정 (일반성능)</h3>
+      <table cellpadding="0" cellspacing="0" style="border-collapse:collapse;max-width:720px;font-family:Malgun Gothic,sans-serif;">
+        <thead>
+          <tr style="background:#f3f4f6;">
+            <th style="padding:6px 8px;border:1px solid #ccc;font-size:11px;text-align:left;">모델</th>
+            <th style="padding:6px 8px;border:1px solid #ccc;font-size:11px;text-align:left;">일정</th>
+          </tr>
+        </thead>
+        <tbody>{body}</tbody>
+      </table>
+    </div>"""
+
+
+def _render_schedule_changes(changes: list[dict[str, Any]]) -> str:
+    if not changes:
+        return ""
+    lines: list[str] = []
+    for item in changes:
+        model = _escape(str(item.get("model", "")))
+        test_type = _escape(str(item.get("test_type") or item.get("testType") or ""))
+        before = _escape(str(item.get("before", "")))
+        after = _escape(str(item.get("after", "")))
+        lines.append(
+            f"<li style='margin:0 0 6px;font-size:12px;line-height:1.5;'>"
+            f"<b>{model}</b> : {test_type} : "
+            f"변경전 : {before} · 변경후 : {after}</li>"
+        )
+    return f"""
+    <div style="margin:0 0 20px;padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;">
+      <h3 style="font-size:14px;margin:0 0 8px;color:#92400e;">일정 변경 (편집 전후)</h3>
+      <ul style="margin:0;padding-left:18px;color:#78350f;">{"".join(lines)}</ul>
+    </div>"""
+
+
 def build_snapshot_html(
     *,
     period_label: str,
     dates: list[str],
     rows: list[dict[str, Any]],
     audiences: list[str],
+    schedule_changes: list[dict[str, Any]] | None = None,
+    month_schedule_summary: list[dict[str, Any]] | None = None,
 ) -> str:
     pages = _split_pages(rows)
     page_total = len(pages)
@@ -248,6 +296,9 @@ def build_snapshot_html(
         for k, c in BAR_COLORS.items()
     )
     audience_text = ", ".join(audiences) if audiences else "-"
+
+    summary_html = _render_month_schedule_summary(month_schedule_summary or [])
+    changes_html = _render_schedule_changes(schedule_changes or [])
 
     page_html = ""
     for idx, page_rows in enumerate(pages, start=1):
@@ -272,6 +323,8 @@ def build_snapshot_html(
     기간: {_escape(period_label)} · 수신 대상: {_escape(audience_text)} · 전체 {len(rows)}행 · {page_total}페이지
   </p>
   <p style="font-size:11px;color:#666;margin:0 0 16px;">{legend}</p>
+  {summary_html}
+  {changes_html}
   {page_html}
   <p style="font-size:10px;color:#999;margin-top:24px;">Jira Dashboard — 자동 발송</p>
 </body></html>"""
