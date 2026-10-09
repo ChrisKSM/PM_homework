@@ -8,7 +8,13 @@
 set -e
 cd "$(dirname "$0")/.."
 
-DEFAULT_XLSX="scripts/data/verification-schedule-detail.xlsx"
+FALLBACK_XLSX="scripts/data/verification-schedule-detail.xlsx"
+PREFERRED_XLSX="scripts/data/SW검증현황261008.xlsx"
+if [ -f "$PREFERRED_XLSX" ]; then
+  DEFAULT_XLSX="$PREFERRED_XLSX"
+else
+  DEFAULT_XLSX="$FALLBACK_XLSX"
+fi
 XLSX="${1:-$DEFAULT_XLSX}"
 USER_PROVIDED=
 if [ -n "$1" ]; then
