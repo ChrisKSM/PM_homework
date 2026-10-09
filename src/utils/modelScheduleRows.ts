@@ -30,6 +30,31 @@ export interface ModelRow {
 export const TEST_TYPES: TestCategory[] = ['일반성능', '호환성', '안정성', '시너지']
 export const STATUS_LIST: StatusType[] = ['예정', '진행중', '지연', 'NG', '완료', '검증제외']
 
+/** 검증 상세 Excel — 사운드스위트(Wi-Fi) 블록 (사운드바 H7 MR8 등과 별도 그룹) */
+export const SOUND_SUITE_WIFI_CATEGORY = '사운드스위트(Wi-Fi)'
+
+const SOUND_SUITE_DETAIL_GROUPS: Array<{
+  model: string
+  event: string
+  copyFrom?: { model: string; event: string }
+  defaults?: Partial<Pick<ModelRow, 'variant' | 'manufacturer' | 'soc' | 'staff' | 'changes'>>
+}> = [
+  { model: 'H7', event: 'MR9차', copyFrom: { model: 'H7', event: 'MR8차' } },
+  { model: 'W7', event: 'MR6차', copyFrom: { model: 'W7', event: 'MR5차' } },
+  { model: 'M7/M5', event: 'MR9차', copyFrom: { model: 'M7/M5', event: 'MR8차' } },
+  {
+    model: 'H7_VI',
+    event: '개발모델',
+    defaults: {
+      variant: 'JDM B_HW',
+      manufacturer: 'Tymphany',
+      soc: 'ax26sb',
+      staff: '조성연',
+      changes: '500W, 5.1.3 (9.1.6 Spatial) Dolby Atmos, DAFC',
+    },
+  },
+]
+
 const CATEGORY_ORDER = [
   '사운드스위트(Wi-Fi)',
   '사운드바(Wi-Fi)',
@@ -101,6 +126,18 @@ const TYPE_BY_LABEL: Record<string, BarType> = {
   'SU/FOTA 배포': 'su_fota',
 }
 
+/** Excel/DB 표기 (H7 VI, H7VI) → H7_VI */
+export function canonicalModelName(model: string): string {
+  const m = String(model ?? '').trim()
+  if (!m) return m
+  if (/^H7[\s_]*VI$/i.test(m.replace(/\s+/g, ' '))) return 'H7_VI'
+  return m
+}
+
+function modelsMatch(a: string, b: string): boolean {
+  return canonicalModelName(a) === canonicalModelName(b)
+}
+
 function normDate(s: string): string {
   return String(s || '').slice(0, 10)
 }
@@ -129,7 +166,7 @@ export function normRow(raw: unknown, index: number): ModelRow | null {
   return {
     id: String(r.id ?? r.row_id ?? `row-${index}-${Date.now()}`),
     category: String(r.category ?? ''),
-    model: String(r.model ?? ''),
+    model: canonicalModelName(String(r.model ?? '')),
     event: String(r.event ?? ''),
     variant: String(r.variant ?? ''),
     manufacturer: String(r.manufacturer ?? ''),
@@ -184,6 +221,80 @@ export function groupKey(r: ModelRow): string {
 }
 
 /** DB에 H7×2가 같은 MR8차로 저장된 legacy 데이터 → Rollback 분리 */
+
+/** UI 표시 — H7_VI → H7 VI */
+export function displayModelName(model: string): string {
+  const m = canonicalModelName(model)
+  if (m === 'H7_VI') return 'H7 VI'
+  return m
+}
+
+/** SW검증현황 — 사운드스위트 4모델(H7 MR9, W7 MR6, M7/M5 MR9, H7_VI 개발모델) 보장 */
+export function ensureSoundSuiteDetailRows(rows: ModelRow[]): ModelRow[] {
+  const out = rows.map((r) => ({
+    ...r,
+    model: canonicalModelName(r.model),
+    bars: [...(r.bars ?? [])],
+  }))
+  const cat = SOUND_SUITE_WIFI_CATEGORY
+
+  for (const spec of SOUND_SUITE_DETAIL_GROUPS) {
+    const existing = out.filter(
+      (r) =>
+        modelsMatch(r.model, spec.model) &&
+        r.event === spec.event &&
+        normalizeCategoryForSort(r.category) === cat,
+    )
+    if (existing.length >= 4) continue
+
+    for (const r of out) {
+      if (modelsMatch(r.model, spec.model) && r.event === spec.event) {
+        r.model = canonicalModelName(spec.model)
+        r.category = cat
+      }
+    }
+
+    const again = out.filter(
+      (r) =>
+        modelsMatch(r.model, spec.model) &&
+        r.event === spec.event &&
+        normalizeCategoryForSort(r.category) === cat,
+    )
+    if (again.length >= 4) continue
+
+    let template: ModelRow | undefined
+    if (spec.copyFrom) {
+      template = out.find(
+        (r) => modelsMatch(r.model, spec.copyFrom!.model) && r.event === spec.copyFrom!.event,
+      )
+    }
+    const base = template ?? out.find((r) => modelsMatch(r.model, spec.model))
+    const d = spec.defaults ?? {}
+    const ts = Date.now()
+    for (let i = 0; i < TEST_TYPES.length; i++) {
+      const tt = TEST_TYPES[i]
+      const id = `ms-${spec.model}-${spec.event}-${tt}`.replace(/[^a-zA-Z0-9가-힣-]+/g, '-').toLowerCase()
+      if (out.some((r) => r.id === id)) continue
+      out.push({
+        id,
+        category: cat,
+        model: spec.model,
+        event: spec.event,
+        variant: d.variant ?? base?.variant ?? '',
+        manufacturer: d.manufacturer ?? base?.manufacturer ?? '',
+        soc: d.soc ?? base?.soc ?? '',
+        staff: d.staff ?? base?.staff ?? '',
+        testType: tt,
+        changes: tt === '일반성능' ? (d.changes ?? base?.changes ?? '') : '',
+        status: '예정',
+        bars: tt === '일반성능' && template?.bars?.length ? [...template.bars] : [],
+      })
+    }
+  }
+
+  return out
+}
+
 export function repairLegacyRows(rows: ModelRow[]): ModelRow[] {
   const out = rows.map((r) => ({ ...r, bars: [...(r.bars ?? [])] }))
   const legacy = out.filter(
@@ -235,12 +346,23 @@ export function sortModelRows(rows: ModelRow[]): ModelRow[] {
 }
 
 export function prepareModelScheduleRows(raw: unknown[]): ModelRow[] {
-  return sortModelRows(unifyCategoryLabels(repairLegacyRows(normRows(raw))))
+  return sortModelRows(
+    unifyCategoryLabels(ensureSoundSuiteDetailRows(repairLegacyRows(normRows(raw)))),
+  )
 }
 
 export function rowsNeedRepair(raw: unknown[]): boolean {
-  const before = normRows(raw)
-  const after = repairLegacyRows(before)
-  return JSON.stringify(before.map((r) => ({ id: r.id, event: r.event, changes: r.changes }))) !==
-    JSON.stringify(after.map((r) => ({ id: r.id, event: r.event, changes: r.changes })))
+  const before = sortModelRows(unifyCategoryLabels(repairLegacyRows(normRows(raw))))
+  const after = prepareModelScheduleRows(raw)
+  const sig = (list: ModelRow[]) =>
+    JSON.stringify(
+      list.map((r) => ({
+        id: r.id,
+        category: r.category,
+        model: r.model,
+        event: r.event,
+        changes: r.changes,
+      })),
+    )
+  return sig(before) !== sig(after)
 }

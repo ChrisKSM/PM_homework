@@ -17,6 +17,7 @@ import {
   isModelGroupSettled,
   categoryAddGroup,
   defaultCategoryForAddGroup,
+  displayModelName,
   insertIndexForAddGroup,
   prepareModelScheduleRows,
   sortModelRows,
@@ -217,7 +218,7 @@ function EI({value,onChange,className=''}:{value:string;onChange:(v:string)=>voi
 
 const CW=28,RH=28
 const STICKY_CAT_W=96
-const STICKY_MODEL_W=96
+const STICKY_MODEL_W=108
 
 export default function ModelSchedulePage(){
   const location=useLocation()
@@ -538,7 +539,7 @@ export default function ModelSchedulePage(){
           <Filter size={14} className="text-gray-400"/>
           {([['카테고리',fCat,setFCat,'category'],['모델명',fModel,setFModel,'model'],['Status',fStatus,setFStatus,'status']] as const).map(([l,v,s,f])=>(
             <select key={f} value={v} onChange={e=>s(e.target.value)} className={clsx('text-[10px] px-1.5 py-1 rounded border bg-white cursor-pointer',v?'border-lg-red text-lg-red font-bold':'border-gray-200 text-gray-500')}>
-              <option value="">{l} ▾</option>{uniq(sortedData,f).map(o=><option key={o} value={o}>{o}</option>)}
+              <option value="">{l} ▾</option>{uniq(sortedData,f).map(o=><option key={o} value={o}>{f==='model'?displayModelName(o):o}</option>)}
             </select>
           ))}
           {hasFilter&&<button onClick={()=>{setFCat('');setFModel('');setFStatus('')}} className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium text-red-500 hover:bg-red-50"><X size={10}/>초기화</button>}
@@ -586,8 +587,8 @@ export default function ModelSchedulePage(){
                       {!cm.hidden&&<td rowSpan={cm.rowSpan} className="sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-[10px] whitespace-nowrap align-middle text-gray-600" style={{minWidth:STICKY_CAT_W,maxWidth:STICKY_CAT_W}}>
                         {editing?<EI value={row.category} onChange={v=>updateGroup(row.model,row.category,row.event,'category',v)}/>:row.category}
                       </td>}
-                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky z-10 border-r border-surface-border px-1.5 font-semibold text-[11px] align-middle text-center',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'bg-white text-gray-900')} style={{left:STICKY_CAT_W,minWidth:STICKY_MODEL_W,maxWidth:STICKY_MODEL_W}}>
-                        {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;const oe=row.event;setData(p=>p.map(r=>r.model===om&&r.category===oc&&r.event===oe?{...r,model:v}:r))}}/>:row.model}
+                      {!mm.hidden&&<td rowSpan={mm.rowSpan} className={clsx('sticky z-10 border-r border-surface-border px-1.5 font-semibold text-[11px] align-middle text-center whitespace-nowrap tracking-wide',groupSettled?`${MODEL_MUTED_BG} ${MODEL_MUTED_TEXT}`:'bg-white text-gray-900')} style={{left:STICKY_CAT_W,minWidth:STICKY_MODEL_W,maxWidth:STICKY_MODEL_W}} title={displayModelName(row.model)}>
+                        {editing?<EI value={row.model} onChange={v=>{const om=row.model;const oc=row.category;const oe=row.event;setData(p=>p.map(r=>r.model===om&&r.category===oc&&r.event===oe?{...r,model:v}:r))}}/>:displayModelName(row.model)}
                       </td>}
                       <MergedCell ri={ri} className="min-w-[80px] max-w-[120px]">{editing?<EI value={row.event} onChange={v=>updateGroup(row.model,row.category,row.event,'event',v)}/>:<span className="text-gray-600 block truncate">{row.event}</span>}</MergedCell>
                       <MergedCell ri={ri}>{editing?<EI value={row.variant} onChange={v=>updateGroup(row.model,row.category,row.event,'variant',v)}/>:<span className="text-gray-600">{row.variant}</span>}</MergedCell>

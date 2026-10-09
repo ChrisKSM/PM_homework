@@ -340,10 +340,34 @@ def import_sheet(ws: Worksheet) -> tuple[list[dict[str, Any]], str | None]:
     return rows_out, timeline_start
 
 
+def _canonical_model(model: str) -> str:
+    m = norm_text(model)
+    if re.match(r"^H7[\s_]*VI$", m, re.I):
+        return "H7_VI"
+    return m
+
+
+def _canonical_category(category: str) -> str:
+    raw = norm_text(category)
+    compact = re.sub(r"\s+", "", raw)
+    if re.search(r"사운드스위트|soundsuite", compact, re.I):
+        return "사운드스위트(Wi-Fi)"
+    return raw
+
+
 def import_workbook(path: Path, sheet: str | None = None) -> dict[str, Any]:
     wb = load_workbook(path, data_only=True)
     ws = wb[sheet] if sheet else wb.active
     rows, timeline_start = import_sheet(ws)
+    for r in rows:
+        r["model"] = _canonical_model(str(r.get("model", "")))
+        r["category"] = _canonical_category(str(r.get("category", "")))
+    try:
+        from prepare_model_schedule_seed import prepare_model_schedule_rows
+
+        rows = prepare_model_schedule_rows(rows)
+    except ImportError:
+        pass
     return {"rows": rows, "count": len(rows), "timelineStart": timeline_start, "source": str(path.name)}
 
 

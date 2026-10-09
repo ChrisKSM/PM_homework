@@ -32,7 +32,14 @@ if not isinstance(rows, list):
 n = len(rows)
 fc = sum(1 for r in rows if str(r.get("event", "")).strip() in ("FC 1", "FC 2", "FC 3", "QP 1"))
 h7 = sum(1 for r in rows if r.get("model") == "H7_VI")
-print(f"  rows: {n} (H7_VI: {h7}, FC-event rows: {fc})", file=sys.stderr)
+suite = sum(
+    1 for r in rows
+    if "사운드스위트" in str(r.get("category", "")).replace(" ", "")
+)
+print(f"  rows: {n} (사운드스위트: {suite}, H7_VI: {h7}, FC-event rows: {fc})", file=sys.stderr)
+if os.environ.get("FORCE_BAD_SEED") != "1" and h7 < 4:
+    print("ERROR: seed에 H7_VI(개발모델) 4구분 없음 — scripts/prepare_model_schedule_seed.py 실행", file=sys.stderr)
+    sys.exit(1)
 if os.environ.get("FORCE_BAD_SEED") != "1" and (n > 120 or fc > 0):
     print("ERROR: overview(FC1) seed — GitHub에서 eeb69b5+ seed JSON 다시 받으세요.", file=sys.stderr)
     sys.exit(1)
