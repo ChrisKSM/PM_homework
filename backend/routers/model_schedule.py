@@ -49,6 +49,14 @@ class ScheduleShareRequest(BaseModel):
     page_images: list[OverviewPageImage] | None = Field(default=None, description="overview snapshot PNG")
     audiences: list[str] = Field(..., description="DQA, 개발 — 하나 이상")
     recipients: list[str] | None = Field(default=None, description="테스트용 수신자 override")
+    schedule_changes: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="편집 전후 일정 diff (model, test_type, before, after)",
+    )
+    month_schedule_summary: list[dict[str, Any]] | None = Field(
+        default=None,
+        description="이번 달 모델별 일반성능 일정 요약 (model, schedule)",
+    )
 
 
 class OverviewShareRequest(BaseModel):
@@ -333,6 +341,8 @@ async def share_schedule_snapshot(req: ScheduleShareRequest):
         dates=req.dates,
         rows=req.rows,
         audiences=sorted(aud),
+        schedule_changes=req.schedule_changes or [],
+        month_schedule_summary=req.month_schedule_summary or [],
     )
     return _send_share_email(
         subject=subject,

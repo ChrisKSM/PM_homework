@@ -8,6 +8,7 @@ import {
   type ScheduleBar,
   groupKey,
 } from '../../utils/modelScheduleRows'
+import type { ScheduleChangeLine } from '../../utils/modelScheduleDiff'
 
 const BAR_CONFIG: Record<BarType, { color: string; label: string; textColor: string }> = {
   planned: { color: '#94A3B8', label: '진행 예정', textColor: '#fff' },
@@ -126,16 +127,14 @@ function SnapshotTable({
   rows,
   dates,
   today,
-  startDate,
 }: {
   rows: ModelRow[]
   dates: Date[]
   today: Date
-  startDate: Date
 }) {
   const catMerge = useMemo(() => calcMerge(rows, (r) => r.category), [rows])
   const modelMerge = useMemo(() => calcMerge(rows, groupKey), [rows])
-  const todayOff = useMemo(() => diffD(startDate, today), [startDate, today])
+  const todayOff = useMemo(() => (dates.length ? diffD(dates[0], today) : -1), [dates, today])
 
   const isModelLast = (ri: number) => {
     if (ri >= rows.length - 1) return true
@@ -319,7 +318,9 @@ type Props = {
   dates: Date[]
   periodLabel: string
   today: Date
-  startDate: Date
+  scheduleChanges: ScheduleChangeLine[]
+  monthSummary: Array<{ model: string; schedule: string }>
+  onShareSuccess?: () => void
 }
 
 export default function ScheduleSnapshotDialog({
@@ -330,7 +331,9 @@ export default function ScheduleSnapshotDialog({
   dates,
   periodLabel,
   today,
-  startDate,
+  scheduleChanges,
+  monthSummary,
+  onShareSuccess,
 }: Props) {
   const pages = useMemo(() => splitRowsIntoPages(rows), [rows])
   const pageCount = pages.length
@@ -374,8 +377,16 @@ export default function ScheduleSnapshotDialog({
         dates: dates.map((d) => toISO(d)),
         rows: allRows,
         audiences: shareAudiences,
+        schedule_changes: scheduleChanges.map((c) => ({
+          model: c.model,
+          test_type: c.testType,
+          before: c.before,
+          after: c.after,
+        })),
+        month_schedule_summary: monthSummary,
       })
       setShareMsg({ type: 'ok', text: `${res.message} → ${res.recipients.join(', ')}` })
+      onShareSuccess?.()
     } catch (e: any) {
       const detail = e?.response?.data?.detail || e?.message || '발송 실패'
       setShareMsg({ type: 'err', text: String(detail) })
@@ -518,12 +529,39 @@ export default function ScheduleSnapshotDialog({
                 width: tableW,
               }}
             >
-              <SnapshotTable rows={pageRows} dates={dates} today={today} startDate={startDate} />
+              <SnapshotTable rows={pageRows} dates={dates} today={today} />
             </div>
           </div>
         </div>
 
         <div className="px-4 py-3 border-t border-surface-border shrink-0 bg-white space-y-2">
+          {monthSummary.length > 0 && (
+            <div className="text-[10px] text-gray-600 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 max-h-24 overflow-y-auto">
+              <p className="font-semibold text-gray-700 mb-1">이번 달 주요 일정 (일반성능)</p>
+              <ul className="space-y-0.5 list-disc list-inside">
+                {monthSummary.slice(0, 8).map((m) => (
+                  <li key={m.model}>
+                    <span className="font-medium">{m.model}</span>: {m.schedule}
+                  </li>
+                ))}
+                {monthSummary.length > 8 && (
+                  <li className="list-none text-gray-400">외 {monthSummary.length - 8}개 모델</li>
+                )}
+              </ul>
+            </div>
+          )}
+          {scheduleChanges.length > 0 && (
+            <div className="text-[10px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 max-h-28 overflow-y-auto">
+              <p className="font-semibold mb-1">편집 후 일정 변경 (메일 본문 포함)</p>
+              <ul className="space-y-1">
+                {scheduleChanges.map((c, i) => (
+                  <li key={`${c.model}-${i}`}>
+                    {c.model} : {c.testType} : 변경전 : {c.before} · 변경후 : {c.after}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-4">
             <span className="text-xs font-semibold text-gray-700">메일 공유</span>
             <label className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">

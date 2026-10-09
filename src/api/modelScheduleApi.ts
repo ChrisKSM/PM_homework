@@ -200,6 +200,8 @@ export const modelScheduleApi = {
     rows: any[]
     audiences: string[]
     recipients?: string[]
+    schedule_changes?: Array<{ model: string; test_type: string; before: string; after: string }>
+    month_schedule_summary?: Array<{ model: string; schedule: string }>
   }): Promise<{ message: string; subject: string; recipients: string[] }> => {
     const res = await client
       .post<{ message: string; subject: string; recipients: string[] }>(

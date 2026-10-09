@@ -34,6 +34,42 @@ def test_build_snapshot_html_includes_period_and_audiences():
     assert "개발등급" in html
 
 
+def test_build_snapshot_html_includes_changes_and_summary():
+    html = build_snapshot_html(
+        period_label="10/1 ~ 10/31",
+        dates=["2026-10-01"],
+        rows=[
+            {
+                "category": "사운드바",
+                "model": "H7",
+                "event": "MR8",
+                "variant": "v",
+                "manufacturer": "m",
+                "soc": "s",
+                "staff": "담당",
+                "testType": "일반성능",
+                "status": "예정",
+                "changes": "c",
+                "bars": [],
+            }
+        ],
+        audiences=["DQA"],
+        month_schedule_summary=[{"model": "H7", "schedule": "9/29 ~ 10/2"}],
+        schedule_changes=[
+            {
+                "model": "H7",
+                "test_type": "일반성능",
+                "before": "9/29 ~ 10/2",
+                "after": "10/31 ~ 11/5",
+            }
+        ],
+    )
+    assert "이번 달 주요 일정" in html
+    assert "일정 변경" in html
+    assert "변경전" in html
+    assert "9/29 ~ 10/2" in html
+
+
 def test_build_snapshot_html_two_pages():
     def row(model: str, event: str) -> dict:
         return {
