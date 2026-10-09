@@ -4,18 +4,18 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-# BE pod 표준 8200, 로컬 dev/README 는 8000
+# BE Route / pod: 8000 (일부 dev는 8200)
 if [ -n "${1:-}" ]; then
   BASE="$1"
 else
   BASE=""
-  for p in 8200 8000; do
+  for p in 8000 8200; do
     if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
       BASE="http://127.0.0.1:${p}"
       break
     fi
   done
-  [ -n "$BASE" ] || BASE="http://127.0.0.1:8200"
+  [ -n "$BASE" ] || BASE="http://127.0.0.1:8000"
 fi
 
 echo "=== BE base: $BASE ==="

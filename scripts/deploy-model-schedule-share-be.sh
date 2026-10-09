@@ -83,7 +83,7 @@ fi
 "$PY" -m pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0" -q 2>/dev/null || true
 
 echo ""
-echo "=== 배포 검증 (8200 → 8000 자동 탐지) ==="
+echo "=== 배포 검증 (8000 → 8200 자동 탐지) ==="
 sh scripts/verify-model-schedule-share-be.sh || true
 
 echo ""
@@ -92,18 +92,18 @@ echo ""
 echo "1) .env 확인 (MONGO_PASSWORD 등):"
 echo "   grep -E 'MONGO_|SMTP_|MODEL_SCHEDULE' .env"
 echo ""
-echo "2) uvicorn 재시작 (BE pod 표준 port 8200):"
-echo "   uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200"
-echo "   # 또는: $PY -m uvicorn main:app --host 0.0.0.0 --port 8200"
+echo "2) uvicorn 재시작 (BE Route port 8000):"
+echo "   uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
+echo "   # 또는: $PY -m uvicorn main:app --host 0.0.0.0 --port 8000"
 echo ""
 echo "3) Milvus 연결 확인:"
 echo "   sh scripts/verify-model-schedule-mongo.sh"
-echo "   curl -s http://127.0.0.1:8200/api/model-schedule/diagnose | python3 -m json.tool"
+echo "   curl -s http://127.0.0.1:8000/api/model-schedule/diagnose | python3 -m json.tool"
 echo ""
 echo "4) 메일 공유 API 테스트 (DQA+개발, seokmin.koh@lge.com):"
 cat <<'CURL'
 
-curl -s -X POST http://127.0.0.1:8200/api/model-schedule/share \
+curl -s -X POST http://127.0.0.1:8000/api/model-schedule/share \
   -H "Content-Type: application/json" \
   -d '{
     "period_label": "9/15 ~ 10/26",
