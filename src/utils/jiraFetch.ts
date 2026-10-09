@@ -1,26 +1,8 @@
 import axios from 'axios'
 import { USE_MOCK } from '../config/dataSource'
+import { setJiraDegraded } from './jiraDegradedBus'
 
-type DegradedListener = (degraded: boolean) => void
-
-const listeners = new Set<DegradedListener>()
-let jiraDegraded = false
-
-export function isJiraDegraded(): boolean {
-  return jiraDegraded
-}
-
-export function subscribeJiraDegraded(listener: DegradedListener): () => void {
-  listeners.add(listener)
-  listener(jiraDegraded)
-  return () => listeners.delete(listener)
-}
-
-function setJiraDegraded(value: boolean) {
-  if (jiraDegraded === value) return
-  jiraDegraded = value
-  listeners.forEach((fn) => fn(value))
-}
+export { isJiraDegraded, subscribeJiraDegraded } from './jiraDegradedBus'
 
 function isGatewayError(error: unknown): boolean {
   if (!axios.isAxiosError(error)) return false
