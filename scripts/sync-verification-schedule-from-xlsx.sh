@@ -79,6 +79,11 @@ Path("public/model-schedule-verification-mock.json").write_text(
     json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8"
 )
 print("  + public/model-schedule-verification-mock.json")
+suite = [r for r in seed["rows"] if r.get("category") == "사운드스위트(Wi-Fi)"]
+Path("public/model-schedule-sound-suite-supplement.json").write_text(
+    json.dumps({"rows": suite}, ensure_ascii=False, indent=2), encoding="utf-8"
+)
+print(f"  + public/model-schedule-sound-suite-supplement.json ({len(suite)} rows)")
 PY
 
 echo "=== Done ==="

@@ -1,4 +1,5 @@
 import client from './client'
+import { mergeSoundSuiteSupplement } from '../utils/mergeSoundSuiteVerification'
 import { prepareModelScheduleRows } from '../utils/modelScheduleRows'
 
 const STORAGE_KEY = 'model-schedule-data'
@@ -48,6 +49,8 @@ export type ModelScheduleLoadResult = {
   rows: any[]
   count: number
   source: 'mongo' | 'local' | 'default'
+  /** Mongo에 H7_VI 없을 때 public 보충 JSON 병합 */
+  soundSuiteMerged?: boolean
 }
 
 type StoredPayload = {
@@ -100,8 +103,10 @@ export const modelScheduleApi = {
       } catch (e) {
         console.warn('MongoDB load failed, using localStorage:', e)
       }
-      const rows = prepareModelScheduleRows(localPayload.rows)
-      return { rows, count: rows.length, source: 'local' }
+      let rows = prepareModelScheduleRows(localPayload.rows)
+      const sup = await mergeSoundSuiteSupplement(rows)
+      rows = sup.rows
+      return { rows, count: rows.length, source: 'local', soundSuiteMerged: sup.merged }
     }
 
     try {
@@ -110,17 +115,21 @@ export const modelScheduleApi = {
         .then((r) => r.data)
 
       if (res.rows?.length > 0) {
-        saveLocalPayload(res.rows, 'mongo')
-        const rows = prepareModelScheduleRows(res.rows)
-        return { rows, count: rows.length, source: 'mongo' }
+        let rows = prepareModelScheduleRows(res.rows)
+        const sup = await mergeSoundSuiteSupplement(rows)
+        rows = sup.rows
+        saveLocalPayload(rows, sup.merged ? 'local' : 'mongo')
+        return { rows, count: rows.length, source: 'mongo', soundSuiteMerged: sup.merged }
       }
     } catch (e) {
       console.warn('MongoDB load failed, trying localStorage:', e)
     }
 
     if (localPayload?.rows.length) {
-      const rows = prepareModelScheduleRows(localPayload.rows)
-      return { rows, count: rows.length, source: 'local' }
+      let rows = prepareModelScheduleRows(localPayload.rows)
+      const sup = await mergeSoundSuiteSupplement(rows)
+      rows = sup.rows
+      return { rows, count: rows.length, source: 'local', soundSuiteMerged: sup.merged }
     }
 
     return { rows: [], count: 0, source: 'default' }
