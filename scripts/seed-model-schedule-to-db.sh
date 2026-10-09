@@ -4,11 +4,10 @@
 # BE pod (/workspace/project):
 #   API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-to-db.sh
 #
-# seed JSON 이 구버전(56행, H7_VI 없음)이면 GitHub 에서 받기:
+# seed JSON (56행, FC1 없음):
 #   REF=cursor/model-schedule-bar-label-fix-b14b
 #   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}/scripts/seed-model-schedule-data.json" \
 #     -o scripts/seed-model-schedule-data.json
-#   sh scripts/restore-model-schedule-mongo-xlsx-only.sh  # Excel만으로 Mongo 복구
 
 set -e
 cd "$(dirname "$0")/.."
@@ -21,47 +20,50 @@ if [ ! -f "$SEED" ]; then
   exit 1
 fi
 
-PAYLOAD=$(python3 - <<PY
-import json
+export SEED FORCE_BAD_SEED="${FORCE_BAD_SEED:-}"
+PAYLOAD=$(python3 - <<'PY'
+import json, os, sys
 from pathlib import Path
-data = json.loads(Path("$SEED").read_text(encoding="utf-8"))
+seed = Path(os.environ["SEED"])
+data = json.loads(seed.read_text(encoding="utf-8"))
 rows = data.get("rows") if isinstance(data, dict) else data
 if not isinstance(rows, list):
-    raise SystemExit("seed JSON must contain rows[]")
+    sys.exit("seed JSON must contain rows[]")
+n = len(rows)
+fc = sum(1 for r in rows if str(r.get("event", "")).strip() in ("FC 1", "FC 2", "FC 3", "QP 1"))
+h7 = sum(1 for r in rows if r.get("model") == "H7_VI")
+print(f"  rows: {n} (H7_VI: {h7}, FC-event rows: {fc})", file=sys.stderr)
+if os.environ.get("FORCE_BAD_SEED") != "1" and (n > 120 or fc > 0):
+    print("ERROR: overview(FC1) seed — GitHub에서 eeb69b5+ seed JSON 다시 받으세요.", file=sys.stderr)
+    sys.exit(1)
 print(json.dumps({"rows": rows}, ensure_ascii=False))
 PY
 )
 
-ROWS=$(python3 -c "import json,sys; print(len(json.load(sys.stdin)['rows']))" <<< "$PAYLOAD")
-H7=$(python3 -c "import json,sys; r=json.load(sys.stdin)['rows']; print(sum(1 for x in r if x.get('model')=='H7_VI'))" <<< "$PAYLOAD")
-
 echo "=== Seed model schedule → ${API_BASE}/model-schedule/save ==="
-echo "  rows: $ROWS (H7_VI: $H7)"
-if [ "$H7" != "0" ] 2>/dev/null && [ "$ROWS" -gt 150 ] 2>/dev/null; then
-  echo "  ⚠️  FC1/QP1 overview 데이터가 섞인 seed 일 수 있습니다."
-  echo "     sh scripts/restore-model-schedule-mongo-xlsx-only.sh"
-fi
+echo "$PAYLOAD" | python3 -c "import json,sys; print('  posting', len(json.load(sys.stdin)['rows']), 'rows')" 2>/dev/null || true
 
 echo "$PAYLOAD" | curl -sf -X POST "${API_BASE}/model-schedule/save" \
   -H "Content-Type: application/json" \
   -d @- | python3 -m json.tool
 
 echo ""
-echo "=== Verify load (flush 반영까지 2초 대기) ==="
+echo "=== Verify load (2s) ==="
 sleep 2
-LOAD=$(curl -sf "${API_BASE}/model-schedule/load" || echo '{"rows":[],"count":0}')
-echo "$LOAD" | python3 -c "
+curl -sf "${API_BASE}/model-schedule/load" | python3 -c "
 import json, sys
 d = json.load(sys.stdin)
 rows = d.get('rows') or []
-print('count:', d.get('count', len(rows)))
-print('H7_VI:', sum(1 for r in rows if r.get('model')=='H7_VI'))
-models = sorted({r.get('model','') for r in rows})
-print('models:', ', '.join(models[:12]), '...' if len(models)>12 else '')
-if not rows:
-    print('')
-    print('ERROR: load count 0 — services/mongo_helper.py flush 패치 + uvicorn 재시작 후 재시도')
+fc = sum(1 for r in rows if str(r.get('event','')).strip() in ('FC 1','FC 2','FC 3'))
+print('count:', len(rows))
+print('FC-event rows:', fc)
+if fc:
+    print('ERROR: Mongo still has FC events — flush patch + uvicorn 재시작 확인')
     sys.exit(1)
+if not rows:
+    print('ERROR: load=0 — mongo_helper flush + uvicorn 8000')
+    sys.exit(1)
+print('OK')
 "
 
 echo "=== Done ==="
