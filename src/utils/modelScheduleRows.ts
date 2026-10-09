@@ -1,7 +1,7 @@
 /** 모델 현황 row 정렬 · legacy DB 보정 */
 
 export type TestCategory = '일반성능' | '호환성' | '안정성' | '시너지'
-export type StatusType = '완료' | '검증제외' | '예정'
+export type StatusType = '완료' | '검증제외' | '예정' | '진행중' | 'NG' | '지연'
 
 export type BarType = 'planned' | 'inprogress' | 'event_ng' | 'event_ok' | 'event_done_est' | 'su_fota'
 
@@ -28,7 +28,7 @@ export interface ModelRow {
 }
 
 export const TEST_TYPES: TestCategory[] = ['일반성능', '호환성', '안정성', '시너지']
-export const STATUS_LIST: StatusType[] = ['예정', '완료', '검증제외']
+export const STATUS_LIST: StatusType[] = ['예정', '진행중', '지연', 'NG', '완료', '검증제외']
 
 const CATEGORY_ORDER = [
   '사운드바(Wi-Fi)',

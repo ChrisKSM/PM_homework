@@ -18,6 +18,10 @@ import {
   rowsNeedRepair,
   sortModelRows,
 } from '../utils/modelScheduleRows'
+import {
+  VERIFICATION_MOCK_ROWS,
+  VERIFICATION_MOCK_TIMELINE_START,
+} from '../data/modelScheduleVerificationMock'
 
 // ── 타입 (utils re-export) ───────────────────────────────────────────────────
 
@@ -34,8 +38,22 @@ const BAR_CONFIG: Record<BarType, { color: string; label: string; textColor: str
 const BAR_TYPES: BarType[] = ['planned', 'inprogress', 'event_ng', 'event_ok', 'event_done_est', 'su_fota']
 
 const STATUS_STYLE: Record<StatusType, { bg: string; text: string }> = {
-  '완료': { bg: 'bg-emerald-50', text: 'text-emerald-600' }, '예정': { bg: 'bg-gray-100', text: 'text-gray-500' },
+  '완료': { bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  '예정': { bg: 'bg-gray-100', text: 'text-gray-500' },
   '검증제외': { bg: 'bg-amber-50', text: 'text-amber-600' },
+  '진행중': { bg: 'bg-orange-50', text: 'text-orange-600' },
+  'NG': { bg: 'bg-red-100', text: 'text-red-700' },
+  '지연': { bg: 'bg-rose-50', text: 'text-rose-600' },
+}
+
+function isVerificationMockPreview(search: string): boolean {
+  const q = new URLSearchParams(search)
+  return q.get('mock') === '1' || q.get('preview') === 'mock'
+}
+
+function parseTimelineStart(iso: string | null | undefined): Date {
+  if (!iso) return toD('2026-09-15')
+  return toD(String(iso).slice(0, 10))
 }
 const TT_STYLE: Record<TestCategory, string> = {
   '일반성능': 'bg-blue-50 text-blue-600', '호환성': 'bg-purple-50 text-purple-600',
@@ -183,15 +201,20 @@ function EI({value,onChange}:{value:string;onChange:(v:string)=>void}){
 const DAYS=42,CW=28,RH=28
 
 export default function ModelSchedulePage(){
-  const [data,setData]=useState<ModelRow[]>(()=>prepareModelScheduleRows(DEFAULT_DATA))
+  const location=useLocation()
+  const mockPreview=isVerificationMockPreview(location.search)
+  const [data,setData]=useState<ModelRow[]>(()=>
+    mockPreview?prepareModelScheduleRows(VERIFICATION_MOCK_ROWS):prepareModelScheduleRows(DEFAULT_DATA),
+  )
   const [snapshot,setSnapshot]=useState<ModelRow[]|null>(null)
   const [editing,setEditing]=useState(false)
   const [saving,setSaving]=useState(false)
   const [loading,setLoading]=useState(true)
   const [saveMessage,setSaveMessage]=useState<{type:'success'|'warn';text:string}|null>(null)
   const [dataSource,setDataSource]=useState<'mongo'|'local'|'default'>('default')
-  const location=useLocation()
-  const [startDate,setStartDate]=useState(()=>toD('2026-09-15'))
+  const [startDate,setStartDate]=useState(()=>
+    mockPreview?parseTimelineStart(VERIFICATION_MOCK_TIMELINE_START):toD('2026-09-15'),
+  )
   const scrollRef=useRef<HTMLDivElement>(null)
   const [fCat,setFCat]=useState('');const [fModel,setFModel]=useState('');const [fStatus,setFStatus]=useState('')
   const [picker,setPicker]=useState<{rowId:string;date:string;x:number;y:number;currentType:BarType|null;currentLabel:string}|null>(null)
@@ -200,6 +223,13 @@ export default function ModelSchedulePage(){
 
   // MongoDB / localStorage 로드 (페이지 진입 시마다)
   useEffect(()=>{
+    if(mockPreview){
+      setData(prepareModelScheduleRows(VERIFICATION_MOCK_ROWS))
+      setStartDate(parseTimelineStart(VERIFICATION_MOCK_TIMELINE_START))
+      setDataSource('default')
+      setLoading(false)
+      return
+    }
     let cancelled=false
     setLoading(true)
     modelScheduleApi.load()
@@ -221,7 +251,7 @@ export default function ModelSchedulePage(){
       })
       .finally(()=>{if(!cancelled)setLoading(false)})
     return()=>{cancelled=true}
-  },[location.pathname])
+  },[location.pathname, location.search, mockPreview])
 
   const hasFilter=!!(fCat||fModel||fStatus)
   const sortedData=useMemo(()=>sortModelRows(data),[data])
@@ -242,6 +272,10 @@ export default function ModelSchedulePage(){
   const cancelEdit=()=>{if(snapshot)setData(snapshot);setSnapshot(null);setEditing(false);setPicker(null)}
   const finishEdit=async()=>{
     setEditing(false);setPicker(null);setSnapshot(null)
+    if(mockPreview){
+      setSaveMessage({type:'warn',text:'Mock 모드 — MongoDB 저장 안 함'})
+      return
+    }
     setSaving(true);setSaveMessage(null)
     try{
       const res=await modelScheduleApi.save(sortModelRows(data))
@@ -346,8 +380,22 @@ export default function ModelSchedulePage(){
 
   return(
     <>
-      <Header title="모델 검증 일정 상세" subtitle="모델별 개발/검증 일정 Gantt — 편집 · 엑셀 · MongoDB"/>
+      <Header
+        title="모델 검증 일정 상세"
+        subtitle={
+          mockPreview
+            ? 'Mock 미리보기 · Excel(openpyxl) import JSON (DB 미반영)'
+            : '모델별 개발/검증 일정 Gantt — 편집 · 엑셀 · MongoDB'
+        }
+      />
       <div className="pt-16 p-4">
+        {mockPreview && (
+          <p className="text-[11px] text-blue-900 mb-2 bg-blue-50 border border-blue-300 rounded-lg px-3 py-2 font-medium">
+            Excel → JSON mock —{' '}
+            <code className="text-[10px] bg-white px-1 rounded">?mock=1</code> · 갱신:{' '}
+            <code className="text-[10px] bg-white px-1 rounded">sh scripts/sync-verification-schedule-from-xlsx.sh</code>
+          </p>
+        )}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <button onClick={()=>setStartDate(p=>addDays(p,-7))} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page"><ChevronLeft size={16}/></button>
           <span className="text-sm font-medium text-gray-700 min-w-[140px] text-center">{fmt(startDate)} ~ {fmt(addDays(startDate,DAYS-1))}</span>
