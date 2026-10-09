@@ -66,10 +66,12 @@ const CATEGORY_ORDER = [
   '이어버드',
 ]
 
-/** UI — 카테고리별 「모델 추가」 (mockup: 스위트 / Wi-Fi 사운드바 / 사운드바 분리) */
+/** SW검증현황 Excel — 검증 상세에 없는 제품군 (Mongo/legacy 제거) */
+export const EXCLUDED_VERIFICATION_CATEGORIES = ['사운드바(Wi-Fi)'] as const
+
+/** UI — 카테고리별 「모델 추가」 */
 export const VERIFICATION_ADD_GROUPS = [
   '사운드스위트(Wi-Fi)',
-  '사운드바(Wi-Fi)',
   '사운드바',
   '파티스피커',
   '무선스피커',
@@ -80,7 +82,6 @@ export type VerificationAddGroup = (typeof VERIFICATION_ADD_GROUPS)[number]
 
 const ADD_GROUP_DEFAULT_CATEGORY: Record<VerificationAddGroup, string> = {
   '사운드스위트(Wi-Fi)': '사운드스위트(Wi-Fi)',
-  '사운드바(Wi-Fi)': '사운드바(Wi-Fi)',
   '사운드바': '사운드바',
   '파티스피커': '파티스피커(Bluetooth)',
   '무선스피커': '무선스피커(Bluetooth)',
@@ -90,9 +91,8 @@ const ADD_GROUP_DEFAULT_CATEGORY: Record<VerificationAddGroup, string> = {
 export function categoryAddGroup(category: string): VerificationAddGroup | string {
   const n = normalizeCategoryForSort(category)
   if (n === '사운드스위트(Wi-Fi)' || /사운드스위트/i.test(n)) return '사운드스위트(Wi-Fi)'
-  if (n === '사운드바(Wi-Fi)') return '사운드바(Wi-Fi)'
   if (n === '사운드바') return '사운드바'
-  if (/^사운드바/i.test(n)) return '사운드바(Wi-Fi)'
+  if (n === '사운드바(Wi-Fi)') return '사운드바(Wi-Fi)' // excluded — UI 모델 추가 그룹 없음
   if (/파티/i.test(n)) return '파티스피커'
   if (/무선/i.test(n)) return '무선스피커'
   if (/이어버드/i.test(n)) return '이어버드'
@@ -378,6 +378,11 @@ export type PrepareModelScheduleOptions = {
   supplementSoundSuite?: boolean
 }
 
+export function stripExcludedVerificationCategories(rows: ModelRow[]): ModelRow[] {
+  const drop = new Set(EXCLUDED_VERIFICATION_CATEGORIES.map((c) => normalizeCategoryForSort(c)))
+  return rows.filter((r) => !drop.has(normalizeCategoryForSort(r.category)))
+}
+
 export function prepareModelScheduleRows(
   raw: unknown[],
   options?: PrepareModelScheduleOptions,
@@ -385,7 +390,8 @@ export function prepareModelScheduleRows(
   const supplement = options?.supplementSoundSuite === true
   let rows = repairLegacyRows(normRows(raw))
   if (supplement) rows = ensureSoundSuiteDetailRows(rows)
-  return sortModelRows(unifyCategoryLabels(rows))
+  rows = stripExcludedVerificationCategories(unifyCategoryLabels(rows))
+  return sortModelRows(rows)
 }
 
 export function rowsNeedRepair(raw: unknown[], options?: PrepareModelScheduleOptions): boolean {

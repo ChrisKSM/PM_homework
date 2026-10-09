@@ -225,6 +225,9 @@ def sort_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted(rows, key=sort_key)
 
 
+DROP_CATEGORIES = ("사운드바(Wi-Fi)",)
+
+
 def prepare_model_schedule_rows(
     rows: list[dict[str, Any]],
     *,
@@ -236,6 +239,11 @@ def prepare_model_schedule_rows(
     for r in prepared:
         r["model"] = canonical_model_name(str(r.get("model", "")))
         r["category"] = canonical_category(str(r.get("category", "")))
+    prepared = [
+        r
+        for r in prepared
+        if canonical_category(str(r.get("category", ""))) not in DROP_CATEGORIES
+    ]
     return sort_rows(prepared)
 
 
