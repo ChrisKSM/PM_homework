@@ -56,7 +56,7 @@ for path in /api/model-schedule/load /api/model-schedule/share; do
   echo "  $path → HTTP $CODE"
   if [ "$path" = "/api/model-schedule/share" ]; then
     case "$CODE" in
-      000) echo "       → 000: BE 미기동 — port 8200(uv run) 또는 8000 확인" ;;
+      000) echo "       → 000: BE 미기동 — port 8000(Route) 또는 8200 확인" ;;
       404) echo "       → 404: 구버전 BE. deploy-model-schedule-share-be.sh 실행 후 uvicorn 재시작" ;;
       503) echo "       → 503: SMTP 미설정 (.env SMTP_HOST 확인)" ;;
       502) echo "       → 502: SMTP 발송 실패" ;;

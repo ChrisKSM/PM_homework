@@ -279,27 +279,10 @@ export default function ModelSchedulePage(){
           const prepared=prepareModelScheduleRows(res.rows)
           setData(prepared)
           setDataSource(res.source)
-          const needsPersist=rowsNeedRepair(res.rows)||res.soundSuiteMerged
-          if(res.soundSuiteMerged&&!cancelled){
-            setSaveMessage({
-              type:'warn',
-              text:'Sound Suite(H7_VI 등) 보충 데이터 병합됨 — Mongo 반영 중…',
-            })
-          }
-          if(needsPersist&&!mockPreview){
+          if(rowsNeedRepair(res.rows)&&!mockPreview){
             try{
               const saved=await modelScheduleApi.save(prepared)
-              if(!cancelled){
-                setDataSource(saved.source)
-                if(res.soundSuiteMerged){
-                  setSaveMessage({
-                    type:saved.source==='mongo'?'success':'warn',
-                    text:saved.source==='mongo'
-                      ? 'H7_VI 등 Sound Suite 일정이 MongoDB에 저장되었습니다.'
-                      : saved.message,
-                  })
-                }
-              }
+              if(!cancelled)setDataSource(saved.source)
             }catch{/* ignore */}
           }
         }else{

@@ -8,7 +8,7 @@
 #   REF=cursor/model-schedule-bar-label-fix-b14b
 #   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}/scripts/seed-model-schedule-data.json" \
 #     -o scripts/seed-model-schedule-data.json
-#   python3 scripts/append-sound-suite-verification-rows.py scripts/seed-model-schedule-data.json
+#   sh scripts/restore-model-schedule-mongo-xlsx-only.sh  # Excel만으로 Mongo 복구
 
 set -e
 cd "$(dirname "$0")/.."
@@ -37,9 +37,9 @@ H7=$(python3 -c "import json,sys; r=json.load(sys.stdin)['rows']; print(sum(1 fo
 
 echo "=== Seed model schedule → ${API_BASE}/model-schedule/save ==="
 echo "  rows: $ROWS (H7_VI: $H7)"
-if [ "$ROWS" -lt 100 ] 2>/dev/null; then
-  echo "  ⚠️  행 수가 적습니다 — Sound Suite merge 전 seed 일 수 있습니다."
-  echo "     python3 scripts/append-sound-suite-verification-rows.py $SEED"
+if [ "$H7" != "0" ] 2>/dev/null && [ "$ROWS" -gt 150 ] 2>/dev/null; then
+  echo "  ⚠️  FC1/QP1 overview 데이터가 섞인 seed 일 수 있습니다."
+  echo "     sh scripts/restore-model-schedule-mongo-xlsx-only.sh"
 fi
 
 echo "$PAYLOAD" | curl -sf -X POST "${API_BASE}/model-schedule/save" \
