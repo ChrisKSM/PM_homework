@@ -24,13 +24,15 @@ fetch() {
   echo "  + $dst"
 }
 
-echo "=== Verification schedule UI from GitHub @ ${REF:0:7} ==="
+echo "=== Verification schedule UI from GitHub @ ${REF} ==="
 fetch src/utils/modelScheduleMonth.ts src/utils/modelScheduleMonth.ts
 fetch src/utils/modelScheduleDiff.ts src/utils/modelScheduleDiff.ts
 fetch src/utils/modelScheduleRows.ts src/utils/modelScheduleRows.ts
 fetch src/pages/ModelSchedulePage.tsx src/pages/ModelSchedulePage.tsx
 fetch src/api/modelScheduleApi.ts src/api/modelScheduleApi.ts
 fetch src/components/modelSchedule/ScheduleSnapshotDialog.tsx src/components/modelSchedule/ScheduleSnapshotDialog.tsx
+mkdir -p public
+fetch public/model-schedule-verification-mock.json public/model-schedule-verification-mock.json
 
 echo ""
 echo "=== 검증 (구 UI면 실패 — 9/22~11/2 슬라이딩 윈도우) ==="
@@ -38,6 +40,9 @@ grep -q 'daysInMonth' src/pages/ModelSchedulePage.tsx && echo "  OK  month view 
 grep -q 'isModelGroupSettled' src/pages/ModelSchedulePage.tsx && echo "  OK  settled gray"
 grep -q 'emailDiffBaseline' src/pages/ModelSchedulePage.tsx && echo "  OK  snapshot diff baseline"
 grep -q 'schedule_changes' src/api/modelScheduleApi.ts && echo "  OK  shareSnapshot diff fields"
+grep -q 'ensureSoundSuiteDetailRows' src/utils/modelScheduleRows.ts && echo "  OK  Sound Suite 4모델 보정"
+grep -q 'displayModelName' src/pages/ModelSchedulePage.tsx && echo "  OK  H7 VI 표기"
+grep -q '사운드바(Wi-Fi)' src/utils/modelScheduleRows.ts && echo "  OK  Wi-Fi/사운드바 모델추가 분리"
 
 echo ""
 echo "=== 다음: npm run build 후 배포 ==="
