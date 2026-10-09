@@ -4,7 +4,6 @@ import { ExternalLink, Filter } from 'lucide-react'
 import type { ModelStatusInitiativeIssue } from '../../types/modelStatusInitiative'
 import { MODEL_STATUS_INITIATIVE_ALL } from '../../data/modelStatusInitiativeMock'
 import { jiraBrowseUrl } from '../../utils/jiraBrowseUrl'
-import { canonicalModelName } from '../../utils/modelScheduleRows'
 
 type ColFilter = {
   key: string
@@ -77,15 +76,9 @@ export default function ModelStatusInitiativePanel({
   const [filters, setFilters] = useState<ColFilter>({ ...EMPTY_FILTERS })
   const [statusCardFilter, setStatusCardFilter] = useState<string | null>(null)
 
-  const scoped = useMemo(() => {
-    const norm = canonicalModelName(modelCode)
-    return issues.filter((r) => {
-      if (!r.model) return true
-      return canonicalModelName(r.model) === norm
-    })
-  }, [issues, modelCode])
-
-  const baseForCards = scoped.length >= 10 ? scoped : issues
+  /** 첨부 UI처럼 프로그램 전체 95건 기준 (모델 칩은 컨텍스트만 표시) */
+  const scoped = useMemo(() => issues, [issues])
+  const baseForCards = scoped
 
   const cardCounts = useMemo(() => {
     return STATUS_CARD_META.map((c) => {
@@ -95,13 +88,13 @@ export default function ModelStatusInitiativePanel({
   }, [baseForCards])
 
   const filtered = useMemo(() => {
-    let rows = scoped.length ? scoped : issues
+    let rows = scoped
     if (statusCardFilter && statusCardFilter !== 'total') {
       const meta = STATUS_CARD_META.find((c) => c.id === statusCardFilter)
       if (meta) rows = rows.filter((r) => meta.match(String(r.status)))
     }
     return rows.filter((r) => matchFilter(r, filters))
-  }, [scoped, issues, filters, statusCardFilter])
+  }, [scoped, filters, statusCardFilter])
 
   const options = useMemo(
     () => ({
@@ -148,7 +141,7 @@ export default function ModelStatusInitiativePanel({
         <Filter size={14} className="text-gray-400" />
         <span>
           {productGroupLabel ? `${productGroupLabel} · ` : ''}
-          {modelCode.replace(/_/g, ' ')} — Initiative (mock · Jira 연동 준비)
+          {modelCode.replace(/_/g, ' ')} 컨텍스트 — Initiative 95건 (mock · Jira 연동 준비)
         </span>
         {(filters.key ||
           filters.summary ||
