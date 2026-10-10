@@ -49,6 +49,11 @@ if ! $PY -c "import main" 2>/tmp/uvicorn-import.err; then
     echo "  Fix: sh scripts/fix-tvjira-missing.sh"
     echo "       (or sh scripts/be-model-status-initiative-patch.sh)"
   fi
+  if grep -q 'release_gantt_service' /tmp/uvicorn-import.err 2>/dev/null; then
+    echo ""
+    echo "  Fix: sh scripts/fix-release-gantt-missing.sh"
+    echo "       (or sh scripts/be-model-status-initiative-patch.sh)"
+  fi
   exit 1
 fi
 echo "  OK  import main"

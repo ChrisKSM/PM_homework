@@ -33,7 +33,8 @@ if [ -n "$REF" ] && git rev-parse "$REF" >/dev/null 2>&1; then
     scripts/patch-config-initiative-fields.sh \
     scripts/verify-model-status-initiative-be.sh \
     scripts/be-jira-token-setup.sh \
-    scripts/be-model-status-initiative-patch.sh
+    scripts/be-model-status-initiative-patch.sh \
+    scripts/fix-release-gantt-missing.sh
   do
     show "$f" > "$f"
     chmod +x "$f"
@@ -59,11 +60,13 @@ else
   fetch scripts/verify-model-status-initiative-be.sh scripts/verify-model-status-initiative-be.sh
   fetch scripts/be-model-status-initiative-patch.sh scripts/be-model-status-initiative-patch.sh
   fetch scripts/be-jira-token-setup.sh scripts/be-jira-token-setup.sh
+  fetch scripts/fix-release-gantt-missing.sh scripts/fix-release-gantt-missing.sh
   chmod +x scripts/patch-be-main-model-status.sh \
     scripts/patch-config-initiative-fields.sh \
     scripts/verify-model-status-initiative-be.sh \
     scripts/be-jira-token-setup.sh \
-    scripts/be-model-status-initiative-patch.sh
+    scripts/be-model-status-initiative-patch.sh \
+    scripts/fix-release-gantt-missing.sh
 fi
 
 test -f tvjira_client.py || { echo "ERROR: tvjira_client.py missing"; exit 1; }

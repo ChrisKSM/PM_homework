@@ -3,7 +3,27 @@ import socket
 from fastapi import APIRouter, HTTPException, Query
 
 from config import settings
-from services import model_status_initiative_service, release_gantt_service
+from services import model_status_initiative_service
+
+
+def _release_gantt_service():
+    """Pod에 router만 있고 service 파일이 없을 때 uvicorn 기동은 유지."""
+    try:
+        from services import release_gantt_service as svc
+
+        return svc
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": f"release_gantt BE 파일 누락: {e}",
+                "hint": (
+                    "pod에서 sh scripts/fix-release-gantt-missing.sh "
+                    "또는 sh scripts/be-model-status-initiative-patch.sh 후 "
+                    "sh scripts/restart-be-route-port.sh"
+                ),
+            },
+        ) from e
 
 
 def _pod_identity() -> dict[str, str]:
@@ -110,7 +130,7 @@ async def list_initiatives(
 @router.get("/release/calendar")
 async def release_calendar():
     """2026 IR1~IR5 · SP01~SP26 고정 캘린더."""
-    return release_gantt_service.get_release_calendar()
+    return _release_gantt_service().get_release_calendar()
 
 
 @router.get("/release/gantt")
@@ -129,7 +149,7 @@ async def release_gantt(
             label = "SoundSuite_H7(VI)"
 
     try:
-        return await release_gantt_service.get_release_gantt(
+        return await _release_gantt_service().get_release_gantt(
             model=model,
             label=label,
             initiative_key=initiative_key,
