@@ -61,6 +61,8 @@ fetch src/utils/jiraBrowseUrl.ts src/utils/jiraBrowseUrl.ts
 fetch src/utils/modelStatusMilestones.ts src/utils/modelStatusMilestones.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/hooks/useModelStatusInitiatives.ts src/hooks/useModelStatusInitiatives.ts
+fetch src/constants/tvplatInitiativeFields.ts src/constants/tvplatInitiativeFields.ts
+fetch src/types/modelStatusInitiative.ts src/types/modelStatusInitiative.ts
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/components/modelStatus/ModelStatusInitiativePanel.tsx src/components/modelStatus/ModelStatusInitiativePanel.tsx
 fetch src/components/modelStatus/ModelStatusMetaCard.tsx src/components/modelStatus/ModelStatusMetaCard.tsx

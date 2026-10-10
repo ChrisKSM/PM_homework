@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     release_sprint_field: str = "customfield_18834"
     chip_name_field: str = "customfield_14922"
 
+    # TVPLAT Initiative (Davis InitiativePage INITIATIVE_FIELDS 기준)
+    initiative_start_date_field: str = "customfield_35441"
+    initiative_grouping_field: str = "customfield_35455"
+    initiative_categorization_field: str = "customfield_35516"
+    initiative_estimated_effort_field: str = "customfield_35454"
+
     # 조달 Request DoD (Story DoD customfield_18874 와 별도)
     procurement_dod_field: str = "customfield_10504"
 

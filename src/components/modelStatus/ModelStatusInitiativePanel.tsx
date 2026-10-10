@@ -16,6 +16,8 @@ type ColFilter = {
   assignee: string
   product: string
   event: string
+  fixedIn: string
+  score: string
   pm: string
 }
 
@@ -27,6 +29,8 @@ const EMPTY_FILTERS: ColFilter = {
   assignee: '',
   product: '',
   event: '',
+  fixedIn: '',
+  score: '',
   pm: '',
 }
 
@@ -60,6 +64,8 @@ function matchFilter(row: ModelStatusInitiativeIssue, f: ColFilter): boolean {
     contains(row.assignee, f.assignee) &&
     contains(row.product, f.product) &&
     contains(row.event, f.event) &&
+    contains(row.fixedIn || '', f.fixedIn) &&
+    contains(row.score || '', f.score) &&
     contains(row.pm, f.pm)
   )
 }
@@ -115,12 +121,15 @@ export default function ModelStatusInitiativePanel({
     return rows.filter((r) => matchFilter(r, filters))
   }, [scoped, filters, statusCardFilter])
 
+  const showJiraExtras = useLiveJira || issues.some((r) => r.fixedIn || r.score)
+
   const options = useMemo(
     () => ({
       status: uniq(issues.map((r) => String(r.status))),
       product: uniq(issues.map((r) => r.product)),
       event: uniq(issues.map((r) => r.event)),
       assignee: uniq(issues.map((r) => r.assignee)),
+      score: uniq(issues.map((r) => r.score || '')),
       pm: uniq(issues.map((r) => r.pm)),
     }),
     [issues],
@@ -273,6 +282,23 @@ export default function ModelStatusInitiativePanel({
                   Event
                   <FilterSelect col="event" options={options.event} placeholder="전체 ▾" />
                 </th>
+                {showJiraExtras && (
+                  <>
+                    <th className="text-left p-2 font-semibold text-gray-600 min-w-[90px]">
+                      Fixed In
+                      <input
+                        value={filters.fixedIn}
+                        onChange={(e) => setF('fixedIn', e.target.value)}
+                        placeholder="필터"
+                        className="mt-1 block w-full text-[10px] px-1 py-0.5 border border-gray-200 rounded"
+                      />
+                    </th>
+                    <th className="text-left p-2 font-semibold text-gray-600">
+                      Score
+                      <FilterSelect col="score" options={options.score} placeholder="전체 ▾" />
+                    </th>
+                  </>
+                )}
                 <th className="text-left p-2 font-semibold text-gray-600 min-w-[100px]">
                   PM
                   <FilterSelect col="pm" options={options.pm} placeholder="전체 ▾" />
@@ -317,6 +343,12 @@ export default function ModelStatusInitiativePanel({
                     <td className="p-2 text-gray-600">{row.assignee}</td>
                     <td className="p-2 text-gray-600">{row.product}</td>
                     <td className="p-2 text-gray-600">{row.event}</td>
+                    {showJiraExtras && (
+                      <>
+                        <td className="p-2 text-gray-600 whitespace-nowrap">{row.fixedIn || '—'}</td>
+                        <td className="p-2 text-gray-600 tabular-nums">{row.score || '—'}</td>
+                      </>
+                    )}
                     <td className="p-2 text-gray-600">{row.pm}</td>
                   </tr>
                 )

@@ -16,6 +16,12 @@ export interface ModelStatusInitiativeIssue {
   product: string
   event: string
   pm: string
+  /** fixVersions (Jira) */
+  fixedIn?: string
+  /** Estimated Effort — customfield_35454 */
+  score?: string
+  grouping?: string
+  startDate?: string
   issueUrl?: string
   model?: string
 }
