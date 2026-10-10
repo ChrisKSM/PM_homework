@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Query
 
 from config import settings
 from services import model_status_initiative_service
-from tvjira_client import tvjira_token_source_info
 
 router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 
@@ -10,6 +9,8 @@ router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 @router.get("/initiatives/ping")
 async def initiatives_ping():
     """배포 확인 — Jira 호출 없음."""
+    from tvjira_client import tvjira_token_source_info
+
     source, length = tvjira_token_source_info()
     return {
         "ok": True,
@@ -48,6 +49,14 @@ async def list_initiatives(
                 "knownModels": list(
                     model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()
                 ),
+            },
+        )
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": f"Initiative BE 파일 누락: {e}",
+                "hint": "BE pod에서 sh scripts/be-model-status-initiative-patch.sh 후 restart-be-route-port.sh",
             },
         )
     except Exception as e:

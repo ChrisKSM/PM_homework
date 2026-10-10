@@ -12,12 +12,17 @@ from typing import Any
 from cache import cached
 from config import settings
 from services.quality_service import _field_text
-from tvjira_client import tvjira_issue_browse_url, tvjira_search_all
 
 # UI modelCode → Jira labels in (...)
 INITIATIVE_JIRA_LABEL_BY_MODEL: dict[str, str] = {
     "H7_VI": "SoundSuite_H7(VI)",
 }
+
+
+def _tvjira_issue_browse_url(issue_key: str) -> str:
+    from tvjira_client import tvjira_issue_browse_url
+
+    return tvjira_issue_browse_url(issue_key)
 
 
 def initiative_search_field_ids() -> list[str]:
@@ -164,7 +169,7 @@ def map_initiative_issue(raw: dict, model: str | None) -> dict[str, Any]:
         "score": effort,
         "grouping": grouping,
         "startDate": _format_due(fields.get(settings.initiative_start_date_field)),
-        "issueUrl": tvjira_issue_browse_url(key),
+        "issueUrl": _tvjira_issue_browse_url(key),
         "model": model,
     }
 
@@ -182,6 +187,8 @@ async def get_initiatives_for_model(
         )
 
     jql = build_initiative_jql(jira_label, project_key=project_key)
+    from tvjira_client import tvjira_search_all
+
     issues = await tvjira_search_all(jql, initiative_search_field_ids())
     mapped = [map_initiative_issue(i, model) for i in issues]
 
