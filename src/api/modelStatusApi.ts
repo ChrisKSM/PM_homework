@@ -20,11 +20,14 @@ export interface ModelStatusInitiativesResponse {
 
 export const modelStatusApi = {
   getInitiatives: (model: string) => {
-    const label = initiativeJiraLabelForModel(model)
+    const label =
+      initiativeJiraLabelForModel(model) ??
+      (model === 'H7_VI' ? MODEL_STATUS_INITIATIVE_JIRA_LABEL.H7_VI : undefined)
+    // BE·구 FE 호환: label 없이 model=H7_VI 만 보내면 400 — 항상 label 포함
+    const params: { model: string; label?: string } = { model }
+    if (label) params.label = label
     return client
-      .get<ModelStatusInitiativesResponse>('/model-status/initiatives', {
-        params: label ? { model, label } : { model },
-      })
+      .get<ModelStatusInitiativesResponse>('/model-status/initiatives', { params })
       .then((r) => r.data)
   },
 

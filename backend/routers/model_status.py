@@ -34,6 +34,14 @@ async def list_initiatives(
     TVPLAT Initiative 목록.
     기본 JQL: project = TVPLAT AND issuetype = Initiative AND labels in ("…")
     """
+    # 구 FE: label 쿼리 없이 model=H7_VI 만 오는 경우 (구 BE·다중 pod 호환)
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+        elif model.strip().upper().replace("-", "_").replace(" ", "_") == "H7_VI":
+            label = "SoundSuite_H7(VI)"
+
     try:
         return await model_status_initiative_service.get_initiatives_for_model(
             model=model,
@@ -60,14 +68,20 @@ async def list_initiatives(
                     "tvjira": {"tokenSource": source, "tokenLength": length},
                 },
             ) from e
+        known = list(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
+        example_label = model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.get(
+            "H7_VI", "SoundSuite_H7(VI)"
+        )
         raise HTTPException(
             status_code=400,
             detail={
                 "message": msg,
-                "hint": "model=H7_VI 와 label=SoundSuite_H7(VI) 를 함께 보내거나 BE patch 후 uvicorn 8000 재시작",
-                "knownModels": list(
-                    model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()
+                "hint": (
+                    f"label 쿼리 필요: &label={example_label} "
+                    "(FE patch 또는 model=H7_VI&label=… 로 호출)"
                 ),
+                "request": {"model": model, "label": label},
+                "knownModels": known,
             },
         )
     except ImportError as e:
