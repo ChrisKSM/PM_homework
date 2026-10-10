@@ -15,7 +15,7 @@ git describe --tags --always 2>/dev/null || true
 
 echo ""
 echo "=== 2) 소스 — catalog 5탭 & dashboard map ==="
-TAB_N="$(awk '/MODEL_STATUS_TABS/,/\]/' src/data/modelStatusCatalog.ts 2>/dev/null | grep -c "id:" || echo 0)"
+TAB_N="$(grep -E "^\s*\{ id:" src/data/modelStatusCatalog.ts 2>/dev/null | wc -l | tr -d ' ')"
 echo "  catalog id: count = $TAB_N (기대 5)"
 [ "$TAB_N" -eq 5 ] && ok "MODEL_STATUS_TABS 5개" || warn "catalog 탭 수 != 5"
 grep -q "릴리즈 · Epic" src/data/modelStatusCatalog.ts && ok "릴리즈 · Epic in catalog" || warn "catalog에 릴리즈 라벨 없음"
@@ -25,7 +25,7 @@ grep -q "ModelStatusReleaseEpicGantt" src/components/modelStatus/ModelIntegrated
 echo ""
 echo "=== 3) origin/master (CI가 빌드하는 ref) ==="
 if git rev-parse origin/master >/dev/null 2>&1; then
-  REM_TAB="$(git show origin/master:src/data/modelStatusCatalog.ts 2>/dev/null | awk '/MODEL_STATUS_TABS/,/\]/' | grep -c "id:" || echo 0)"
+  REM_TAB="$(git show origin/master:src/data/modelStatusCatalog.ts 2>/dev/null | grep -E "^\s*\{ id:" | wc -l | tr -d ' ')"
   echo "  origin/master catalog tabs: $REM_TAB"
   git show origin/master:src/data/modelStatusCatalog.ts 2>/dev/null | grep -q "릴리즈 · Epic" && ok "origin/master catalog 릴리즈" || warn "origin/master catalog에 릴리즈 없음"
 else
@@ -34,7 +34,7 @@ fi
 
 echo ""
 echo "=== 4) pod production build ==="
-if [ ! -d build ] || [ ! -f build/main.*.js ]; then
+if [ ! -d build ] || ! ls build/main.*.js >/dev/null 2>&1; then
   echo "  npm run build 실행 중..."
   npm run build
 fi
@@ -81,11 +81,17 @@ if [ "$REM_MAIN" != "?" ]; then
   TMP="/tmp/fe-shared-main-$$.js"
   curl -sf "$SHARED/$REM_MAIN" -o "$TMP" || true
   if [ -f "$TMP" ]; then
-    SH_REL="$(grep -c "릴리즈 · Epic" "$TMP" 2>/dev/null || echo 0)"
-    SH_INIT="$(grep -c "Initiative" "$TMP" 2>/dev/null || echo 0)"
+    SH_REL="$(grep -c "릴리즈 · Epic" "$TMP" 2>/dev/null | head -1 | tr -d ' \n\r' || true)"
+    SH_INIT="$(grep -c "Initiative" "$TMP" 2>/dev/null | head -1 | tr -d ' \n\r' || true)"
+    SH_REL="${SH_REL:-0}"
+    SH_INIT="${SH_INIT:-0}"
     echo "  shared 번들 릴리즈 · Epic: $SH_REL (0이면 4탭 UI 확정)"
     echo "  shared 번들 Initiative 문자열: $SH_INIT"
-    [ "$SH_REL" -ge 1 ] && ok "공용 main.js 안에 릴리즈 탭 문자열 있음" || warn "공용 main.js에 릴리즈 없음 — 탭 안 보이는 직접 원인"
+    if [ "$SH_REL" -ge 1 ] 2>/dev/null; then
+      ok "공용 main.js 안에 릴리즈 탭 문자열 있음"
+    else
+      warn "공용 main.js에 릴리즈 없음 — 탭 안 보이는 직접 원인"
+    fi
     rm -f "$TMP"
   fi
 fi
