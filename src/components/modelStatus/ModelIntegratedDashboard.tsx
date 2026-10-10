@@ -6,6 +6,7 @@ import ModelStatusEventsTable from './ModelStatusEventsTable'
 import ModelStatusMetaCard from './ModelStatusMetaCard'
 import ManagerDashboardBody from './ManagerDashboardBody'
 import ModelStatusInitiativePanel from './ModelStatusInitiativePanel'
+import ModelStatusReleaseGanttPanel from './ModelStatusReleaseGanttPanel'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
   MODEL_STATUS_TABS,
@@ -271,6 +272,14 @@ export default function ModelIntegratedDashboard({
             </div>
           )}
         </div>
+      )}
+
+      {tab === 'release' && (
+        <ModelStatusReleaseGanttPanel
+          modelCode={modelCode}
+          productGroupId={productGroupId}
+          active={tab === 'release'}
+        />
       )}
 
       {tab === 'initiative' && (

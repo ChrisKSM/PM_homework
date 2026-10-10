@@ -52,6 +52,12 @@ try:
 except ImportError:
     pass
 
+try:
+    from routers import delivery_portal
+    app.include_router(delivery_portal.router)
+except ImportError:
+    pass
+
 # daily report — jinja2 미설치 환경(prod 이미지 등)에서는 건너뜀
 try:
     from routers import report

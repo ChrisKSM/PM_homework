@@ -48,10 +48,11 @@ export const MODEL_STATUS_PRODUCT_GROUPS: ModelStatusProductGroup[] = [
   },
 ]
 
-export type ModelStatusTabId = 'summary' | 'initiative' | 'prd' | 'issues'
+export type ModelStatusTabId = 'summary' | 'release' | 'initiative' | 'prd' | 'issues'
 
 export const MODEL_STATUS_TABS: { id: ModelStatusTabId; label: string }[] = [
   { id: 'summary', label: '요약' },
+  { id: 'release', label: '릴리즈 Gantt' },
   { id: 'initiative', label: 'Initiative' },
   { id: 'prd', label: 'PRD' },
   { id: 'issues', label: '이슈/리스크' },
