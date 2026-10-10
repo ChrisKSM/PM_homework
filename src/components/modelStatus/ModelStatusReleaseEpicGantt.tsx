@@ -75,6 +75,9 @@ export default function ModelStatusReleaseEpicGantt({
   const initiative = releaseData?.initiative ?? initData?.issues?.[0] ?? null
   const source = releaseData?.source ?? 'mock'
   const metaErrors = releaseData?.meta?.errors ?? []
+  const epicCount = releaseData?.meta?.epicCount
+  const milestoneCount = releaseData?.meta?.milestoneCount
+  const initiativeCount = releaseData?.meta?.initiativeCount
 
   return (
     <div className="space-y-4">
@@ -114,7 +117,10 @@ export default function ModelStatusReleaseEpicGantt({
             <p className="text-[11px] text-gray-500">
               2026 SP01~SP26 · TV Jira Epic 실행 구간 · Milestone
               {source === 'jira' ? (
-                <span className="ml-1 text-emerald-600 font-medium">· 실데이터</span>
+                <span className="ml-1 text-emerald-600 font-medium">
+                  · Jira Epic {epicCount ?? '—'} · Milestone {milestoneCount ?? '—'}
+                  {initiativeCount != null && initiativeCount > 1 ? ` · Initiative ${initiativeCount}건` : ''}
+                </span>
               ) : (
                 <span className="ml-1 text-amber-600">· mock (Jira 연동 대기)</span>
               )}
@@ -207,8 +213,17 @@ export default function ModelStatusReleaseEpicGantt({
             </div>
 
             {gantt.epics.length === 0 && (
-              <div className="px-4 py-6 text-center text-[11px] text-gray-500">
-                연결된 Epic이 없습니다. TV Jira에서 모델 라벨·Initiative 링크를 확인하세요.
+              <div className="px-4 py-6 text-center text-[11px] text-gray-500 space-y-1">
+                <p>연결된 Epic이 없습니다 (Jira 조회 0건).</p>
+                {source === 'jira' && releaseData?.meta?.discoveredEpicKeys?.length ? (
+                  <p className="text-amber-700">
+                    Initiative 링크에서 Epic key는 찾았으나 issuetype/Epic 필드 조회 실패 —{' '}
+                    {releaseData.meta.discoveredEpicKeys.slice(0, 5).join(', ')}
+                  </p>
+                ) : null}
+                <p className="text-gray-400">
+                  pod: curl /api/model-status/release/gantt?model={modelCode} → meta.epicCount · epicJqls
+                </p>
               </div>
             )}
 

@@ -53,6 +53,11 @@ export interface ModelReleaseGanttResponse {
     asOf: string
     epicJqls?: string[]
     initiativeKey?: string | null
+    initiativeKeys?: string[]
+    initiativeCount?: number
+    discoveredEpicKeys?: string[]
+    epicCount?: number
+    milestoneCount?: number
     model?: string | null
     label?: string | null
     errors?: string[]

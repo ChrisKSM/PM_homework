@@ -10,14 +10,19 @@ function toGanttData(
   fallback: ModelReleaseGanttData,
 ): ModelReleaseGanttData {
   if (!live?.calendar) return fallback
-  const headerMs = live.milestones?.length ? live.milestones : fallback.milestones
-  const epics = live.epics?.length ? live.epics : fallback.epics
+  const fromJira = Boolean(live.meta?.asOf)
+  const milestones = fromJira
+    ? live.milestones ?? []
+    : live.milestones?.length
+      ? live.milestones
+      : fallback.milestones
+  const epics = fromJira ? live.epics ?? [] : live.epics?.length ? live.epics : fallback.epics
   return {
     sprintMin: live.calendar.sprintMin,
     sprintMax: live.calendar.sprintMax,
     irBands: live.calendar.irBands,
     sprints: live.calendar.sprints,
-    milestones: headerMs,
+    milestones,
     epics,
   }
 }
