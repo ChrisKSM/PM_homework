@@ -77,6 +77,10 @@ if [ ! -f scripts/be-jira-token-setup.sh ]; then
 fi
 
 echo ""
+echo "=== tvjira_client.py (project root — uvicorn import 필수) ==="
+test -f tvjira_client.py && wc -c tvjira_client.py | awk '{print "  OK  tvjira_client.py "$1" bytes"}'
+
+echo ""
 echo "=== Jira PAT (Initiative → TVJIRA_API_TOKEN) ==="
 if sh scripts/be-jira-token-setup.sh; then
   echo "  token OK"

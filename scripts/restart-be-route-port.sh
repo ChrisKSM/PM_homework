@@ -40,6 +40,19 @@ fi
 PY="uv run --frozen python"
 command -v uv >/dev/null 2>&1 || PY="python3"
 
+echo "=== preflight: import main:app ==="
+if ! $PY -c "import main" 2>/tmp/uvicorn-import.err; then
+  echo "  NG  import main failed — uvicorn would exit (503 on Route)"
+  sed -n '1,20p' /tmp/uvicorn-import.err
+  if grep -q 'tvjira_client' /tmp/uvicorn-import.err 2>/dev/null; then
+    echo ""
+    echo "  Fix: sh scripts/fix-tvjira-missing.sh"
+    echo "       (or sh scripts/be-model-status-initiative-patch.sh)"
+  fi
+  exit 1
+fi
+echo "  OK  import main"
+
 echo "=== starting uvicorn 0.0.0.0:$PORT ==="
 nohup $PY -m uvicorn main:app --host 0.0.0.0 --port "$PORT" \
   >> "/tmp/uvicorn-${PORT}.log" 2>&1 &
