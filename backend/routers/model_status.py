@@ -41,10 +41,29 @@ async def list_initiatives(
             project_key=project,
         )
     except ValueError as e:
+        msg = str(e)
+        if "TVJIRA_API_TOKEN" in msg or "JIRA_API_TOKEN" in msg:
+            from tvjira_client import tvjira_token_source_info
+
+            source, length = tvjira_token_source_info()
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "message": msg,
+                    "hint": (
+                        "/workspace/project/.env 에 TVJIRA_API_TOKEN=<TV Jira PAT> 추가 "
+                        "(Harmony JIRA_API_TOKEN 과 별도 변수). "
+                        "cp /workspace/project/.env /usr/app/src/.env · "
+                        "sh scripts/be-jira-token-setup.sh · "
+                        "OpenShift Variables 에 빈 TVJIRA_API_TOKEN 없는지 확인"
+                    ),
+                    "tvjira": {"tokenSource": source, "tokenLength": length},
+                },
+            ) from e
         raise HTTPException(
             status_code=400,
             detail={
-                "message": str(e),
+                "message": msg,
                 "hint": "model=H7_VI 와 label=SoundSuite_H7(VI) 를 함께 보내거나 BE patch 후 uvicorn 8000 재시작",
                 "knownModels": list(
                     model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()

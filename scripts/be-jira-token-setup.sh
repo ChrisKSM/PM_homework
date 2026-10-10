@@ -45,6 +45,28 @@ echo "  Harmony  /usr/app/src/.env         JIRA_API_TOKEN length=$prod_jira"
 echo "  TV Jira  /workspace/project/.env   TVJIRA_API_TOKEN length=$ws_tv"
 echo "  TV Jira  /usr/app/src/.env         TVJIRA_API_TOKEN length=$prod_tv"
 
+# TVJIRA 줄 없고 Harmony PAT만 있으면 workspace .env 에 TVJIRA 줄 추가 (값 복사)
+if [ -f "$WS" ] && [ "$ws_tv" -eq 0 ] && [ "$ws_jira" -gt 0 ]; then
+  if ! grep -q '^[[:space:]]*TVJIRA_API_TOKEN[[:space:]]*=' "$WS" 2>/dev/null; then
+    python3 - "$WS" <<'PY'
+import re, sys
+from pathlib import Path
+p = Path(sys.argv[1])
+text = p.read_text(encoding="utf-8", errors="ignore")
+pat = None
+for line in text.splitlines():
+    m = re.match(r"^\s*JIRA_API_TOKEN\s*=\s*(.*)$", line)
+    if m:
+        pat = m.group(1).strip().strip('"').strip("'")
+        break
+if pat:
+    p.write_text(text.rstrip() + f"\nTVJIRA_API_TOKEN={pat}\n", encoding="utf-8")
+    print("  → workspace .env: TVJIRA_API_TOKEN 추가 (JIRA_API_TOKEN 값 복사)")
+PY
+    ws_tv=$(_token_len_key "$WS" "TVJIRA_API_TOKEN")
+  fi
+fi
+
 if [ -d /usr/app/src ]; then
   if [ "$ws_jira" -gt 0 ] || [ "$ws_tv" -gt 0 ]; then
     cp "$WS" "$PROD"
