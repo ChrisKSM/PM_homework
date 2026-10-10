@@ -66,8 +66,20 @@ test -f services/model_status_initiative_service.py
 test -f routers/model_status.py
 grep -q 'model-status' routers/model_status.py
 
+fetch scripts/be-jira-token-setup.sh scripts/be-jira-token-setup.sh 2>/dev/null || \
+  curl -fsSL "$BASE/scripts/be-jira-token-setup.sh" -o scripts/be-jira-token-setup.sh
+chmod +x scripts/be-jira-token-setup.sh 2>/dev/null || true
+
 echo ""
-echo "=== BE 파일 OK — uvicorn 재시작 후 ==="
-echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
+echo "=== JIRA 토큰 (Initiative·Jira API 공통) ==="
+if sh scripts/be-jira-token-setup.sh; then
+  echo "  token OK"
+else
+  echo "  WARN: JIRA_API_TOKEN 설정 후 restart-be-route-port.sh 실행"
+fi
+
+echo ""
+echo "=== BE 파일 OK — uvicorn port 8000 재시작 후 ==="
+echo "  sh scripts/restart-be-route-port.sh"
 echo "  sh scripts/verify-model-status-initiative-be.sh"
 echo "=== Done ==="
