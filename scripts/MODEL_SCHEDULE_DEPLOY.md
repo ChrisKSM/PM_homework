@@ -53,8 +53,20 @@ ls build/main.*.js
 **조치:** AxStudio 워크스페이스에 표시된 **본인 react-audio Route URL** 로 `/model-schedule/status` 접속.  
 공용 URL을 꼭 써야 하면 해당 Route를 가리키는 **팀 Deployment/CI** 에 반영 요청.
 
-Worker URL에서 **`Invalid Host header`** → `webpack.config.js` `devServer.allowedHosts`에  
-`.apps.axstudio.lge.com` 포함 후 `npm start` 재시작 (GitHub `webpack-migration` / `cursor/model-schedule-bar-label-fix-b14b` 반영).
+Worker URL(`react-audio--3000--<계정>.apps...`)은 **pod dev server**용 미리보기입니다.  
+**실제 업무 URL** `https://react-audio.apps.axstudio.lge.com` 과 **다른 배포본**일 수 있습니다.
+
+| URL | 5탭(릴리즈 · Epic) |
+|-----|-------------------|
+| `react-audio.apps.axstudio.lge.com` | **공용 Route 이미지가 갱신돼야** 함 (`main.js` / `build-version` pod와 일치) |
+| `react-audio--3000--...` | pod `npm start` (Invalid Host → `webpack.config.js` `.apps.axstudio.lge.com`) |
+
+```bash
+sh scripts/verify-shared-react-audio-deployed.sh
+```
+
+공용 URL에서 4탭만 보이면 **코드 미완성이 아니라** `curl`로 확인한 **구 `main.e59a548e...` 번들**을 쓰는 것입니다.  
+`release_*` 태그 CI + **그 Route가 바라보는 Deployment** 배포까지 필요합니다.
 
 ```bash
 sh scripts/verify-model-status-release-fe-deployed.sh   # 릴리즈 · Epic 탭
