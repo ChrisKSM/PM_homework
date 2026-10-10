@@ -1,12 +1,12 @@
 import { useMemo } from 'react'
 import clsx from 'clsx'
-import { ExternalLink, Target, TrendingUp } from 'lucide-react'
+import { ExternalLink, Loader2, Target, TrendingUp } from 'lucide-react'
 import { useModelStatusInitiatives } from '../../hooks/useModelStatusInitiatives'
-import { releaseGanttForModel } from '../../mocks/mockModelReleaseEpicGantt'
-import type { ModelReleaseGanttData } from '../../types/modelStatusReleaseGantt'
+import { useModelStatusReleaseGantt } from '../../hooks/useModelStatusReleaseGantt'
+import type { ModelReleaseGanttData, ReleaseMilestone } from '../../types/modelStatusReleaseGantt'
 import { jiraBrowseUrl } from '../../utils/jiraBrowseUrl'
 
-const COL_W = 72
+const COL_W = 56
 
 export interface ReleaseGanttKpiProps {
   kpi1Value: string
@@ -31,7 +31,11 @@ function sprintRange(min: number, max: number) {
 function epicBarStyle(startSp: number, endSp: number, sprintMin: number) {
   const left = (startSp - sprintMin) * COL_W + 4
   const width = (endSp - startSp + 1) * COL_W - 8
-  return { left, width: Math.max(width, 24) }
+  return { left, width: Math.max(width, 20) }
+}
+
+function milestonesForSprint(milestones: ReleaseMilestone[], sp: number) {
+  return milestones.filter((m) => m.sprint === sp)
 }
 
 export default function ModelStatusReleaseEpicGantt({
@@ -45,18 +49,35 @@ export default function ModelStatusReleaseEpicGantt({
   kpi2Trend,
 }: Props) {
   const { data: initData } = useModelStatusInitiatives(modelCode, active)
-  const gantt: ModelReleaseGanttData = useMemo(() => releaseGanttForModel(modelCode), [modelCode])
+  const { data: releaseData, isLoading, isFetching } = useModelStatusReleaseGantt(modelCode, active)
+
+  const gantt: ModelReleaseGanttData = releaseData?.gantt ?? {
+    sprintMin: 1,
+    sprintMax: 26,
+    irBands: [],
+    milestones: [],
+    epics: [],
+  }
+
   const sprints = useMemo(
     () => sprintRange(gantt.sprintMin, gantt.sprintMax),
     [gantt.sprintMin, gantt.sprintMax],
   )
-  const gridW = sprints.length * COL_W
+  const sprintMeta = useMemo(() => {
+    const map = new Map<number, string>()
+    for (const s of gantt.sprints ?? []) {
+      map.set(s.sp, s.label)
+    }
+    return map
+  }, [gantt.sprints])
 
-  const initiative = initData?.issues?.[0] ?? null
+  const gridW = sprints.length * COL_W
+  const initiative = releaseData?.initiative ?? initData?.issues?.[0] ?? null
+  const source = releaseData?.source ?? 'mock'
+  const metaErrors = releaseData?.meta?.errors ?? []
 
   return (
     <div className="space-y-4">
-      {/* KPI-1 · KPI-2 — 릴리즈 탭 상단 */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
@@ -90,17 +111,32 @@ export default function ModelStatusReleaseEpicGantt({
         <div className="px-4 py-3 border-b border-surface-border flex flex-wrap items-start justify-between gap-2">
           <div>
             <h3 className="text-sm font-bold text-gray-900">릴리즈 Gantt · 마일스톤</h3>
-            <p className="text-[11px] text-gray-500">Initiative → Epic 실행 구간 · M1~M5 (Mock — Jira Epic 연동 예정)</p>
+            <p className="text-[11px] text-gray-500">
+              2026 SP01~SP26 · TV Jira Epic 실행 구간 · Milestone
+              {source === 'jira' ? (
+                <span className="ml-1 text-emerald-600 font-medium">· 실데이터</span>
+              ) : (
+                <span className="ml-1 text-amber-600">· mock (Jira 연동 대기)</span>
+              )}
+            </p>
           </div>
-          <span className="text-[10px] text-gray-400">→ 7.5.3 일정 대시보드</span>
+          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+            {(isLoading || isFetching) && <Loader2 className="animate-spin text-violet-500" size={14} />}
+            <span>→ 7.5.3 일정 대시보드</span>
+          </div>
         </div>
 
-        {/* Initiative */}
+        {metaErrors.length > 0 && (
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[10px] text-amber-800">
+            Jira 일부 조회 실패: {metaErrors.slice(0, 2).join(' · ')}
+          </div>
+        )}
+
         <div className="px-4 py-2 bg-slate-50 border-b border-surface-border text-[11px]">
           <span className="font-semibold text-gray-500 mr-2">Initiative</span>
           {initiative ? (
             <a
-              href={initiative.issueUrl || jiraBrowseUrl(initiative.key)}
+              href={initiative.issueUrl || jiraBrowseUrl('key' in initiative ? initiative.key : '')}
               target="_blank"
               rel="noreferrer"
               className="text-violet-700 font-medium hover:underline inline-flex items-center gap-1"
@@ -116,7 +152,6 @@ export default function ModelStatusReleaseEpicGantt({
 
         <div className="overflow-x-auto">
           <div style={{ minWidth: 280 + gridW }}>
-            {/* IR bands */}
             <div className="flex border-b border-gray-200 bg-gray-50">
               <div className="shrink-0 w-[280px] px-3 py-2 text-[10px] font-bold text-gray-600 border-r border-gray-200">
                 EPIC (실행 구간)
@@ -138,31 +173,45 @@ export default function ModelStatusReleaseEpicGantt({
               </div>
             </div>
 
-            {/* SP + milestones */}
             <div className="flex border-b border-gray-200">
-              <div className="shrink-0 w-[280px] border-r border-gray-200" />
+              <div className="shrink-0 w-[280px] border-r border-gray-200 px-2 py-1 text-[9px] text-gray-500">
+                Sprint · Milestone
+              </div>
               <div className="flex relative" style={{ width: gridW }}>
                 {sprints.map((sp) => {
-                  const ms = gantt.milestones.find((m) => m.sprint === sp)
+                  const msList = milestonesForSprint(gantt.milestones, sp)
+                  const tip = sprintMeta.get(sp) ?? `SP${String(sp).padStart(2, '0')}`
                   return (
                     <div
                       key={sp}
-                      className="shrink-0 border-r border-gray-100 text-center py-1.5 relative"
+                      className="shrink-0 border-r border-gray-100 text-center py-1 relative"
                       style={{ width: COL_W }}
+                      title={tip}
                     >
-                      <div className="text-[10px] font-semibold text-gray-700">SP{String(sp).padStart(2, '0')}</div>
-                      {ms && (
-                        <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-violet-600 text-white">
-                          {ms.label}
-                        </span>
-                      )}
+                      <div className="text-[9px] font-semibold text-gray-700">SP{String(sp).padStart(2, '0')}</div>
+                      <div className="flex flex-wrap justify-center gap-0.5 mt-0.5 min-h-[14px]">
+                        {msList.map((ms) => (
+                          <span
+                            key={ms.issueKey}
+                            className="px-1 py-0 rounded text-[8px] font-bold bg-violet-600 text-white leading-tight"
+                            title={ms.summary ?? ms.label}
+                          >
+                            {ms.label.length > 6 ? `${ms.label.slice(0, 5)}…` : ms.label}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )
                 })}
               </div>
             </div>
 
-            {/* Epic rows */}
+            {gantt.epics.length === 0 && (
+              <div className="px-4 py-6 text-center text-[11px] text-gray-500">
+                연결된 Epic이 없습니다. TV Jira에서 모델 라벨·Initiative 링크를 확인하세요.
+              </div>
+            )}
+
             {gantt.epics.map((epic) => (
               <div key={epic.issueKey} className="flex border-b border-gray-100 hover:bg-slate-50/80">
                 <div className="shrink-0 w-[280px] px-3 py-3 border-r border-gray-200">
@@ -175,8 +224,13 @@ export default function ModelStatusReleaseEpicGantt({
                     {epic.issueKey}
                   </a>
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-snug">{epic.summary}</div>
+                  {(epic.startDate || epic.endDate) && (
+                    <div className="text-[9px] text-gray-400 mt-1">
+                      {epic.startDate || '?'} ~ {epic.endDate || '?'}
+                    </div>
+                  )}
                 </div>
-                <div className="relative h-12 shrink-0" style={{ width: gridW }}>
+                <div className="relative h-14 shrink-0" style={{ width: gridW }}>
                   {sprints.map((sp) => (
                     <div
                       key={sp}
@@ -185,13 +239,28 @@ export default function ModelStatusReleaseEpicGantt({
                     />
                   ))}
                   <div
-                    className={clsx('absolute top-1/2 -translate-y-1/2 h-7 rounded-full shadow-sm')}
+                    className={clsx('absolute top-1/2 -translate-y-1/2 h-6 rounded-full shadow-sm opacity-90')}
                     style={{
                       ...epicBarStyle(epic.startSp, epic.endSp, gantt.sprintMin),
                       backgroundColor: epic.color,
                     }}
-                    title={`SP${epic.startSp}–SP${epic.endSp}`}
+                    title={`SP${String(epic.startSp).padStart(2, '0')}–SP${String(epic.endSp).padStart(2, '0')}`}
                   />
+                  {(epic.milestones ?? []).map((ms) => (
+                    <a
+                      key={ms.issueKey}
+                      href={ms.issueUrl || jiraBrowseUrl(ms.issueKey)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="absolute top-1/2 -translate-y-1/2 z-10 px-1 py-0.5 rounded-sm text-[8px] font-bold bg-white border border-violet-500 text-violet-800 shadow-sm hover:bg-violet-50"
+                      style={{
+                        left: (ms.sprint - gantt.sprintMin) * COL_W + COL_W / 2 - 10,
+                      }}
+                      title={ms.summary ?? ms.label}
+                    >
+                      {ms.label.length > 4 ? ms.label.slice(0, 3) : ms.label}
+                    </a>
+                  ))}
                 </div>
               </div>
             ))}

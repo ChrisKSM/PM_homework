@@ -8,10 +8,22 @@ export interface ReleaseIrBand {
   sprintTo: number
 }
 
+export interface ReleaseSprintDef {
+  sp: number
+  ir: number
+  key: string
+  label: string
+  startDate: string
+  endDate: string
+}
+
 export interface ReleaseMilestone {
-  id: string
+  issueKey: string
   label: string
   sprint: number
+  summary?: string
+  epicKey?: string
+  issueUrl?: string
 }
 
 export interface ReleaseEpicRow {
@@ -20,13 +32,37 @@ export interface ReleaseEpicRow {
   color: string
   startSp: number
   endSp: number
+  startDate?: string
+  endDate?: string
+  status?: string
   issueUrl?: string
+  milestones?: ReleaseMilestone[]
 }
 
 export interface ModelReleaseGanttData {
   sprintMin: number
   sprintMax: number
   irBands: ReleaseIrBand[]
+  sprints?: ReleaseSprintDef[]
   milestones: ReleaseMilestone[]
   epics: ReleaseEpicRow[]
+}
+
+export interface ModelReleaseGanttResponse {
+  meta: {
+    asOf: string
+    epicJqls?: string[]
+    initiativeKey?: string | null
+    model?: string | null
+    label?: string | null
+    errors?: string[]
+  }
+  calendar: ModelReleaseGanttData
+  initiative: {
+    key: string
+    summary: string
+    issueUrl?: string
+  } | null
+  epics: ReleaseEpicRow[]
+  milestones: ReleaseMilestone[]
 }
