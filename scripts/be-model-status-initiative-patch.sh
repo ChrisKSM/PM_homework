@@ -8,7 +8,8 @@
 #   git fetch github cursor/model-schedule-bar-label-fix-b14b
 #   sh scripts/be-model-status-initiative-patch.sh github/cursor/model-schedule-bar-label-fix-b14b
 #
-# 이후: uvicorn 재시작 → sh scripts/verify-model-status-initiative-be.sh
+# BE 표준 port: 8000 (8200 아님)
+# 이후: uvicorn 8000 재시작 → sh scripts/verify-model-status-initiative-be.sh
 set -e
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
@@ -67,6 +68,6 @@ grep -q 'model-status' routers/model_status.py
 
 echo ""
 echo "=== BE 파일 OK — uvicorn 재시작 후 ==="
-echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200"
+echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
 echo "  sh scripts/verify-model-status-initiative-be.sh"
 echo "=== Done ==="

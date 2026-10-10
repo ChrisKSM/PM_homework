@@ -9,13 +9,13 @@ if [ -n "${1:-}" ]; then
   BASE="$1"
 else
   BASE=""
-  for p in 8200 8000; do
+  for p in 8000; do
     if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
       BASE="http://127.0.0.1:${p}"
       break
     fi
   done
-  [ -n "$BASE" ] || BASE="http://127.0.0.1:8200"
+  [ -n "$BASE" ] || BASE="http://127.0.0.1:8000"
 fi
 
 check() {
@@ -99,7 +99,7 @@ CODE=$(curl -s -o /tmp/ov_share.json -w "%{http_code}" -X POST \
   -d "$SHARE_PAYLOAD" 2>/dev/null || echo "000")
 echo "  POST /api/model-schedule/share (overview) → HTTP $CODE"
 case "$CODE" in
-  000) echo "       → BE 미기동 — uvicorn 8200 재시작" ;;
+  000) echo "       → BE 미기동 — uvicorn 8000 재시작" ;;
   404) echo "       → 404: /share 없음 — apply-model-schedule-share-be.sh 또는 overview-be.sh" ;;
   503) echo "       → 503: SMTP 미설정 (구버전 BE는 overview/share 404 — /share + snapshot_type 사용)" ;;
   200) echo "       → OK  메일 발송 성공" ;;

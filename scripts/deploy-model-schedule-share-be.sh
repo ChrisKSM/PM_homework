@@ -83,7 +83,7 @@ fi
 "$PY" -m pip install "setuptools>=69.0.0,<82" "pymilvus>=2.5.0" -q 2>/dev/null || true
 
 echo ""
-echo "=== 배포 검증 (8000 → 8200 자동 탐지) ==="
+echo "=== 배포 검증 (port 8000) ==="
 sh scripts/verify-model-schedule-share-be.sh || true
 
 echo ""

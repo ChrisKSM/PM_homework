@@ -12,9 +12,9 @@
 #   chmod +x scripts/*.sh
 #
 #   sh scripts/apply-model-schedule-overview-be.sh
-#   # uvicorn 8200 재시작
+#   # uvicorn 8000 재시작
 #   sh scripts/verify-overview-be-deployed.sh
-#   API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh
+#   API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-overview-to-db.sh
 
 set -e
 cd "$(dirname "$0")/.."
@@ -104,14 +104,14 @@ fi
 
 echo ""
 echo "=== 다음 단계 ==="
-echo "1) uvicorn 재시작 (port 8200):"
-echo "   uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200"
+echo "1) uvicorn 재시작 (port 8000):"
+echo "   uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
 echo ""
 echo "2) 검증:"
 echo "   sh scripts/verify-overview-be-deployed.sh"
 echo ""
 echo "3) DB seed (Sound Suite 7 / 17모델):"
-echo "   API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh"
+echo "   API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-overview-to-db.sh"
 echo ""
 echo "4) overview 메일 테스트 (seokmin.koh@lge.com):"
 echo "   sh scripts/test-overview-share-mail.sh"

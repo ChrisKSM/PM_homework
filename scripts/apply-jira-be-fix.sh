@@ -11,7 +11,7 @@
 #   chmod +x scripts/apply-jira-be-fix.sh scripts/verify-jira-be.sh scripts/fix-be-token.sh
 #
 #   sh scripts/apply-jira-be-fix.sh
-#   # uvicorn 8200 재시작
+#   # uvicorn 8000 재시작
 #   sh scripts/verify-jira-be.sh
 #
 # ⚠️ git checkout 도 안 될 때 (스크립트 없이 직접 적용):
@@ -24,7 +24,7 @@
 #   git show $REF:scripts/verify-jira-be.sh > scripts/verify-jira-be.sh
 #   chmod +x scripts/*.sh
 #   sh scripts/fix-be-token.sh $REF
-#   # uvicorn 8200 재시작 && sh scripts/verify-jira-be.sh
+#   # uvicorn 8000 재시작 && sh scripts/verify-jira-be.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 REF="${1:-github/cursor/model-schedule-bar-label-fix-b14b}"
@@ -60,8 +60,8 @@ echo ""
 sh scripts/fix-be-token.sh "$REF"
 
 echo ""
-echo "=== 다음: uvicorn 8200 재시작 ==="
-echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200"
+echo "=== 다음: uvicorn 8000 재시작 ==="
+echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
 echo ""
 echo "=== 검증 ==="
 echo "  sh scripts/verify-jira-be.sh"

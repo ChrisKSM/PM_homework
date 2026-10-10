@@ -12,8 +12,8 @@
 #   chmod +x scripts/*.sh
 #
 #   sh scripts/deploy-model-schedule-overview-be.sh
-#   # uvicorn 8200 재시작
-#   API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh
+#   # uvicorn 8000 재시작
+#   API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-overview-to-db.sh
 
 set -e
 cd "$(dirname "$0")/.."
@@ -51,6 +51,6 @@ done
 sh scripts/patch-be-main-model-schedule.sh
 
 echo ""
-echo "  uvicorn 8200 재시작 후:"
-echo "  API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh"
+echo "  uvicorn 8000 재시작 후:"
+echo "  API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-overview-to-db.sh"
 echo "=== Done ==="

@@ -1,11 +1,11 @@
 #!/bin/sh
 # 전 모델 일정 BE/FE 진단 (BE pod 또는 curl 가능 환경)
 #
-#   API_BASE=http://127.0.0.1:8200/api sh scripts/verify-model-schedule-overview.sh
+#   API_BASE=http://127.0.0.1:8000/api sh scripts/verify-model-schedule-overview.sh
 #   API_BASE=https://be-audio-test.apps.axstudio.lge.com/api sh scripts/verify-model-schedule-overview.sh
 
 set -e
-API_BASE="${API_BASE:-http://127.0.0.1:8200/api}"
+API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 
 echo "=== Overview API 진단 ==="
 echo "API_BASE=$API_BASE"
@@ -30,10 +30,10 @@ if models:
     print("first 5:", ", ".join(m.get("model", "?") for m in models[:5]))
 else:
     print("⚠️ models 비어 있음 — seed 필요:")
-    print("  API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh")
+    print("  API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-overview-to-db.sh")
 PY
 else
-  echo "⚠️ overview/load 실패 — BE 배포·uvicorn 8200 재시작·main.py router 확인"
+  echo "⚠️ overview/load 실패 — BE 배포·uvicorn 8000 재시작·main.py router 확인"
   cat /tmp/overview-load.json 2>/dev/null || true
 fi
 

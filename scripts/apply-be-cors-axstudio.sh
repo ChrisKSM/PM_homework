@@ -6,7 +6,7 @@
 #   git checkout github/cursor/model-schedule-bar-label-fix-b14b -- scripts/apply-be-cors-axstudio.sh
 #   chmod +x scripts/apply-be-cors-axstudio.sh
 #   sh scripts/apply-be-cors-axstudio.sh
-#   # uvicorn 8200 재시작
+#   # uvicorn 8000 재시작
 set -e
 cd "$(dirname "$0")/.."
 REF="${1:-github/cursor/model-schedule-bar-label-fix-b14b}"
@@ -39,8 +39,8 @@ sh scripts/patch-be-main-cors.sh
 sh scripts/patch-env-cors-axstudio.sh .env
 
 echo ""
-echo "=== 다음: uvicorn 8200 재시작 ==="
-echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200"
+echo "=== 다음: uvicorn 8000 재시작 ==="
+echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
 echo ""
 echo "=== 검증 ==="
 echo "  sh scripts/verify-overview-be-deployed.sh"

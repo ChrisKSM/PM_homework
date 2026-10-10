@@ -2,7 +2,7 @@
 # BE pod — 전체 seed 데이터로 share 메일 테스트 (seokmin.koh@lge.com)
 set -e
 cd "$(dirname "$0")/.."
-PORT="${BE_PORT:-8200}"
+PORT="${BE_PORT:-8000}"
 BASE="http://127.0.0.1:${PORT}"
 SEED="${1:-scripts/seed-model-schedule-data.json}"
 

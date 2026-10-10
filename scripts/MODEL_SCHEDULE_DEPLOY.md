@@ -112,13 +112,13 @@ MONGO_DB=dify_mv_audiojdmtask
 
 ### BE 반영 후 확인
 
-> **포트:** BE pod 수동 dev는 **8200**. Route/플랫폼 기본은 **8000**.  
+> **포트:** BE pod / Route 표준은 **8000**.  
 > **중요:** pod 이름이 `project-be-audio-test-<사용자>-deployment` 이면 **개인 workspace pod** 입니다.  
 > FE(`react-audio`)가 치는 `https://be-audio-test.apps.axstudio.lge.com` 은 **공용 Route** — local8000 OK + external 502 이면 **다른 Deployment** 문제입니다.
 
 ```bash
-# uvicorn 재시작 후 (8200 먼저, 없으면 8000)
-for p in 8200 8000; do curl -sf "http://127.0.0.1:${p}/health" && BE=$p && break; done
+# uvicorn 재시작 후 (port 8000)
+for p in 8000; do curl -sf "http://127.0.0.1:${p}/health" && BE=$p && break; done
 curl -s "http://127.0.0.1:${BE}/api/model-schedule/load"
 curl -s -X POST "http://127.0.0.1:${BE}/api/model-schedule/save" \
   -H "Content-Type: application/json" \

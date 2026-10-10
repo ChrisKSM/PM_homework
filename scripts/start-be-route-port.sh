@@ -1,8 +1,8 @@
 #!/bin/sh
 # be-audio-test — FE가 쓰는 외부 URL(Route)용 uvicorn 8000 기동
 #
-# 증상: local8200 OK + external 502 + external diagnose token_length:0
-# 원인: Route → port 8000, 수동 uvicorn은 8200만 떠 있음
+# 증상: local8000 OK + external 502 + external diagnose token_length:0
+# 원인: Route → port 8000, uvicorn 미기동
 #
 #   sh scripts/start-be-route-port.sh
 #   curl -s https://be-audio-test.apps.axstudio.lge.com/api/jira/diagnose | python3 -m json.tool
@@ -55,5 +55,5 @@ curl -s "https://be-audio-test.apps.axstudio.lge.com/api/jira/diagnose" \
   | python3 -m json.tool 2>/dev/null | head -12 || true
 
 echo ""
-echo "8200 dev uvicorn은 그대로 두고, Route용 $PORT 만 추가 기동했습니다."
+echo "Route용 port $PORT 에 uvicorn 기동했습니다."
 echo "=== Done ==="

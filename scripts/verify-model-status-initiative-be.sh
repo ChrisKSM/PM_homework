@@ -1,5 +1,5 @@
 #!/bin/sh
-# BE — 모델현황 Initiative API 검증
+# BE — 모델현황 Initiative API 검증 (port 8000)
 set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -9,13 +9,13 @@ if [ -n "${1:-}" ]; then
   BASE="$1"
 else
   BASE=""
-  for p in 8200 8000; do
+  for p in 8000; do
     if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
       BASE="http://127.0.0.1:${p}"
       break
     fi
   done
-  [ -n "$BASE" ] || BASE="http://127.0.0.1:8200"
+  [ -n "$BASE" ] || BASE="http://127.0.0.1:8000"
 fi
 
 echo "=== Model Status Initiative BE ($BASE) ==="

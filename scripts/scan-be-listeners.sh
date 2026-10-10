@@ -8,7 +8,7 @@ netstat -tlnp 2>/dev/null | grep python || ss -tlnp 2>/dev/null | grep python ||
 
 echo ""
 echo "=== jira/diagnose per port ==="
-for p in 8000 8080 8200 8888 5000; do
+for p in 8000 8080 8888 5000; do
   if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
     line=$(curl -s "http://127.0.0.1:${p}/api/jira/diagnose" 2>/dev/null \
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(f\"ok={d.get('ok')} token={d.get('token_length')}\")" 2>/dev/null \

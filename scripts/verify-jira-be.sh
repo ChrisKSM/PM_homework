@@ -9,13 +9,13 @@ if [ -n "${1:-}" ]; then
   BASE="$1"
 else
   BASE=""
-  for p in 8200 8000; do
+  for p in 8000; do
     if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
       BASE="http://127.0.0.1:${p}"
       break
     fi
   done
-  [ -n "$BASE" ] || BASE="http://127.0.0.1:8200"
+  [ -n "$BASE" ] || BASE="http://127.0.0.1:8000"
 fi
 
 check_http() {
@@ -92,7 +92,7 @@ echo ""
 if [ "$FAIL" -eq 0 ]; then
   echo "✅ Jira BE 정상"
 else
-  echo "❌ Jira 502 — sh scripts/apply-jira-be-fix.sh 후 uvicorn 8200 재시작"
+  echo "❌ Jira 502 — sh scripts/apply-jira-be-fix.sh 후 uvicorn 8000 재시작"
 fi
 echo "=== Done ==="
 exit "$FAIL"

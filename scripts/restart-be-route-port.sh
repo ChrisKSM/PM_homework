@@ -2,7 +2,7 @@
 # be-audio-test — Route 포트(8000) uvicorn 재시작 (.env + Jira token 반영)
 #
 # FE(브라우저) → be-audio-test Route → port 8000
-# pod 수동 dev → port 8200 (별도)
+# pod 수동 dev → port 8000 (별도)
 #
 #   sh scripts/restart-be-route-port.sh
 set -e
@@ -63,5 +63,5 @@ echo "  → local 8000 이 200이면 BE 정상. external 502는 pod 내부 hairp
 echo "  → **브라우저(FE) Network 탭** 으로 최종 확인하세요."
 
 echo ""
-echo "8200 dev uvicorn은 건드리지 않았습니다."
+echo "port 8000 uvicorn 재시작 완료."
 echo "=== Done ==="

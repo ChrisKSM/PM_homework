@@ -54,7 +54,7 @@ else
 fi
 
 BASE="${API_BASE:-http://127.0.0.1:8000/api}"
-for port in 8000 8200; do
+for port in 8000; do
   if curl -sf "http://127.0.0.1:${port}/docs" >/dev/null 2>&1; then
     BASE="http://127.0.0.1:${port}/api"
     break

@@ -2,12 +2,12 @@
 # 전 모델 일정 seed → Milvus overview/save API
 #
 # BE pod 또는 curl 가능 환경:
-#   API_BASE=http://127.0.0.1:8200/api sh scripts/seed-model-schedule-overview-to-db.sh
+#   API_BASE=http://127.0.0.1:8000/api sh scripts/seed-model-schedule-overview-to-db.sh
 
 set -e
 cd "$(dirname "$0")/.."
 
-API_BASE="${API_BASE:-http://127.0.0.1:8200/api}"
+API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 SEED="${SEED_FILE:-scripts/seed-model-schedule-overview.json}"
 
 if [ ! -f "$SEED" ]; then

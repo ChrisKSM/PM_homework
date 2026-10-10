@@ -9,12 +9,12 @@ cd "$(dirname "$0")/.."
 EXT="${BE_EXT_URL:-https://be-audio-test.apps.axstudio.lge.com}"
 
 echo "=== 1) Listen 포트 / Python 프로세스 ==="
-netstat -tlnp 2>/dev/null | grep -E '8000|8200|python' || echo "(netstat 없음)"
+netstat -tlnp 2>/dev/null | grep -E '8000|python' || echo "(netstat 없음)"
 ps aux | grep -E '[u]vicorn|[p]ython.*main' || true
 
 echo ""
-echo "=== 2) 로컬 BE (8200 → 8000) ==="
-for p in 8200 8000; do
+echo "=== 2) 로컬 BE (port 8000) ==="
+for p in 8000; do
   code=$(curl -s -o /tmp/local_load.json -w "%{http_code}" "http://127.0.0.1:${p}/api/model-schedule/load" 2>/dev/null || echo "000")
   echo "  port $p load HTTP $code — $(head -c 80 /tmp/local_load.json 2>/dev/null; echo)"
   code=$(curl -s -o /tmp/local_diag.json -w "%{http_code}" "http://127.0.0.1:${p}/api/model-schedule/diagnose" 2>/dev/null || echo "000")
@@ -70,8 +70,8 @@ if not d.get('ok'):
 echo ""
 echo "=== 해석 ==="
 echo "  · 로컬 jira/diagnose ok:true + issues/risks 200, 외부 502"
-echo "    → pod 안 수동 uvicorn(8200)은 정상. 브라우저(FE)는 be-audio-test Route(플랫폼 BE) 사용."
+echo "    → pod 안 uvicorn(8000)은 정상. 브라우저(FE)는 be-audio-test Route(플랫폼 BE) 사용."
 echo "    → GitLab master push 재배포 또는 Route가 바라보는 포트(보통 8000)에서 uvicorn 기동 필요."
-echo "  · 로컬 8200 OK + 외부 load 502 → 동일 — 수동 uvicorn ≠ 외부 URL"
+echo "  · 로컬 8000 OK + 외부 load 502 → Route/Deployment 불일치 가능"
 echo "  · 외부 jira/diagnose token_length:0 → 공용 BE .env JIRA_API_TOKEN 없음"
 echo "  · workspace 개인 BE 테스트 → uvicorn --port 8000 + FE URL /project/.../proxy/..."

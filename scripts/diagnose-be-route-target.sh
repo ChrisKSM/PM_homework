@@ -11,8 +11,8 @@ echo "  hostname: $(hostname)"
 echo "  cwd:      $(pwd)"
 
 echo ""
-echo "=== local 8000 / 8200 jira diagnose ==="
-for p in 8000 8200; do
+echo "=== local port 8000 jira diagnose ==="
+for p in 8000; do
   if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
     ok=$(curl -s "http://127.0.0.1:${p}/api/jira/diagnose" \
       | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('ok'), d.get('token_length'))" 2>/dev/null || echo "? ?")

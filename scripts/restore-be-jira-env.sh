@@ -34,7 +34,7 @@ done
 
 echo ""
 echo "=== uvicorn / diagnose ==="
-for p in 8200 8000; do
+for p in 8000; do
   if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
     echo "  uvicorn port $p UP"
     curl -s "http://127.0.0.1:${p}/api/jira/diagnose" 2>/dev/null | python3 -m json.tool 2>/dev/null || true
@@ -44,7 +44,7 @@ done
 
 echo "  uvicorn 미기동 — 재시작:"
 echo "  sh scripts/start-be-route-port.sh   # FE 외부 URL (port 8000)"
-echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8200  # dev"
+echo "  uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000  # dev"
 echo ""
-echo "  local8200 OK + external 502 → Route는 8000. start-be-route-port.sh 실행"
+echo "  local8000 OK + external 502 → Route는 8000. start-be-route-port.sh 실행"
 echo "=== Done ==="
