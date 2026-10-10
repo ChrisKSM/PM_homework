@@ -52,7 +52,7 @@ export type ModelStatusTabId = 'summary' | 'release' | 'initiative' | 'prd' | 'i
 
 export const MODEL_STATUS_TABS: { id: ModelStatusTabId; label: string }[] = [
   { id: 'summary', label: '요약' },
-  { id: 'release', label: '릴리즈 Gantt' },
+  { id: 'release', label: '릴리즈 · Epic' },
   { id: 'initiative', label: 'Initiative' },
   { id: 'prd', label: 'PRD' },
   { id: 'issues', label: '이슈/리스크' },
