@@ -62,6 +62,13 @@ fetch src/components/modelStatus/ModelStatusMetaCard.tsx src/components/modelSta
 fetch src/components/modelStatus/ModelStatusEventsTable.tsx src/components/modelStatus/ModelStatusEventsTable.tsx
 fetch src/components/modelStatus/ManagerDashboardBody.tsx src/components/modelStatus/ManagerDashboardBody.tsx
 
+echo "--- 릴리즈 Gantt (release/gantt API) ---"
+fetch src/types/modelStatusReleaseGantt.ts src/types/modelStatusReleaseGantt.ts
+fetch src/data/releaseSprintCalendar2026.ts src/data/releaseSprintCalendar2026.ts
+fetch src/mocks/mockModelReleaseEpicGantt.ts src/mocks/mockModelReleaseEpicGantt.ts
+fetch src/hooks/useModelStatusReleaseGantt.ts src/hooks/useModelStatusReleaseGantt.ts
+fetch src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx
+
 echo "--- Jira (S80C 책임자 보드 + degraded) ---"
 fetch src/config/dataSource.ts src/config/dataSource.ts
 fetch src/utils/jiraDegradedBus.ts src/utils/jiraDegradedBus.ts
