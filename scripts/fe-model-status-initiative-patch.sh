@@ -1,26 +1,24 @@
 #!/bin/sh
-# FE pod — 검증 일정 + 모델현황 + Initiative 통합:
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/fe-verification-patch-min.sh" | sh
+# FE pod — 모델현황 + Initiative 탭 (Jira H7 VI) + ManagerDashboard Jira deps
 #
-# 모델현황·Initiative 만:
-#   curl -fsSL ".../scripts/fe-model-status-initiative-patch.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/fe-model-status-initiative-patch.sh" | sh
 #
-# Jira deps 만 (ManagerDashboardBody):
+# 검증 일정까지 포함한 통합 패치:
+#   curl -fsSL ".../scripts/fe-verification-patch-min.sh" | sh
+#
+# Jira deps만:
 #   curl -fsSL ".../scripts/fe-model-status-jira-deps.sh" | sh
 set -e
 ROOT="${ROOT:-/workspace/project}"
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 cd "$ROOT"
+
 mkdir -p \
-  src/pages src/api src/utils src/types src/hooks src/config src/mocks src/theme \
-  src/components/modelSchedule \
-  src/components/modelStatus \
-  src/components/jira \
-  src/components/charts \
-  src/components/cards \
-  src/data \
-  public
+  src/pages src/api src/utils src/types src/hooks src/config src/mocks src/theme src/constants \
+  src/components/modelSchedule src/components/modelStatus src/components/jira \
+  src/components/charts src/components/cards src/data public
+
 fetch() {
   if ! curl -fsSL "$BASE/$1" -o "$2"; then
     echo "ERROR: fetch failed — $BASE/$1" >&2
@@ -28,51 +26,42 @@ fetch() {
   fi
   echo "  + $2"
 }
+
 verify_files() {
   for f in "$@"; do
-    if [ ! -f "$f" ]; then
-      echo "ERROR: missing — $f (REF=$REF, re-run full patch or fe-model-status-jira-deps.sh)" >&2
-      exit 1
-    fi
+    [ -f "$f" ] || { echo "ERROR: missing $f" >&2; exit 1; }
   done
 }
-echo "=== FE patch (검증 일정 + 모델현황 + Initiative) @ $REF ==="
 
-echo "--- 모델 검증 일정 ---"
-fetch src/utils/modelScheduleMonth.ts src/utils/modelScheduleMonth.ts
-fetch src/utils/modelScheduleDiff.ts src/utils/modelScheduleDiff.ts
-fetch src/utils/modelScheduleRows.ts src/utils/modelScheduleRows.ts
-fetch src/pages/ModelSchedulePage.tsx src/pages/ModelSchedulePage.tsx
-fetch src/api/modelScheduleApi.ts src/api/modelScheduleApi.ts
-fetch src/components/modelSchedule/ScheduleSnapshotDialog.tsx src/components/modelSchedule/ScheduleSnapshotDialog.tsx
-fetch public/model-schedule-verification-mock.json public/model-schedule-verification-mock.json
+echo "=== FE model-status + Initiative @ $REF ==="
 
-echo "--- 모델현황 overview ---"
+echo "--- 라우팅 ---"
+fetch src/App.tsx src/App.tsx
+fetch src/store/dashboardStore.ts src/store/dashboardStore.ts
+fetch src/pages/ModelScheduleStatusPage.tsx src/pages/ModelScheduleStatusPage.tsx
+
+echo "--- overview ---"
 fetch src/data/modelScheduleOverviewMock.ts src/data/modelScheduleOverviewMock.ts
 fetch src/utils/modelScheduleOverviewRows.ts src/utils/modelScheduleOverviewRows.ts
 fetch src/types/modelScheduleOverview.ts src/types/modelScheduleOverview.ts
 fetch src/components/modelSchedule/MetaTooltipCell.tsx src/components/modelSchedule/MetaTooltipCell.tsx
 
-echo "--- 모델현황 / Initiative ---"
-fetch src/App.tsx src/App.tsx
-fetch src/store/dashboardStore.ts src/store/dashboardStore.ts
-fetch src/pages/ModelScheduleStatusPage.tsx src/pages/ModelScheduleStatusPage.tsx
+echo "--- model status / Initiative ---"
 fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
 fetch src/data/modelStatusInitiativeMock.ts src/data/modelStatusInitiativeMock.ts
 fetch src/types/modelStatusInitiative.ts src/types/modelStatusInitiative.ts
-fetch src/utils/jiraBrowseUrl.ts src/utils/jiraBrowseUrl.ts
-fetch src/utils/modelStatusMilestones.ts src/utils/modelStatusMilestones.ts
+fetch src/constants/tvplatInitiativeFields.ts src/constants/tvplatInitiativeFields.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/hooks/useModelStatusInitiatives.ts src/hooks/useModelStatusInitiatives.ts
-fetch src/constants/tvplatInitiativeFields.ts src/constants/tvplatInitiativeFields.ts
-fetch src/types/modelStatusInitiative.ts src/types/modelStatusInitiative.ts
+fetch src/utils/jiraBrowseUrl.ts src/utils/jiraBrowseUrl.ts
+fetch src/utils/modelStatusMilestones.ts src/utils/modelStatusMilestones.ts
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/components/modelStatus/ModelStatusInitiativePanel.tsx src/components/modelStatus/ModelStatusInitiativePanel.tsx
 fetch src/components/modelStatus/ModelStatusMetaCard.tsx src/components/modelStatus/ModelStatusMetaCard.tsx
 fetch src/components/modelStatus/ModelStatusEventsTable.tsx src/components/modelStatus/ModelStatusEventsTable.tsx
 fetch src/components/modelStatus/ManagerDashboardBody.tsx src/components/modelStatus/ManagerDashboardBody.tsx
 
-echo "--- Jira (ManagerDashboardBody 의존 — 순서 중요) ---"
+echo "--- Jira (S80C 책임자 보드 + degraded) ---"
 fetch src/config/dataSource.ts src/config/dataSource.ts
 fetch src/utils/jiraDegradedBus.ts src/utils/jiraDegradedBus.ts
 fetch src/utils/jiraFetch.ts src/utils/jiraFetch.ts
@@ -92,13 +81,19 @@ fetch src/components/cards/SectionCard.tsx src/components/cards/SectionCard.tsx
 fetch src/components/cards/RiskTable.tsx src/components/cards/RiskTable.tsx
 
 verify_files \
-  src/utils/jiraDegradedBus.ts \
+  src/api/modelStatusApi.ts \
+  src/hooks/useModelStatusInitiatives.ts \
+  src/components/modelStatus/ModelStatusInitiativePanel.tsx \
   src/utils/jiraFetch.ts \
-  src/hooks/useJiraDegraded.ts \
-  src/hooks/useJiraData.ts \
-  src/components/jira/JiraDegradedBanner.tsx
-echo "OK Jira + Initiative files on disk"
+  src/utils/jiraDegradedBus.ts
+
+grep -q getInitiatives src/api/modelStatusApi.ts && echo "OK modelStatusApi.getInitiatives"
 grep -q ModelStatusInitiativePanel src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK Initiative tab"
-grep -q ensureSoundSuiteDetailRows src/utils/modelScheduleRows.ts && echo "OK Sound Suite + H7 VI"
+
 npm run build
-echo "=== Done — localStorage model-schedule-data 삭제 후 /model-schedule/status → Initiative 확인 ==="
+
+echo ""
+echo "=== FE Done ==="
+echo "  /model-schedule/status → Sound Suite → H7 VI → Initiative"
+echo "  localStorage.removeItem('model-schedule-data') 후 새로고침"
+echo "  BE: curl .../be-model-status-initiative-patch.sh | sh"
