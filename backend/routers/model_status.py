@@ -141,6 +141,9 @@ async def release_discover(
     label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
     initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
     project: str = Query("TVPLAT", description="Jira project key"),
+    all_initiatives: bool = Query(
+        False, description="true 면 라벨 Initiative 9건 전체, false 면 initiative_key 1건만"
+    ),
 ):
     """Epic 0건일 때 Jira 탐색 요약 (링크·Story Epic Link·fixVersion JQL)."""
     if not (label and label.strip()) and model:
@@ -153,6 +156,7 @@ async def release_discover(
             label=label,
             initiative_key=initiative_key,
             project_key=project,
+            all_initiatives=all_initiatives,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e)) from e
@@ -165,6 +169,9 @@ async def release_gantt(
     initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
     project: str = Query("TVPLAT", description="Jira project key"),
     refresh: bool = Query(False, description="true 시 5분 캐시 무시"),
+    all_initiatives: bool = Query(
+        False, description="true 면 라벨 Initiative 전체 Epic, false 면 initiative_key 1건 기준"
+    ),
 ):
     """Initiative 연계 Epic 실행 구간 + Milestone (2026 SP 캘린더 기준)."""
     if not (label and label.strip()) and model:
@@ -184,6 +191,7 @@ async def release_gantt(
             label=label,
             initiative_key=initiative_key,
             project_key=project,
+            all_initiatives=all_initiatives,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

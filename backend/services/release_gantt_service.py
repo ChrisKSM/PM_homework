@@ -90,31 +90,32 @@ def _cf_num(field_id: str) -> str:
     return field_id.replace("customfield_", "") if field_id.startswith("customfield_") else field_id
 
 
-def _epic_jqls_from_initiative_metadata(inits: list[dict], project: str) -> list[str]:
-    """Initiative fixVersion · Grouping 과 같은 Epic JQL."""
+def _epic_jqls_from_initiative_metadata(_inits: list[dict], _project: str) -> list[str]:
+    """fixVersion-only JQL 은 TVPLAT 전체 Epic(200+)을 끌어와 Gantt/FE 를 망가뜨림 — 사용 안 함."""
+    return []
+
+
+def _initiative_epic_jqls(initiative_keys: list[str], project: str) -> list[str]:
+    """Jira Server: linkedIssues 는 키 1개씩만 안전."""
     jqls: list[str] = []
-    fix_names: set[str] = set()
-    groupings: set[str] = set()
-    for raw in inits:
-        fields = raw.get("fields") or {}
-        for fv in fields.get("fixVersions") or []:
-            name = (fv.get("name") or "").strip()
-            if name:
-                fix_names.add(name)
-        grouping = _field_text(fields.get(settings.initiative_grouping_field))
-        if grouping and grouping not in ("-", "N/A", ""):
-            groupings.add(grouping)
-    if fix_names:
-        names = ", ".join(f'"{n}"' for n in sorted(fix_names)[:25])
+    for ik in initiative_keys[:15]:
+        k = ik.strip().replace('"', '\\"')
+        if not k:
+            continue
         jqls.append(
-            f"project = {project} AND issuetype in (Epic, epic, Feature) AND fixVersion in ({names})"
+            f'project = {project} AND issuetype in (Epic, epic) AND issue in linkedIssues("{k}")'
         )
-    cf = _cf_num(settings.initiative_grouping_field)
-    for g in sorted(groupings)[:15]:
-        g_esc = g.replace('"', '\\"')
-        jqls.append(
-            f"project = {project} AND issuetype in (Epic, epic, Feature) AND cf[{cf}] ~ \"{g_esc}\""
-        )
+        jqls.append(f'project = {project} AND issuetype in (Epic, epic) AND parent = "{k}"')
+    return jqls
+
+
+def _chunked_key_in_jql(keys: list[str], project: str, chunk: int = 30) -> list[str]:
+    jqls: list[str] = []
+    for i in range(0, len(keys), chunk):
+        batch = keys[i : i + chunk]
+        clause = _keys_jql(batch)
+        if clause:
+            jqls.append(f"project = {project} AND issuetype in (Epic, epic) AND key in ({clause})")
     return jqls
 
 
@@ -139,29 +140,9 @@ def epic_jql_candidates(
     if jira_label:
         lbl = jira_label.replace('"', '\\"')
         out.append(f'project = {project} AND issuetype in (Epic, epic) AND labels in ("{lbl}")')
-    if initiative_keys:
-        keys_clause = _keys_jql(initiative_keys[:40])
-        if keys_clause:
-            out.append(
-                f'project = {project} AND issuetype in (Epic, epic) AND issue in linkedIssues({keys_clause})'
-            )
-            out.append(
-                f'project = {project} AND issuetype in (Epic, epic) AND parent in ({keys_clause})'
-            )
-            # Initiative 하위 Story/Task 의 Epic Link 역추적 (TVPLAT Portfolio)
-            epic_link = settings.epic_link_field
-            out.append(
-                f'project = {project} AND issuetype in (Epic, epic) AND '
-                f'issue in linkedIssues({keys_clause}, "contains")'
-            )
-            out.append(
-                f'project = {project} AND issuetype in (Epic, epic) AND '
-                f'issue in linkedIssues({keys_clause}, "is contained in")'
-            )
+    out.extend(_initiative_epic_jqls(initiative_keys, project))
     if discovered_epic_keys:
-        dk = _keys_jql(discovered_epic_keys[:80])
-        if dk:
-            out.append(f'key in ({dk})')
+        out.extend(_chunked_key_in_jql(list(discovered_epic_keys)[:120], project))
     return out
 
 
@@ -203,26 +184,29 @@ async def _discover_epic_keys_from_linked_work_items(
     """Initiative 에 링크된 Story/Task → Epic Link / parent Epic."""
     if not initiative_keys:
         return set()
-    keys_clause = _keys_jql(initiative_keys[:40])
-    jql = (
-        f"project = {project} AND issuetype not in (Initiative) "
-        f"AND issue in linkedIssues({keys_clause})"
-    )
     fields = ["issuetype", settings.epic_link_field, "parent", "summary"]
     found: set[str] = set()
-    try:
-        rows = await tvjira_search_all(jql, fields)
-    except Exception as ex:
-        errors.append(f"linked work items JQL failed: {ex}")
-        return found
-    for raw in rows:
-        key = raw.get("key") or ""
-        issue_fields = raw.get("fields") or {}
-        if key and _looks_like_epic(issue_fields.get("issuetype")):
-            found.add(key)
-        ek = _epic_key_from_work_fields(issue_fields)
-        if ek:
-            found.add(ek)
+    for ik in initiative_keys[:15]:
+        k = ik.strip().replace('"', '\\"')
+        if not k:
+            continue
+        jql = (
+            f'project = {project} AND issuetype not in (Initiative) '
+            f'AND issue in linkedIssues("{k}")'
+        )
+        try:
+            rows = await tvjira_search_all(jql, fields)
+        except Exception as ex:
+            errors.append(f"linked work items ({k}): {ex}")
+            continue
+        for raw in rows:
+            key = raw.get("key") or ""
+            issue_fields = raw.get("fields") or {}
+            if key and _looks_like_epic(issue_fields.get("issuetype")):
+                found.add(key)
+            ek = _epic_key_from_work_fields(issue_fields)
+            if ek:
+                found.add(ek)
     return found
 
 
@@ -233,19 +217,20 @@ def milestone_jql_candidates(
     project: str = "TVPLAT",
 ) -> list[str]:
     out: list[str] = []
-    if epic_keys:
-        keys = _keys_jql(epic_keys[:50])
-        out.append(
-            f'project = {project} AND issuetype in (Milestone, mileStone, Task, "Sub-task") AND parent in ({keys})'
-        )
-        out.append(
-            f'project = {project} AND issuetype in (Milestone, mileStone) AND issue in linkedIssues({keys})'
-        )
-    if initiative_keys:
-        ik = _keys_jql(initiative_keys[:30])
-        out.append(
-            f'project = {project} AND issuetype in (Milestone, mileStone) AND issue in linkedIssues({ik})'
-        )
+    for i in range(0, min(len(epic_keys), 80), 25):
+        keys = _keys_jql(epic_keys[i : i + 25])
+        if keys:
+            out.append(
+                f'project = {project} AND issuetype in (Milestone, mileStone, Task, "Sub-task") '
+                f"AND parent in ({keys})"
+            )
+    for ik in initiative_keys[:10]:
+        k = ik.strip().replace('"', '\\"')
+        if k:
+            out.append(
+                f'project = {project} AND issuetype in (Milestone, mileStone) '
+                f'AND issue in linkedIssues("{k}")'
+            )
     if jira_label:
         lbl = jira_label.replace('"', '\\"')
         out.append(f'project = {project} AND issuetype in (Milestone, mileStone) AND labels in ("{lbl}")')
@@ -263,40 +248,36 @@ async def _search_epics_merged(
     seen: dict[str, dict] = {}
     jql_used: list[str] = []
     discovered = list(discovered_epic_keys or [])
-    trusted = set(discovered)
     all_jql = epic_jql_candidates(initiative_keys, jira_label, project_key, discovered) + (
         extra_jqls or []
     )
+
+    def _accept_epic_raw(raw: dict) -> bool:
+        fields = raw.get("fields") or {}
+        return _looks_like_epic(fields.get("issuetype"))
+
     for jql in all_jql:
         try:
             rows = await tvjira_search_all(jql, _EPIC_FIELDS)
             jql_used.append(jql)
             for raw in rows:
                 key = raw.get("key") or ""
-                fields = raw.get("fields") or {}
-                if not key or key in seen:
+                if not key or key in seen or not _accept_epic_raw(raw):
                     continue
-                if _looks_like_epic(fields.get("issuetype")) or key in trusted:
-                    seen[key] = raw
+                seen[key] = raw
         except Exception as ex:
             errors.append(f"epic JQL failed ({jql}): {ex}")
     missing = [k for k in discovered if k not in seen]
-    if missing:
-        dk = _keys_jql(missing[:80])
-        if dk:
-            try:
-                jql = f"key in ({dk})"
-                rows = await tvjira_search_all(jql, _EPIC_FIELDS)
-                jql_used.append(jql)
-                for raw in rows:
-                    key = raw.get("key") or ""
-                    fields = raw.get("fields") or {}
-                    if key and key not in seen and (
-                        _looks_like_epic(fields.get("issuetype")) or key in trusted
-                    ):
-                        seen[key] = raw
-            except Exception as ex:
-                errors.append(f"epic key fetch failed: {ex}")
+    for jql in _chunked_key_in_jql(missing[:120], project_key):
+        try:
+            rows = await tvjira_search_all(jql, _EPIC_FIELDS)
+            jql_used.append(jql)
+            for raw in rows:
+                key = raw.get("key") or ""
+                if key and key not in seen and _accept_epic_raw(raw):
+                    seen[key] = raw
+        except Exception as ex:
+            errors.append(f"epic key fetch failed: {ex}")
     return list(seen.values()), jql_used
 
 
@@ -454,11 +435,23 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
 
 
 @cached(ttl=300)
+def _scope_initiative_keys(
+    initiative_keys: list[str],
+    initiative_key: str | None,
+    all_initiatives: bool,
+) -> list[str]:
+    primary = initiative_key or (initiative_keys[0] if initiative_keys else None)
+    if all_initiatives or not primary:
+        return initiative_keys
+    return [primary]
+
+
 async def get_release_gantt(
     model: str | None = None,
     label: str | None = None,
     initiative_key: str | None = None,
     project_key: str = "TVPLAT",
+    all_initiatives: bool = False,
 ) -> dict[str, Any]:
     jira_label = resolve_initiative_label(model, label)
     initiative_row: dict[str, Any] | None = None
@@ -487,11 +480,11 @@ async def get_release_gantt(
     discovered_epic_keys: set[str] = set()
     discovery: dict[str, Any] = {}
 
+    scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, all_initiatives)
+
     if jira_label or initiative_keys:
-        graph_keys = await _discover_epic_keys_from_initiative_graph(initiative_keys, errors)
-        work_keys = await _discover_epic_keys_from_linked_work_items(
-            initiative_keys, project_key, errors
-        )
+        graph_keys = await _discover_epic_keys_from_initiative_graph(scope_keys, errors)
+        work_keys = await _discover_epic_keys_from_linked_work_items(scope_keys, project_key, errors)
         discovered_epic_keys = graph_keys | work_keys
         discovery = {
             "fromInitiativeGraph": sorted(graph_keys),
@@ -499,7 +492,7 @@ async def get_release_gantt(
         }
         meta_jqls = _epic_jqls_from_initiative_metadata(inits, project_key)
         raw_epics, epic_jqls = await _search_epics_merged(
-            initiative_keys,
+            scope_keys,
             jira_label,
             project_key,
             errors,
@@ -517,7 +510,7 @@ async def get_release_gantt(
 
         epic_keys = [e["issueKey"] for e in epics if e.get("issueKey")]
         raw_ms, _ms_jqls = await _search_milestones_merged(
-            epic_keys, initiative_keys, jira_label, project_key, errors
+            epic_keys, scope_keys, jira_label, project_key, errors
         )
         by_epic: dict[str, list[dict]] = {k: [] for k in epic_keys}
         for raw in raw_ms:
@@ -539,6 +532,8 @@ async def get_release_gantt(
             "initiativeKey": initiative_row.get("key") if initiative_row else (initiative_keys[0] if initiative_keys else initiative_key),
             "initiativeKeys": initiative_keys,
             "initiativeCount": len(initiative_keys),
+            "scopeInitiativeKeys": scope_keys,
+            "allInitiatives": all_initiatives,
             "discoveredEpicKeys": sorted(discovered_epic_keys),
             "discovery": discovery,
             "epicCount": len(epics),
@@ -563,6 +558,7 @@ async def diagnose_release_links(
     label: str | None = None,
     initiative_key: str | None = None,
     project_key: str = "TVPLAT",
+    all_initiatives: bool = False,
 ) -> dict[str, Any]:
     """Epic/Milestone 0건 원인 파악용 — Gantt 와 동일 탐색만 요약."""
     jira_label = resolve_initiative_label(model, label)
@@ -578,11 +574,12 @@ async def diagnose_release_links(
     if initiative_key and initiative_key not in initiative_keys:
         initiative_keys.insert(0, initiative_key)
 
-    graph = await _discover_epic_keys_from_initiative_graph(initiative_keys, errors)
-    work = await _discover_epic_keys_from_linked_work_items(initiative_keys, project_key, errors)
+    scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, all_initiatives)
+    graph = await _discover_epic_keys_from_initiative_graph(scope_keys, errors)
+    work = await _discover_epic_keys_from_linked_work_items(scope_keys, project_key, errors)
     meta_jqls = _epic_jqls_from_initiative_metadata(inits, project_key)
     merged, jqls = await _search_epics_merged(
-        initiative_keys,
+        scope_keys,
         jira_label,
         project_key,
         errors,
