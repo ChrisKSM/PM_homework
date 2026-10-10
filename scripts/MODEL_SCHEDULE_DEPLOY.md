@@ -30,8 +30,28 @@ git add -A && git commit -m "feat: 모델 현황 v7 — 저장/로드 수정" &&
 ```
 
 **탭/UI만 추가해도 동일:** pod에서 `npm run build`만 하면 `build/` 폴더만 바뀌고,  
-`https://react-audio.apps.axstudio.lge.com` 은 **GitLab CI 재배포본**입니다.  
-`build-version.txt`(pod `build/` vs URL) 숫자가 같아야 브라우저에 탭이 보입니다.
+브라우저 URL이 가리키는 **Route/Deployment** 가 그 이미지를 받아야 합니다.
+
+### 공용 URL vs 본인 FE pod (4탭만 보일 때)
+
+`https://react-audio.apps.axstudio.lge.com` 은 **팀 공용 FE** 일 수 있습니다.  
+본인 workspace pod(`project-react-audio-<계정>-deployment`)에서 빌드·태그 push 해도 **공용 URL은 구번들**을 계속 줄 수 있습니다.
+
+```bash
+FE="https://react-audio.apps.axstudio.lge.com"
+echo "pod BV: $(cat build/build-version.txt)"
+curl -s "$FE/build-version.txt"
+curl -s "$FE/index.html" | grep -oE 'main\.[a-f0-9]+\.js'
+ls build/main.*.js
+```
+
+| 항목 | pod (로컬 build) | 공용 URL | 의미 |
+|------|------------------|----------|------|
+| build-version | `1791637397702` (예) | `1791617237091` (예) | **다른 배포본** |
+| main.js | `main.7b44750a....js` | `main.e59a548e....js` | 브라우저는 **Last-Modified 07:27** 구 JS |
+
+**조치:** AxStudio 워크스페이스에 표시된 **본인 react-audio Route URL** 로 `/model-schedule/status` 접속.  
+공용 URL을 꼭 써야 하면 해당 Route를 가리키는 **팀 Deployment/CI** 에 반영 요청.
 
 ```bash
 sh scripts/verify-model-status-release-fe-deployed.sh   # 릴리즈 · Epic 탭

@@ -50,9 +50,18 @@ if [ -d build ] && [ "$LOCAL_BV" != "?" ] && [ "$REMOTE_BV" != "?" ]; then
   if [ "$LOCAL_BV" = "$REMOTE_BV" ]; then
     echo "  OK  pod build = 사이트 build (배포 반영됨)"
   else
-    echo "  NG  pod ≠ 사이트 — pod에서만 npm run build 한 상태 (GitLab push 필요)"
+    echo "  NG  pod ≠ 사이트 — 다른 Deployment/공용 react-audio URL 일 가능성"
     FAIL=1
   fi
+fi
+
+REMOTE_MAIN="$(curl -sf "${FE_URL}/index.html" 2>/dev/null | grep -oE 'main\.[a-f0-9]+\.js' | head -1 || echo '?')"
+POD_MAIN="$(ls build/main.*.js 2>/dev/null | sed 's|.*/||' | head -1)"
+echo "  remote main.js: ${REMOTE_MAIN:-?}"
+echo "  pod main.js:    ${POD_MAIN:-?}"
+if [ -n "$REMOTE_MAIN" ] && [ -n "$POD_MAIN" ] && [ "$REMOTE_MAIN" != "$POD_MAIN" ]; then
+  echo "  NG  main 해시 불일치 — 브라우저가 구번들 로드 중"
+  FAIL=1
 fi
 
 echo ""
