@@ -274,7 +274,11 @@ export default function ModelIntegratedDashboard({
       )}
 
       {tab === 'initiative' && (
-        <ModelStatusInitiativePanel modelCode={modelCode} productGroupLabel={group.label} />
+        <ModelStatusInitiativePanel
+          modelCode={modelCode}
+          productGroupLabel={group.label}
+          active={tab === 'initiative'}
+        />
       )}
 
       {tab === 'prd' && (

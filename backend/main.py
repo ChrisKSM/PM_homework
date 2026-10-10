@@ -6,7 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import effective_cors_origins, settings
 from cache import clear_cache
-from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan, mr_quality
+from routers import (
+    manager,
+    devteam,
+    planning,
+    quality,
+    procurement,
+    risk,
+    sprint_plan,
+    mr_quality,
+    model_status,
+)
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -34,6 +44,7 @@ app.include_router(procurement.router)
 app.include_router(risk.router)
 app.include_router(sprint_plan.router)
 app.include_router(mr_quality.router)
+app.include_router(model_status.router)
 
 try:
     from routers import model_schedule

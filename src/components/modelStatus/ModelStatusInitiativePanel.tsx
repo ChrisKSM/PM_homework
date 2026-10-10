@@ -1,9 +1,12 @@
 import { useMemo, useState } from 'react'
 import clsx from 'clsx'
-import { ExternalLink, Filter } from 'lucide-react'
+import { ExternalLink, Filter, Loader2 } from 'lucide-react'
 import type { ModelStatusInitiativeIssue } from '../../types/modelStatusInitiative'
 import { MODEL_STATUS_INITIATIVE_ALL } from '../../data/modelStatusInitiativeMock'
 import { jiraBrowseUrl } from '../../utils/jiraBrowseUrl'
+import { useModelStatusInitiatives } from '../../hooks/useModelStatusInitiatives'
+import { MODEL_INITIATIVE_JIRA_MODELS } from '../../api/modelStatusApi'
+import { canonicalModelName } from '../../utils/modelScheduleRows'
 
 type ColFilter = {
   key: string
@@ -65,18 +68,34 @@ export interface ModelStatusInitiativePanelProps {
   modelCode: string
   /** 제품군 라벨 — product 필터 힌트 */
   productGroupLabel?: string
+  /** Initiative 탭 활성 시에만 Jira 조회 */
+  active?: boolean
   issues?: ModelStatusInitiativeIssue[]
 }
 
 export default function ModelStatusInitiativePanel({
   modelCode,
   productGroupLabel,
-  issues = MODEL_STATUS_INITIATIVE_ALL,
+  active = true,
+  issues: issuesProp,
 }: ModelStatusInitiativePanelProps) {
   const [filters, setFilters] = useState<ColFilter>({ ...EMPTY_FILTERS })
   const [statusCardFilter, setStatusCardFilter] = useState<string | null>(null)
 
-  /** 첨부 UI처럼 프로그램 전체 95건 기준 (모델 칩은 컨텍스트만 표시) */
+  const normModel = canonicalModelName(modelCode)
+  const jiraQ = useModelStatusInitiatives(modelCode, active && !issuesProp)
+  const useLiveJira = MODEL_INITIATIVE_JIRA_MODELS.has(normModel)
+  const issues = useMemo(() => {
+    if (issuesProp) return issuesProp
+    if (useLiveJira) {
+      if (jiraQ.data?.issues) return jiraQ.data.issues
+      if (jiraQ.isLoading || jiraQ.isError) return []
+    }
+    return MODEL_STATUS_INITIATIVE_ALL
+  }, [issuesProp, useLiveJira, jiraQ.data?.issues, jiraQ.isLoading, jiraQ.isError])
+  const jiraMeta = jiraQ.data?.meta
+
+  /** Jira 연동 모델은 API 결과, 그 외 mock 95건 */
   const scoped = useMemo(() => issues, [issues])
   const baseForCards = scoped
 
@@ -135,13 +154,34 @@ export default function ModelStatusInitiativePanel({
     </select>
   )
 
+  const sourceLabel = issuesProp
+    ? 'custom'
+    : useLiveJira
+      ? jiraQ.isLoading
+        ? 'Jira 조회 중…'
+        : jiraQ.isError
+          ? 'Jira 오류 · mock fallback'
+          : `Jira · ${jiraMeta?.label ?? 'TVPLAT Initiative'}`
+      : 'mock 95건'
+
   return (
     <div className="space-y-4">
+      {useLiveJira && jiraQ.isError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-800">
+          Initiative Jira 조회 실패 — BE·토큰 확인 (GET /api/model-status/initiatives/ping)
+        </div>
+      )}
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
         <Filter size={14} className="text-gray-400" />
+        {useLiveJira && jiraQ.isLoading ? <Loader2 size={14} className="animate-spin text-violet-500" /> : null}
         <span>
           {productGroupLabel ? `${productGroupLabel} · ` : ''}
-          {modelCode.replace(/_/g, ' ')} 컨텍스트 — Initiative 95건 (mock · Jira 연동 준비)
+          {modelCode.replace(/_/g, ' ')} — Initiative ({sourceLabel})
+          {jiraMeta?.jql ? (
+            <span className="block text-[10px] text-gray-400 mt-0.5 truncate max-w-[720px]" title={jiraMeta.jql}>
+              {jiraMeta.jql}
+            </span>
+          ) : null}
         </span>
         {(filters.key ||
           filters.summary ||
