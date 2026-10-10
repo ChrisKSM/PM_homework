@@ -36,7 +36,10 @@ fi
 
 CODE=$(curl -s -o /tmp/ms_init_ping.json -w "%{http_code}" "${BASE}/api/model-status/initiatives/ping" 2>/dev/null || echo "000")
 echo "  GET /api/model-status/initiatives/ping → HTTP $CODE"
-if [ "$CODE" != "200" ]; then
+if [ "$CODE" = "503" ]; then
+  echo "  503 — Route/uvicorn down 또는 patch 미완료 → sh scripts/diagnose-initiatives-503.sh"
+  FAIL=1
+elif [ "$CODE" != "200" ]; then
   head -c 300 /tmp/ms_init_ping.json 2>/dev/null || true
   echo ""
   FAIL=1
