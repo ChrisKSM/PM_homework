@@ -26,13 +26,14 @@ function readApiBaseUrlOverride(): string | undefined {
 export function resolveApiBaseUrl(): string {
   const host = window.location.hostname
 
-  // axstudio react-audio — BE_AXSTUDIO 우선 (workspace_env 가 hedej 공용 URL 주입)
+  // Worker Port / .env — 본인 BE pod (공용 be-audio-test Route 와 분리)
+  const override = readApiBaseUrlOverride()
+  if (override) return override
+
+  // axstudio react-audio 기본 — 공용 BE (운영). 개발은 REACT_APP_API_BASE_URL 로 Worker BE 지정
   if (host === 'react-audio.apps.axstudio.lge.com') {
     return BE_AXSTUDIO
   }
-
-  const override = readApiBaseUrlOverride()
-  if (override) return override
 
   if (REACT_AUDIO_HOSTS.has(host)) {
     return BE_AXSTUDIO
