@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Loader2 } from 'lucide-react'
 import type { ModelStatusProductGroupId } from '../../data/modelStatusCatalog'
 import { defaultDeliveryFilters } from '../../data/modelStatusDeliveryFilters'
-import { useDeliveryPortalData } from '../../hooks/useDeliveryPortalData'
+import { useDeliveryPortalData, useDeliveryPortalIsMock } from '../../hooks/useDeliveryPortalData'
 import type { DeliveryAppliedFilters, DeliveryDetailRow } from '../../types/deliveryPortal'
 import {
   collectFilterOptions,
@@ -25,6 +25,7 @@ interface Props {
 const ZOOM_MONTHS: Record<string, number> = { '3M': 3, '6M': 6, '1Y': 12 }
 
 export default function ModelStatusReleaseGanttPanel({ modelCode, productGroupId, active }: Props) {
+  const isMock = useDeliveryPortalIsMock()
   const { data, isLoading, error, refetch, isFetching } = useDeliveryPortalData(active)
 
   const defaults = useMemo(
@@ -146,6 +147,13 @@ export default function ModelStatusReleaseGanttPanel({ modelCode, productGroupId
         <p className="text-[11px] text-gray-500 mt-1">
           Davis MilestonePage 연동 — Biz. Domain · Platform · SoC · Program 필터 후 SW 테스트 Plan/Actual
         </p>
+        {isMock && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+            <strong>Mock UI</strong> — S80C / H7 샘플 일정 (Delivery Portal·BE 연동 전). 실 API는{' '}
+            <code className="text-[10px]">REACT_APP_DELIVERY_PORTAL_MOCK=false</code> + BE{' '}
+            <code className="text-[10px]">DELIVERY_PORTAL_API_TOKEN</code>
+          </div>
+        )}
       </div>
 
       {(isLoading || isFetching) && (
