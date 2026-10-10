@@ -24,11 +24,8 @@ _DOTENV_PATHS = (
 )
 
 
-def _read_token_from_dotenv_keys(*env_keys: str) -> str:
+def _read_token_from_dotenv() -> str:
     """settings가 빈 token일 때 .env 파일에서 직접 읽기 (K8s 빈 env 우선 문제 회피)."""
-    if not env_keys:
-        return ""
-    keys_set = {k.strip() for k in env_keys if k.strip()}
     for path in _DOTENV_PATHS:
         if not path.is_file():
             continue
@@ -41,16 +38,12 @@ def _read_token_from_dotenv_keys(*env_keys: str) -> str:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, val = line.partition("=")
-            if key.strip() not in keys_set:
+            if key.strip() != "JIRA_API_TOKEN":
                 continue
             token = val.strip().strip('"').strip("'")
             if token:
                 return token
     return ""
-
-
-def _read_token_from_dotenv() -> str:
-    return _read_token_from_dotenv_keys("JIRA_API_TOKEN")
 
 
 def _normalize_token(raw: Any) -> str:
@@ -101,21 +94,17 @@ def _bearer_token() -> str:
     return f"Bearer {_resolve_jira_token()}"
 
 
-def _make_authed_client(token: str, verify_ssl: bool) -> httpx.AsyncClient:
-    """요청용 httpx AsyncClient 생성 (Bearer PAT)."""
+def _make_client() -> httpx.AsyncClient:
+    """요청용 httpx AsyncClient 생성."""
     return httpx.AsyncClient(
         headers={
-            "Authorization": f"Bearer {token}",
+            "Authorization": _bearer_token(),
             "Content-Type": "application/json",
             "Accept": "application/json",
         },
-        verify=verify_ssl,
+        verify=settings.jira_verify_ssl,
         timeout=30.0,
     )
-
-
-def _make_client() -> httpx.AsyncClient:
-    return _make_authed_client(_resolve_jira_token(), settings.jira_verify_ssl)
 
 
 class JiraClient:

@@ -22,6 +22,8 @@ if [ -n "$REF" ] && git rev-parse "$REF" >/dev/null 2>&1; then
   echo "=== BE Initiative patch from git $REF ==="
   show() { git show "$REF:$1"; }
   show backend/services/model_status_initiative_service.py > services/model_status_initiative_service.py
+  show backend/services/release_gantt_service.py > services/release_gantt_service.py
+  show backend/services/release_sprint_calendar_2026.py > services/release_sprint_calendar_2026.py
   show backend/routers/model_status.py > routers/model_status.py
   show backend/tvjira_client.py > tvjira_client.py
   show backend/jira_client.py > jira_client.py
@@ -46,6 +48,8 @@ else
     echo "  + $2"
   }
   fetch backend/services/model_status_initiative_service.py services/model_status_initiative_service.py
+  fetch backend/services/release_gantt_service.py services/release_gantt_service.py
+  fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
   fetch backend/routers/model_status.py routers/model_status.py
   fetch backend/tvjira_client.py tvjira_client.py
   fetch backend/jira_client.py jira_client.py
@@ -68,8 +72,11 @@ sh scripts/patch-config-initiative-fields.sh
 sh scripts/patch-be-main-model-status.sh
 
 test -f services/model_status_initiative_service.py
+test -f services/release_gantt_service.py
+test -f services/release_sprint_calendar_2026.py
 test -f routers/model_status.py
 grep -q 'model-status' routers/model_status.py
+grep -q 'release/gantt' routers/model_status.py
 
 if [ ! -f scripts/be-jira-token-setup.sh ]; then
   curl -fsSL "$BASE/scripts/be-jira-token-setup.sh" -o scripts/be-jira-token-setup.sh

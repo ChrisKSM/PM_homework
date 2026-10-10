@@ -3,7 +3,7 @@ import socket
 from fastapi import APIRouter, HTTPException, Query
 
 from config import settings
-from services import model_status_initiative_service
+from services import model_status_initiative_service, release_gantt_service
 
 
 def _pod_identity() -> dict[str, str]:
@@ -105,3 +105,40 @@ async def list_initiatives(
             status_code=502,
             detail=f"TV Jira API 오류: {e} — TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
         )
+
+
+@router.get("/release/calendar")
+async def release_calendar():
+    """2026 IR1~IR5 · SP01~SP26 고정 캘린더."""
+    return release_gantt_service.get_release_calendar()
+
+
+@router.get("/release/gantt")
+async def release_gantt(
+    model: str | None = Query(None, description="UI model code e.g. H7_VI"),
+    label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
+    initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
+    project: str = Query("TVPLAT", description="Jira project key"),
+):
+    """Initiative 연계 Epic 실행 구간 + Milestone (2026 SP 캘린더 기준)."""
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+        elif model.strip().upper().replace("-", "_").replace(" ", "_") == "H7_VI":
+            label = "SoundSuite_H7(VI)"
+
+    try:
+        return await release_gantt_service.get_release_gantt(
+            model=model,
+            label=label,
+            initiative_key=initiative_key,
+            project_key=project,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"TV Jira release gantt 오류: {e}",
+        ) from e
