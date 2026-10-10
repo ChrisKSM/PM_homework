@@ -31,13 +31,19 @@ grep -q getReleaseGantt src/api/modelStatusApi.ts || { echo "NG getReleaseGantt"
 grep -q useModelStatusReleaseGantt src/hooks/useModelStatusReleaseGantt.ts || { echo "NG hook"; exit 1; }
 grep -q ModelStatusReleaseEpicGantt src/components/modelStatus/ModelIntegratedDashboard.tsx || { echo "NG dashboard"; exit 1; }
 grep -q "release/gantt" src/api/modelStatusApi.ts && echo "OK  API path /model-status/release/gantt"
+grep -q "릴리즈 · Epic" src/data/modelStatusCatalog.ts || { echo "NG  modelStatusCatalog — release tab"; exit 1; }
+echo "OK  modelStatusCatalog release tab"
 
 echo ""
 echo "=== npm run build ==="
 npm run build
 
 echo ""
-echo "=== Done ==="
+echo "=== Done (pod build/ 만 갱신됨) ==="
+echo "  사이트 반영: git add -A && git commit -m 'feat: 모델현황 릴리즈 Epic 탭' && git push origin master"
+echo "  확인: sh scripts/verify-model-status-release-fe-deployed.sh"
+echo "         (pod build-version.txt = ${FE_URL:-https://react-audio.apps.axstudio.lge.com}/build-version.txt)"
+echo ""
 echo "  모델현황 → H7_VI → **릴리즈 · Epic** 탭"
 echo "  Network: .../api/model-status/release/gantt?model=H7_VI&label=..."
 echo "  (Initiatives API 와 별도 Request 1건 더 보여야 함)"

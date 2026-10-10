@@ -29,6 +29,14 @@ npm run build
 git add -A && git commit -m "feat: 모델 현황 v7 — 저장/로드 수정" && git push origin master
 ```
 
+**탭/UI만 추가해도 동일:** pod에서 `npm run build`만 하면 `build/` 폴더만 바뀌고,  
+`https://react-audio.apps.axstudio.lge.com` 은 **GitLab CI 재배포본**입니다.  
+`build-version.txt`(pod `build/` vs URL) 숫자가 같아야 브라우저에 탭이 보입니다.
+
+```bash
+sh scripts/verify-model-status-release-fe-deployed.sh   # 릴리즈 · Epic 탭
+```
+
 ### FE 반영 파일
 
 | 파일 | 설명 |
