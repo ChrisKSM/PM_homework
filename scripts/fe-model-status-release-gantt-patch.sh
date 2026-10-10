@@ -18,6 +18,7 @@ fetch() {
 }
 
 echo "=== FE release gantt @ $REF ==="
+fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
 fetch src/types/modelStatusReleaseGantt.ts src/types/modelStatusReleaseGantt.ts
 fetch src/data/releaseSprintCalendar2026.ts src/data/releaseSprintCalendar2026.ts
 fetch src/mocks/mockModelReleaseEpicGantt.ts src/mocks/mockModelReleaseEpicGantt.ts
