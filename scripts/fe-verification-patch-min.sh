@@ -72,6 +72,14 @@ fetch src/components/modelStatus/ModelStatusMetaCard.tsx src/components/modelSta
 fetch src/components/modelStatus/ModelStatusEventsTable.tsx src/components/modelStatus/ModelStatusEventsTable.tsx
 fetch src/components/modelStatus/ManagerDashboardBody.tsx src/components/modelStatus/ManagerDashboardBody.tsx
 
+echo "--- 릴리즈 · Epic 탭 (release/gantt) ---"
+fetch src/data/modelStatusInitiativeJiraLabels.ts src/data/modelStatusInitiativeJiraLabels.ts
+fetch src/types/modelStatusReleaseGantt.ts src/types/modelStatusReleaseGantt.ts
+fetch src/data/releaseSprintCalendar2026.ts src/data/releaseSprintCalendar2026.ts
+fetch src/mocks/mockModelReleaseEpicGantt.ts src/mocks/mockModelReleaseEpicGantt.ts
+fetch src/hooks/useModelStatusReleaseGantt.ts src/hooks/useModelStatusReleaseGantt.ts
+fetch src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx
+
 echo "--- Jira (ManagerDashboardBody 의존 — 순서 중요) ---"
 fetch src/config/dataSource.ts src/config/dataSource.ts
 fetch src/utils/jiraDegradedBus.ts src/utils/jiraDegradedBus.ts
@@ -99,6 +107,15 @@ verify_files \
   src/components/jira/JiraDegradedBanner.tsx
 echo "OK Jira + Initiative files on disk"
 grep -q ModelStatusInitiativePanel src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK Initiative tab"
+grep -q "릴리즈 · Epic" src/data/modelStatusCatalog.ts || { echo "NG modelStatusCatalog — release tab"; exit 1; }
+grep -q ModelStatusReleaseEpicGantt src/components/modelStatus/ModelIntegratedDashboard.tsx || { echo "NG dashboard — release panel"; exit 1; }
+grep -q getReleaseGantt src/api/modelStatusApi.ts && echo "OK getReleaseGantt"
 grep -q ensureSoundSuiteDetailRows src/utils/modelScheduleRows.ts && echo "OK Sound Suite + H7 VI"
 npm run build
-echo "=== Done — localStorage model-schedule-data 삭제 후 /model-schedule/status → Initiative 확인 ==="
+grep -q "릴리즈 · Epic" build/main*.js 2>/dev/null || { echo "NG bundle — 탭 문자열 없음"; exit 1; }
+echo ""
+echo "=== GitLab push 필수 (CI가 pod build/ 가 아니라 git 소스로 빌드) ==="
+echo "  git add src/data/modelStatusCatalog.ts src/components/modelStatus/ src/api/modelStatusApi.ts src/hooks/useModelStatusReleaseGantt.ts"
+echo "  git commit -m 'feat: 모델현황 릴리즈 Epic 탭' && git push origin master"
+echo "  sh scripts/verify-model-status-release-fe-deployed.sh"
+echo "=== Done — /model-schedule/status → 요약 · 릴리즈 · Epic · Initiative … 5탭 ==="
