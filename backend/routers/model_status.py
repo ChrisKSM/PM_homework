@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
 
+from config import settings
 from services import model_status_initiative_service
+from tvjira_client import tvjira_token_source_info
 
 router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 
@@ -8,10 +10,16 @@ router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 @router.get("/initiatives/ping")
 async def initiatives_ping():
     """배포 확인 — Jira 호출 없음."""
+    source, length = tvjira_token_source_info()
     return {
         "ok": True,
         "service": "model-status-initiatives",
         "models": list(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
+        "tvjira": {
+            "baseUrl": settings.tvjira_base_url.rstrip("/"),
+            "tokenSource": source,
+            "tokenLength": length,
+        },
     }
 
 
@@ -45,5 +53,5 @@ async def list_initiatives(
     except Exception as e:
         raise HTTPException(
             status_code=502,
-            detail=f"Jira API 오류: {e} — GET /api/jira/diagnose",
+            detail=f"TV Jira API 오류: {e} — TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
         )

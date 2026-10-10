@@ -42,12 +42,23 @@ if [ "$CODE" != "200" ]; then
   FAIL=1
 else
   grep -q H7_VI /tmp/ms_init_ping.json 2>/dev/null && echo "  OK  ping lists H7_VI" || true
+  if ! python3 - /tmp/ms_init_ping.json <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+tv = d.get("tvjira") or {}
+n = tv.get("tokenLength") or 0
+print(f"  TVJIRA tokenLength={n} baseUrl={tv.get('baseUrl')}")
+raise SystemExit(0 if n > 0 else 1)
+PY
+  then
+    echo "  WARN  TVJIRA_API_TOKEN length=0 — Initiative JQL 호출 실패 예상"
+  fi
 fi
 
 CODE=$(curl -s -o /tmp/ms_init_h7.json -w "%{http_code}" "${BASE}/api/model-status/initiatives?model=H7_VI" 2>/dev/null || echo "000")
 echo "  GET /api/model-status/initiatives?model=H7_VI → HTTP $CODE"
 if [ "$CODE" = "502" ]; then
-  echo "  Jira 502 — JIRA_API_TOKEN · GET /api/jira/diagnose"
+  echo "  TV Jira 502 — TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping"
   head -c 400 /tmp/ms_init_h7.json 2>/dev/null || true
   echo ""
   FAIL=1

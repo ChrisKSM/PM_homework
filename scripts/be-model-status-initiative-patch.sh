@@ -23,10 +23,13 @@ if [ -n "$REF" ] && git rev-parse "$REF" >/dev/null 2>&1; then
   show() { git show "$REF:$1"; }
   show backend/services/model_status_initiative_service.py > services/model_status_initiative_service.py
   show backend/routers/model_status.py > routers/model_status.py
+  show backend/tvjira_client.py > tvjira_client.py
+  show backend/config.py > config.py
   for f in \
     scripts/patch-be-main-model-status.sh \
     scripts/patch-config-initiative-fields.sh \
     scripts/verify-model-status-initiative-be.sh \
+    scripts/be-jira-token-setup.sh \
     scripts/be-model-status-initiative-patch.sh
   do
     show "$f" > "$f"
@@ -43,21 +46,21 @@ else
   }
   fetch backend/services/model_status_initiative_service.py services/model_status_initiative_service.py
   fetch backend/routers/model_status.py routers/model_status.py
+  fetch backend/tvjira_client.py tvjira_client.py
+  fetch backend/config.py config.py
   fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.sh
   fetch scripts/patch-config-initiative-fields.sh scripts/patch-config-initiative-fields.sh
   fetch scripts/verify-model-status-initiative-be.sh scripts/verify-model-status-initiative-be.sh
   fetch scripts/be-model-status-initiative-patch.sh scripts/be-model-status-initiative-patch.sh
+  fetch scripts/be-jira-token-setup.sh scripts/be-jira-token-setup.sh
   chmod +x scripts/patch-be-main-model-status.sh \
     scripts/patch-config-initiative-fields.sh \
     scripts/verify-model-status-initiative-be.sh \
+    scripts/be-jira-token-setup.sh \
     scripts/be-model-status-initiative-patch.sh
 fi
 
-# quality_service._search_all_issues 의존 — 없으면 quality 서비스만 추가 fetch
-if ! grep -q '_search_all_issues' services/quality_service.py 2>/dev/null; then
-  echo "WARN: services/quality_service.py 없거나 search helper 없음"
-  echo "      sh scripts/add-quality-be-only.sh 또는 quality_service 배포 필요"
-fi
+test -f tvjira_client.py || { echo "ERROR: tvjira_client.py missing"; exit 1; }
 
 sh scripts/patch-config-initiative-fields.sh
 sh scripts/patch-be-main-model-status.sh
@@ -66,16 +69,17 @@ test -f services/model_status_initiative_service.py
 test -f routers/model_status.py
 grep -q 'model-status' routers/model_status.py
 
-fetch scripts/be-jira-token-setup.sh scripts/be-jira-token-setup.sh 2>/dev/null || \
+if [ ! -f scripts/be-jira-token-setup.sh ]; then
   curl -fsSL "$BASE/scripts/be-jira-token-setup.sh" -o scripts/be-jira-token-setup.sh
-chmod +x scripts/be-jira-token-setup.sh 2>/dev/null || true
+  chmod +x scripts/be-jira-token-setup.sh
+fi
 
 echo ""
-echo "=== JIRA 토큰 (Initiative·Jira API 공통) ==="
+echo "=== Jira PAT (Initiative → TVJIRA_API_TOKEN) ==="
 if sh scripts/be-jira-token-setup.sh; then
   echo "  token OK"
 else
-  echo "  WARN: JIRA_API_TOKEN 설정 후 restart-be-route-port.sh 실행"
+  echo "  WARN: TVJIRA_API_TOKEN 설정 후 restart-be-route-port.sh 실행"
 fi
 
 echo ""

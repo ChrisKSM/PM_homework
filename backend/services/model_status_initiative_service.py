@@ -11,11 +11,8 @@ from typing import Any
 
 from cache import cached
 from config import settings
-from services.quality_service import (
-    _field_text,
-    _issue_browse_url,
-    _search_all_issues,
-)
+from services.quality_service import _field_text
+from tvjira_client import tvjira_issue_browse_url, tvjira_search_all
 
 # UI modelCode → Jira labels in (...)
 INITIATIVE_JIRA_LABEL_BY_MODEL: dict[str, str] = {
@@ -167,7 +164,7 @@ def map_initiative_issue(raw: dict, model: str | None) -> dict[str, Any]:
         "score": effort,
         "grouping": grouping,
         "startDate": _format_due(fields.get(settings.initiative_start_date_field)),
-        "issueUrl": _issue_browse_url(key),
+        "issueUrl": tvjira_issue_browse_url(key),
         "model": model,
     }
 
@@ -185,7 +182,7 @@ async def get_initiatives_for_model(
         )
 
     jql = build_initiative_jql(jira_label, project_key=project_key)
-    issues = await _search_all_issues(jql, initiative_search_field_ids())
+    issues = await tvjira_search_all(jql, initiative_search_field_ids())
     mapped = [map_initiative_issue(i, model) for i in issues]
 
     return {
@@ -196,7 +193,7 @@ async def get_initiatives_for_model(
             "projectKey": project_key,
             "total": len(mapped),
             "asOf": datetime.now(timezone.utc).isoformat(),
-            "jiraBaseUrl": settings.jira_base_url.rstrip("/"),
+            "jiraBaseUrl": settings.tvjira_base_url.rstrip("/"),
             "fieldMap": {
                 "startDate": settings.initiative_start_date_field,
                 "grouping": settings.initiative_grouping_field,

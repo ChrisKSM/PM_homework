@@ -14,10 +14,15 @@ def _env_file_paths() -> tuple[str, ...]:
 
 
 class Settings(BaseSettings):
-    # Jira Server 연결 — token은 .env / JIRA_API_TOKEN env (소스에 하드코딩 금지)
+    # Harmony Jira — MLCSIXZERO 보드·스프린트 등 (기존 JIRA_* env)
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
     jira_api_token: str = ""
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
+
+    # TV Jira — TVPLAT Initiative 등 (TVJIRA_* env, Harmony와 토큰·URL 분리)
+    tvjira_base_url: str = "http://jira.lge.com/issue"
+    tvjira_api_token: str = ""
+    tvjira_verify_ssl: bool = False
 
     # Board
     board_id: int = 12641
