@@ -17,6 +17,8 @@ fetch() {
   echo "  + $2"
 }
 
+fetch backend/jira_client.py jira_client.py
+fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/services/release_gantt_service.py services/release_gantt_service.py
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
 fetch backend/routers/model_status.py routers/model_status.py
@@ -28,7 +30,8 @@ echo ""
 echo "=== import check ==="
 test -f services/release_gantt_service.py
 test -f services/release_sprint_calendar_2026.py
-$PY -c "from services import release_gantt_service; import main; print('  OK  main:app import')"
+$PY -c "import tvjira_client; from services import release_gantt_service; import main; print('  OK  main:app import')"
+$PY -c "from services.release_sprint_calendar_2026 import calendar_payload; assert calendar_payload()['sprintMax']==26; print('  OK  release calendar SP26')"
 
 echo ""
 echo "=== Done — restart ==="

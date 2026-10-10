@@ -11,12 +11,22 @@ from typing import Any
 import httpx
 
 from config import settings
-from jira_client import (
-    _DOTENV_PATHS,
-    _make_authed_client,
-    _normalize_token,
-    _read_token_from_dotenv_keys,
-)
+from jira_client import _DOTENV_PATHS, _normalize_token, _read_token_from_dotenv_keys
+
+try:
+    from jira_client import _make_authed_client
+except ImportError:
+    # 구 BE pod — jira_client.py 에 helper 없을 때 (release/initiative TV Jira 호출용)
+    def _make_authed_client(token: str, verify_ssl: bool) -> httpx.AsyncClient:
+        return httpx.AsyncClient(
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            verify=verify_ssl,
+            timeout=30.0,
+        )
 
 _TVJIRA_DOTENV_KEYS = ("TVJIRA_API_TOKEN",)
 _TVJIRA_ENV_KEYS = ("TVJIRA_API_TOKEN", "TVJIRA_TOKEN", "TVJIRA_PAT")

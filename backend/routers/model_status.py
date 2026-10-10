@@ -129,8 +129,10 @@ async def list_initiatives(
 
 @router.get("/release/calendar")
 async def release_calendar():
-    """2026 IR1~IR5 · SP01~SP26 고정 캘린더."""
-    return _release_gantt_service().get_release_calendar()
+    """2026 IR1~IR5 · SP01~SP26 고정 캘린더 (Jira 호출 없음)."""
+    from services.release_sprint_calendar_2026 import calendar_payload
+
+    return calendar_payload()
 
 
 @router.get("/release/gantt")
