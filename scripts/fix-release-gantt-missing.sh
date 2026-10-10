@@ -23,6 +23,12 @@ fetch backend/services/release_gantt_service.py services/release_gantt_service.p
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
 fetch backend/routers/model_status.py routers/model_status.py
 
+echo ""
+echo "=== route check ==="
+grep -q 'release/gantt' routers/model_status.py && grep -q 'release/discover' routers/model_status.py \
+  && echo "  OK  release/* routes in model_status.py" \
+  || { echo "  NG  model_status.py missing release routes"; exit 1; }
+
 PY="uv run --frozen python"
 command -v uv >/dev/null 2>&1 || PY="python3"
 
