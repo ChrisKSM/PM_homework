@@ -31,6 +31,25 @@ FE(`react-audio.apps.axstudio.lge.com`) 기본값은 **공용 BE** (`src/api/cli
 
 `REACT_APP_API_BASE_URL` / `workspace_env.js` override는 `client.ts`에서 **공용 URL보다 우선** 적용됩니다.
 
+## Worker URL 인데 Harmony·Sprint 도 503 (text/plain)
+
+FE를 Worker BE로 바꾼 뒤 **모든 API**가 그 URL로 갑니다.  
+`503` + `text/plain` + 짧은 body → **FastAPI 오류가 아니라 port 8000에 프로세스 없음**.
+
+BE pod:
+
+```bash
+sh scripts/ensure-be-worker-listening.sh
+sh scripts/restart-be-route-port.sh
+curl -s http://127.0.0.1:8000/health
+curl -s http://127.0.0.1:8000/api/sprints/current/summary | head -c 200
+```
+
+`127.0.0.1` OK · Worker URL 503 → Worker Route 문제.  
+둘 다 503 → uvicorn/import — `/tmp/uvicorn-8000.log` 확인.
+
+패치할 때마다 깨지는 이유: **8000 kill 후 import 실패로 재기동 안 됨**, 또는 **exec uvicorn 이 세션 종료 시 같이 종료**.
+
 ## 공용 Pod에 TVJIRA 넣으라는 말은 언제 해당?
 
 팀 **운영 FE**가 계속 `be-audio-test.apps.axstudio.lge.com`만 쓸 때, **인프라 담당**이 `be-audio-test-dpl` Variables/`.env`를 맞추는 경우입니다.
