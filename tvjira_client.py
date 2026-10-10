@@ -20,66 +20,62 @@ from jira_client import (
 
 _TVJIRA_DOTENV_KEYS = ("TVJIRA_API_TOKEN",)
 _TVJIRA_ENV_KEYS = ("TVJIRA_API_TOKEN", "TVJIRA_TOKEN", "TVJIRA_PAT")
+_JIRA_FALLBACK_ENV = ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT")
 
 
-def tvjira_token_source_info() -> tuple[str, int]:
-    """토큰 출처·길이만 반환 (값 노출 금지)."""
-    token = _normalize_token(settings.tvjira_api_token)
-    if token:
-        return "settings.tvjira_api_token", len(token)
+def _resolve_tvjira_token_pair() -> tuple[str, str]:
+    """
+    PAT + 출처 라벨. Pod .env 가 process env/settings 보다 우선 (수동 .env 수정·다중 replica).
+    TVJIRA 없으면 Harmony JIRA_API_TOKEN fallback.
+    """
     token = _read_token_from_dotenv_keys(*_TVJIRA_DOTENV_KEYS)
     if token:
         for path in _DOTENV_PATHS:
             if path.is_file():
-                return f"dotenv:{path}:TVJIRA_API_TOKEN", len(token)
-        return "dotenv:TVJIRA_API_TOKEN", len(token)
+                return token, f"dotenv:{path}:TVJIRA_API_TOKEN"
+        return token, "dotenv:TVJIRA_API_TOKEN"
+
     for key in _TVJIRA_ENV_KEYS:
         token = _normalize_token(os.getenv(key))
         if token:
-            return f"env:{key}", len(token)
+            return token, f"env:{key}"
+
+    token = _normalize_token(settings.tvjira_api_token)
+    if token:
+        return token, "settings.tvjira_api_token"
+
     token = _read_token_from_dotenv_keys("JIRA_API_TOKEN")
     if token:
-        return "dotenv:JIRA_API_TOKEN(fallback)", len(token)
-    token = _normalize_token(settings.jira_api_token)
-    if token:
-        return "settings.jira_api_token(fallback)", len(token)
-    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+        return token, "dotenv:JIRA_API_TOKEN(fallback)"
+
+    for key in _JIRA_FALLBACK_ENV:
         token = _normalize_token(os.getenv(key))
         if token:
-            return f"env:{key}(fallback)", len(token)
-    return "none", 0
+            return token, f"env:{key}(fallback)"
+
+    token = _normalize_token(settings.jira_api_token)
+    if token:
+        return token, "settings.jira_api_token(fallback)"
+
+    return "", "none"
+
+
+def tvjira_token_source_info() -> tuple[str, int]:
+    """토큰 출처·길이만 반환 (값 노출 금지)."""
+    _token, source = _resolve_tvjira_token_pair()
+    return source, len(_token)
 
 
 def resolve_tvjira_token() -> str:
-    source, length = tvjira_token_source_info()
-    if length == 0:
-        raise ValueError(
-            "TVJIRA_API_TOKEN이 비어 있습니다. "
-            "/usr/app/src/.env 또는 /workspace/project/.env 에 "
-            "TVJIRA_API_TOKEN=<PAT> 설정 (Harmony JIRA_API_TOKEN 과 별도)."
-        )
-    token = _normalize_token(settings.tvjira_api_token)
+    token, _source = _resolve_tvjira_token_pair()
     if token:
         return token
-    token = _read_token_from_dotenv_keys(*_TVJIRA_DOTENV_KEYS)
-    if token:
-        return token
-    for key in _TVJIRA_ENV_KEYS:
-        token = _normalize_token(os.getenv(key))
-        if token:
-            return token
-    # Harmony-only .env 마이그레이션 (PAT 동일·변수명만 분리 전)
-    token = _read_token_from_dotenv_keys("JIRA_API_TOKEN")
-    if token:
-        return token
-    token = _normalize_token(settings.jira_api_token)
-    if token:
-        return token
-    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
-        token = _normalize_token(os.getenv(key))
-        if token:
-            return token
-    raise ValueError("TVJIRA_API_TOKEN이 비어 있습니다.")
+    raise ValueError(
+        "TVJIRA_API_TOKEN이 비어 있습니다. "
+        "/usr/app/src/.env 또는 /workspace/project/.env 에 "
+        "TVJIRA_API_TOKEN=<PAT> 설정 (Harmony JIRA_API_TOKEN 과 별도). "
+        "BE replica 여러 개면 Deployment Variables·모든 pod .env 동기화 필요."
+    )
 
 
 def tvjira_issue_browse_url(issue_key: str) -> str:

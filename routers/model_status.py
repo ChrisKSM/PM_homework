@@ -1,7 +1,13 @@
+import socket
+
 from fastapi import APIRouter, HTTPException, Query
 
 from config import settings
 from services import model_status_initiative_service
+
+
+def _pod_identity() -> dict[str, str]:
+    return {"hostname": socket.gethostname()}
 
 router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 
@@ -21,6 +27,7 @@ async def initiatives_ping():
             "tokenSource": source,
             "tokenLength": length,
         },
+        "pod": _pod_identity(),
     }
 
 
@@ -66,6 +73,7 @@ async def list_initiatives(
                         "OpenShift Variables 에 빈 TVJIRA_API_TOKEN 없는지 확인"
                     ),
                     "tvjira": {"tokenSource": source, "tokenLength": length},
+                    "pod": _pod_identity(),
                 },
             ) from e
         known = list(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())

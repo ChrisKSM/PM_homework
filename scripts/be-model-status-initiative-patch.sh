@@ -24,6 +24,7 @@ if [ -n "$REF" ] && git rev-parse "$REF" >/dev/null 2>&1; then
   show backend/services/model_status_initiative_service.py > services/model_status_initiative_service.py
   show backend/routers/model_status.py > routers/model_status.py
   show backend/tvjira_client.py > tvjira_client.py
+  show backend/jira_client.py > jira_client.py
   show backend/config.py > config.py
   for f in \
     scripts/patch-be-main-model-status.sh \
@@ -47,6 +48,7 @@ else
   fetch backend/services/model_status_initiative_service.py services/model_status_initiative_service.py
   fetch backend/routers/model_status.py routers/model_status.py
   fetch backend/tvjira_client.py tvjira_client.py
+  fetch backend/jira_client.py jira_client.py
   fetch backend/config.py config.py
   fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.sh
   fetch scripts/patch-config-initiative-fields.sh scripts/patch-config-initiative-fields.sh
@@ -73,6 +75,10 @@ if [ ! -f scripts/be-jira-token-setup.sh ]; then
   curl -fsSL "$BASE/scripts/be-jira-token-setup.sh" -o scripts/be-jira-token-setup.sh
   chmod +x scripts/be-jira-token-setup.sh
 fi
+
+echo ""
+echo "=== tvjira_client.py (project root — uvicorn import 필수) ==="
+test -f tvjira_client.py && wc -c tvjira_client.py | awk '{print "  OK  tvjira_client.py "$1" bytes"}'
 
 echo ""
 echo "=== Jira PAT (Initiative → TVJIRA_API_TOKEN) ==="
