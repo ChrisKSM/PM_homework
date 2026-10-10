@@ -49,6 +49,7 @@ fetch src/components/modelSchedule/MetaTooltipCell.tsx src/components/modelSched
 echo "--- model status / Initiative ---"
 fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
 fetch src/data/modelStatusInitiativeMock.ts src/data/modelStatusInitiativeMock.ts
+fetch src/data/modelStatusInitiativeJiraLabels.ts src/data/modelStatusInitiativeJiraLabels.ts
 fetch src/types/modelStatusInitiative.ts src/types/modelStatusInitiative.ts
 fetch src/constants/tvplatInitiativeFields.ts src/constants/tvplatInitiativeFields.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts

@@ -5,6 +5,7 @@
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -51,12 +52,26 @@ def build_initiative_jql(jira_label: str, project_key: str = "TVPLAT") -> str:
     )
 
 
+def normalize_model_code(model: str | None) -> str | None:
+    if not model or not model.strip():
+        return None
+    raw = model.strip()
+    compact = raw.upper().replace("-", "_").replace(" ", "_")
+    if compact in INITIATIVE_JIRA_LABEL_BY_MODEL:
+        return compact
+    if raw.upper().replace(" ", "") in ("H7VI", "H7_VI"):
+        return "H7_VI"
+    if re.match(r"^H7[\s_]*VI$", raw, re.I):
+        return "H7_VI"
+    return compact
+
+
 def resolve_initiative_label(model: str | None, label: str | None) -> str | None:
     if label and label.strip():
         return label.strip()
-    if not model or not model.strip():
+    key = normalize_model_code(model)
+    if not key:
         return None
-    key = model.strip().upper().replace("-", "_").replace(" ", "_")
     return INITIATIVE_JIRA_LABEL_BY_MODEL.get(key)
 
 

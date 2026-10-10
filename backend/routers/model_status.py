@@ -32,7 +32,16 @@ async def list_initiatives(
             project_key=project,
         )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(e),
+                "hint": "model=H7_VI 와 label=SoundSuite_H7(VI) 를 함께 보내거나 BE patch 후 uvicorn 8000 재시작",
+                "knownModels": list(
+                    model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()
+                ),
+            },
+        )
     except Exception as e:
         raise HTTPException(
             status_code=502,
