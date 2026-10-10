@@ -135,12 +135,36 @@ async def release_calendar():
     return calendar_payload()
 
 
+@router.get("/release/discover")
+async def release_discover(
+    model: str | None = Query(None, description="UI model code e.g. H7_VI"),
+    label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
+    initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
+    project: str = Query("TVPLAT", description="Jira project key"),
+):
+    """Epic 0건일 때 Jira 탐색 요약 (링크·Story Epic Link·fixVersion JQL)."""
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+    try:
+        return await _release_gantt_service().diagnose_release_links(
+            model=model,
+            label=label,
+            initiative_key=initiative_key,
+            project_key=project,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
 @router.get("/release/gantt")
 async def release_gantt(
     model: str | None = Query(None, description="UI model code e.g. H7_VI"),
     label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
     initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
     project: str = Query("TVPLAT", description="Jira project key"),
+    refresh: bool = Query(False, description="true 시 5분 캐시 무시"),
 ):
     """Initiative 연계 Epic 실행 구간 + Milestone (2026 SP 캘린더 기준)."""
     if not (label and label.strip()) and model:
@@ -151,6 +175,10 @@ async def release_gantt(
             label = "SoundSuite_H7(VI)"
 
     try:
+        if refresh:
+            from cache import clear_cache
+
+            await clear_cache()
         return await _release_gantt_service().get_release_gantt(
             model=model,
             label=label,

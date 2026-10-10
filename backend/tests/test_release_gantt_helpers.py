@@ -1,10 +1,22 @@
-from services.release_gantt_service import _looks_like_epic, _looks_like_milestone
+from services.release_gantt_service import (
+    _epic_key_from_work_fields,
+    _looks_like_epic,
+    _looks_like_milestone,
+)
 
 
 def test_looks_like_epic():
     assert _looks_like_epic({"name": "Epic"})
     assert _looks_like_epic({"name": "epic"})
     assert not _looks_like_epic({"name": "Story"})
+
+
+def test_epic_key_from_work_fields():
+    fields = {
+        "customfield_10801": "TVPLAT-857212",
+        "parent": {"key": "TVPLAT-999"},
+    }
+    assert _epic_key_from_work_fields(fields) == "TVPLAT-857212"
 
 
 def test_looks_like_milestone():

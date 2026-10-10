@@ -56,6 +56,11 @@ export interface ModelReleaseGanttResponse {
     initiativeKeys?: string[]
     initiativeCount?: number
     discoveredEpicKeys?: string[]
+    discovery?: {
+      fromInitiativeGraph?: string[]
+      fromLinkedWorkItems?: string[]
+      harmonyEpicKeys?: string[]
+    }
     epicCount?: number
     milestoneCount?: number
     model?: string | null

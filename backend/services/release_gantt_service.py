@@ -55,7 +55,67 @@ def _parent_key(fields: dict[str, Any]) -> str | None:
 
 def _looks_like_epic(issuetype: Any) -> bool:
     name = _field_text(issuetype).lower()
-    return "epic" in name
+    return "epic" in name or "에픽" in name or name in ("feature", "capability", "enabler")
+
+
+def _issue_key_from_ref(val: Any) -> str | None:
+    if val is None:
+        return None
+    if isinstance(val, str):
+        s = val.strip()
+        if re.match(r"^[A-Z][A-Z0-9]+-\d+$", s):
+            return s
+        return None
+    if isinstance(val, dict):
+        k = val.get("key")
+        return str(k).strip() if k else None
+    return None
+
+
+def _epic_key_from_work_fields(fields: dict[str, Any]) -> str | None:
+    """Story/Task 등에서 Epic Link · parent 로 Epic key 추출."""
+    ek = _issue_key_from_ref(fields.get(settings.epic_link_field))
+    if ek:
+        return ek
+    parent = fields.get("parent")
+    if isinstance(parent, dict):
+        pk = parent.get("key")
+        ptype = (parent.get("fields") or {}).get("issuetype")
+        if pk and (_looks_like_epic(ptype) or not _field_text(ptype)):
+            return pk
+    return None
+
+
+def _cf_num(field_id: str) -> str:
+    return field_id.replace("customfield_", "") if field_id.startswith("customfield_") else field_id
+
+
+def _epic_jqls_from_initiative_metadata(inits: list[dict], project: str) -> list[str]:
+    """Initiative fixVersion · Grouping 과 같은 Epic JQL."""
+    jqls: list[str] = []
+    fix_names: set[str] = set()
+    groupings: set[str] = set()
+    for raw in inits:
+        fields = raw.get("fields") or {}
+        for fv in fields.get("fixVersions") or []:
+            name = (fv.get("name") or "").strip()
+            if name:
+                fix_names.add(name)
+        grouping = _field_text(fields.get(settings.initiative_grouping_field))
+        if grouping and grouping not in ("-", "N/A", ""):
+            groupings.add(grouping)
+    if fix_names:
+        names = ", ".join(f'"{n}"' for n in sorted(fix_names)[:25])
+        jqls.append(
+            f"project = {project} AND issuetype in (Epic, epic, Feature) AND fixVersion in ({names})"
+        )
+    cf = _cf_num(settings.initiative_grouping_field)
+    for g in sorted(groupings)[:15]:
+        g_esc = g.replace('"', '\\"')
+        jqls.append(
+            f"project = {project} AND issuetype in (Epic, epic, Feature) AND cf[{cf}] ~ \"{g_esc}\""
+        )
+    return jqls
 
 
 def _looks_like_milestone(issuetype: Any, summary: str = "") -> bool:
@@ -98,9 +158,6 @@ def epic_jql_candidates(
                 f'project = {project} AND issuetype in (Epic, epic) AND '
                 f'issue in linkedIssues({keys_clause}, "is contained in")'
             )
-            out.append(
-                f'project = {project} AND {epic_link} in ({keys_clause})'
-            )
     if discovered_epic_keys:
         dk = _keys_jql(discovered_epic_keys[:80])
         if dk:
@@ -138,6 +195,37 @@ async def _discover_epic_keys_from_initiative_graph(
     return found
 
 
+async def _discover_epic_keys_from_linked_work_items(
+    initiative_keys: list[str],
+    project: str,
+    errors: list[str],
+) -> set[str]:
+    """Initiative 에 링크된 Story/Task → Epic Link / parent Epic."""
+    if not initiative_keys:
+        return set()
+    keys_clause = _keys_jql(initiative_keys[:40])
+    jql = (
+        f"project = {project} AND issuetype not in (Initiative) "
+        f"AND issue in linkedIssues({keys_clause})"
+    )
+    fields = ["issuetype", settings.epic_link_field, "parent", "summary"]
+    found: set[str] = set()
+    try:
+        rows = await tvjira_search_all(jql, fields)
+    except Exception as ex:
+        errors.append(f"linked work items JQL failed: {ex}")
+        return found
+    for raw in rows:
+        key = raw.get("key") or ""
+        issue_fields = raw.get("fields") or {}
+        if key and _looks_like_epic(issue_fields.get("issuetype")):
+            found.add(key)
+        ek = _epic_key_from_work_fields(issue_fields)
+        if ek:
+            found.add(ek)
+    return found
+
+
 def milestone_jql_candidates(
     epic_keys: list[str],
     initiative_keys: list[str],
@@ -170,18 +258,25 @@ async def _search_epics_merged(
     project_key: str,
     errors: list[str],
     discovered_epic_keys: set[str] | None = None,
+    extra_jqls: list[str] | None = None,
 ) -> tuple[list[dict], list[str]]:
     seen: dict[str, dict] = {}
     jql_used: list[str] = []
     discovered = list(discovered_epic_keys or [])
-    for jql in epic_jql_candidates(initiative_keys, jira_label, project_key, discovered):
+    trusted = set(discovered)
+    all_jql = epic_jql_candidates(initiative_keys, jira_label, project_key, discovered) + (
+        extra_jqls or []
+    )
+    for jql in all_jql:
         try:
             rows = await tvjira_search_all(jql, _EPIC_FIELDS)
             jql_used.append(jql)
             for raw in rows:
                 key = raw.get("key") or ""
                 fields = raw.get("fields") or {}
-                if key and key not in seen and _looks_like_epic(fields.get("issuetype")):
+                if not key or key in seen:
+                    continue
+                if _looks_like_epic(fields.get("issuetype")) or key in trusted:
                     seen[key] = raw
         except Exception as ex:
             errors.append(f"epic JQL failed ({jql}): {ex}")
@@ -196,11 +291,34 @@ async def _search_epics_merged(
                 for raw in rows:
                     key = raw.get("key") or ""
                     fields = raw.get("fields") or {}
-                    if key and key not in seen and _looks_like_epic(fields.get("issuetype")):
+                    if key and key not in seen and (
+                        _looks_like_epic(fields.get("issuetype")) or key in trusted
+                    ):
                         seen[key] = raw
             except Exception as ex:
                 errors.append(f"epic key fetch failed: {ex}")
     return list(seen.values()), jql_used
+
+
+async def _fetch_harmony_epics_for_label(jira_label: str, errors: list[str]) -> list[dict]:
+    """TVPLAT Epic 0건일 때 Harmony 보드 Epic (동일 label) fallback."""
+    from jira_client import jira_client
+
+    lbl = jira_label.replace('"', '\\"')
+    jql = f'labels = "{lbl}" AND issuetype in (Epic, epic) ORDER BY key ASC'
+    try:
+        data = await jira_client.search(jql, fields=_EPIC_FIELDS, max_results=200)
+        return data.get("issues") or []
+    except Exception as ex:
+        errors.append(f"harmony epic fallback: {ex}")
+        return []
+
+
+def _harmony_issue_browse_url(issue_key: str) -> str:
+    base = settings.jira_base_url.rstrip("/")
+    if base.endswith("/issue"):
+        base = base[: -len("/issue")]
+    return f"{base}/browse/{issue_key}"
 
 
 async def _discover_milestones_from_epic_graph(
@@ -285,11 +403,12 @@ def _finalize_epic_span(epic: dict[str, Any]) -> dict[str, Any]:
     return epic
 
 
-def _map_epic(raw: dict, idx: int) -> dict[str, Any]:
+def _map_epic(raw: dict, idx: int, *, issue_url_fn=None) -> dict[str, Any]:
     key = raw.get("key") or ""
     fields = raw.get("fields") or {}
     start, end = _issue_start_end(fields)
     start_sp, end_sp = sprint_span_for_range(start, end)
+    url_fn = issue_url_fn or tvjira_issue_browse_url
     return {
         "issueKey": key,
         "summary": fields.get("summary") or "",
@@ -299,8 +418,9 @@ def _map_epic(raw: dict, idx: int) -> dict[str, Any]:
         "startSp": start_sp,
         "endSp": end_sp,
         "color": _EPIC_COLORS[idx % len(_EPIC_COLORS)],
-        "issueUrl": tvjira_issue_browse_url(key),
+        "issueUrl": url_fn(key),
         "milestones": [],
+        "source": "harmony" if issue_url_fn else "tvjira",
     }
 
 
@@ -344,6 +464,7 @@ async def get_release_gantt(
     initiative_row: dict[str, Any] | None = None
     initiative_keys: list[str] = []
 
+    inits: list[dict] = []
     if jira_label:
         init_jql = build_initiative_jql(jira_label, project_key=project_key)
         inits = await tvjira_search_all(init_jql, initiative_search_field_ids())
@@ -364,14 +485,35 @@ async def get_release_gantt(
     errors: list[str] = []
     epic_jqls: list[str] = []
     discovered_epic_keys: set[str] = set()
+    discovery: dict[str, Any] = {}
 
     if jira_label or initiative_keys:
-        discovered_epic_keys = await _discover_epic_keys_from_initiative_graph(initiative_keys, errors)
+        graph_keys = await _discover_epic_keys_from_initiative_graph(initiative_keys, errors)
+        work_keys = await _discover_epic_keys_from_linked_work_items(
+            initiative_keys, project_key, errors
+        )
+        discovered_epic_keys = graph_keys | work_keys
+        discovery = {
+            "fromInitiativeGraph": sorted(graph_keys),
+            "fromLinkedWorkItems": sorted(work_keys),
+        }
+        meta_jqls = _epic_jqls_from_initiative_metadata(inits, project_key)
         raw_epics, epic_jqls = await _search_epics_merged(
-            initiative_keys, jira_label, project_key, errors, discovered_epic_keys
+            initiative_keys,
+            jira_label,
+            project_key,
+            errors,
+            discovered_epic_keys,
+            extra_jqls=meta_jqls,
         )
         for i, raw in enumerate(raw_epics):
             epics.append(_map_epic(raw, i))
+
+        if not epics and jira_label:
+            harmony_raw = await _fetch_harmony_epics_for_label(jira_label, errors)
+            discovery["harmonyEpicKeys"] = [r.get("key") for r in harmony_raw if r.get("key")]
+            for j, raw in enumerate(harmony_raw):
+                epics.append(_map_epic(raw, j, issue_url_fn=_harmony_issue_browse_url))
 
         epic_keys = [e["issueKey"] for e in epics if e.get("issueKey")]
         raw_ms, _ms_jqls = await _search_milestones_merged(
@@ -398,6 +540,7 @@ async def get_release_gantt(
             "initiativeKeys": initiative_keys,
             "initiativeCount": len(initiative_keys),
             "discoveredEpicKeys": sorted(discovered_epic_keys),
+            "discovery": discovery,
             "epicCount": len(epics),
             "milestoneCount": len(milestones_global),
             "model": model,
@@ -413,3 +556,57 @@ async def get_release_gantt(
 
 def get_release_calendar() -> dict[str, Any]:
     return calendar_payload()
+
+
+async def diagnose_release_links(
+    model: str | None = None,
+    label: str | None = None,
+    initiative_key: str | None = None,
+    project_key: str = "TVPLAT",
+) -> dict[str, Any]:
+    """Epic/Milestone 0건 원인 파악용 — Gantt 와 동일 탐색만 요약."""
+    jira_label = resolve_initiative_label(model, label)
+    errors: list[str] = []
+    initiative_keys: list[str] = []
+    inits: list[dict] = []
+    if jira_label:
+        inits = await tvjira_search_all(
+            build_initiative_jql(jira_label, project_key=project_key),
+            initiative_search_field_ids(),
+        )
+        initiative_keys = [i.get("key") for i in inits if i.get("key")]
+    if initiative_key and initiative_key not in initiative_keys:
+        initiative_keys.insert(0, initiative_key)
+
+    graph = await _discover_epic_keys_from_initiative_graph(initiative_keys, errors)
+    work = await _discover_epic_keys_from_linked_work_items(initiative_keys, project_key, errors)
+    meta_jqls = _epic_jqls_from_initiative_metadata(inits, project_key)
+    merged, jqls = await _search_epics_merged(
+        initiative_keys,
+        jira_label,
+        project_key,
+        errors,
+        graph | work,
+        extra_jqls=meta_jqls,
+    )
+    harmony: list[str] = []
+    if not merged and jira_label:
+        hr = await _fetch_harmony_epics_for_label(jira_label, errors)
+        harmony = [r.get("key") for r in hr if r.get("key")]
+
+    return {
+        "model": model,
+        "label": jira_label,
+        "initiativeKeys": initiative_keys,
+        "initiativeCount": len(initiative_keys),
+        "discovery": {
+            "fromInitiativeGraph": sorted(graph),
+            "fromLinkedWorkItems": sorted(work),
+            "harmonyEpicKeys": harmony,
+        },
+        "epicJqls": jqls,
+        "metadataJqls": meta_jqls,
+        "epicKeysFetched": [r.get("key") for r in merged],
+        "epicCount": len(merged),
+        "errors": errors,
+    }

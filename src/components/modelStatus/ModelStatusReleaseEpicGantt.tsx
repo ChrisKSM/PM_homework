@@ -49,7 +49,12 @@ export default function ModelStatusReleaseEpicGantt({
   kpi2Trend,
 }: Props) {
   const { data: initData } = useModelStatusInitiatives(modelCode, active)
-  const { data: releaseData, isLoading, isFetching } = useModelStatusReleaseGantt(modelCode, active)
+  const primaryInitiativeKey = initData?.issues?.[0]?.key
+  const { data: releaseData, isLoading, isFetching } = useModelStatusReleaseGantt(
+    modelCode,
+    active,
+    primaryInitiativeKey,
+  )
 
   const gantt: ModelReleaseGanttData = releaseData?.gantt ?? {
     sprintMin: 1,
@@ -221,8 +226,16 @@ export default function ModelStatusReleaseEpicGantt({
                     {releaseData.meta.discoveredEpicKeys.slice(0, 5).join(', ')}
                   </p>
                 ) : null}
+                {source === 'jira' && releaseData?.meta?.discovery ? (
+                  <p className="text-[10px] text-left text-gray-500 max-w-xl mx-auto">
+                    graph: {(releaseData.meta.discovery.fromInitiativeGraph ?? []).slice(0, 3).join(', ') || '—'}
+                    {' · '}
+                    work→epic:{' '}
+                    {(releaseData.meta.discovery.fromLinkedWorkItems ?? []).slice(0, 3).join(', ') || '—'}
+                  </p>
+                ) : null}
                 <p className="text-gray-400">
-                  pod: curl /api/model-status/release/gantt?model={modelCode} → meta.epicCount · epicJqls
+                  pod: curl &quot;/api/model-status/release/discover?model={modelCode}&amp;label=…&quot;
                 </p>
               </div>
             )}
