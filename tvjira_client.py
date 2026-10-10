@@ -37,6 +37,16 @@ def tvjira_token_source_info() -> tuple[str, int]:
         token = _normalize_token(os.getenv(key))
         if token:
             return f"env:{key}", len(token)
+    token = _read_token_from_dotenv_keys("JIRA_API_TOKEN")
+    if token:
+        return "dotenv:JIRA_API_TOKEN(fallback)", len(token)
+    token = _normalize_token(settings.jira_api_token)
+    if token:
+        return "settings.jira_api_token(fallback)", len(token)
+    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+        token = _normalize_token(os.getenv(key))
+        if token:
+            return f"env:{key}(fallback)", len(token)
     return "none", 0
 
 
@@ -55,6 +65,17 @@ def resolve_tvjira_token() -> str:
     if token:
         return token
     for key in _TVJIRA_ENV_KEYS:
+        token = _normalize_token(os.getenv(key))
+        if token:
+            return token
+    # Harmony-only .env 마이그레이션 (PAT 동일·변수명만 분리 전)
+    token = _read_token_from_dotenv_keys("JIRA_API_TOKEN")
+    if token:
+        return token
+    token = _normalize_token(settings.jira_api_token)
+    if token:
+        return token
+    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
         token = _normalize_token(os.getenv(key))
         if token:
             return token
