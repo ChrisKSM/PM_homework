@@ -22,12 +22,18 @@ fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/services/release_gantt_service.py services/release_gantt_service.py
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
 fetch backend/routers/model_status.py routers/model_status.py
+fetch scripts/diagnose-release-gantt-jira.sh scripts/diagnose-release-gantt-jira.sh
+fetch scripts/verify-release-gantt-be.sh scripts/verify-release-gantt-be.sh
+chmod +x scripts/diagnose-release-gantt-jira.sh scripts/verify-release-gantt-be.sh 2>/dev/null || true
 
 echo ""
 echo "=== route check ==="
 grep -q 'release/gantt' routers/model_status.py && grep -q 'release/discover' routers/model_status.py \
   && echo "  OK  release/* routes in model_status.py" \
   || { echo "  NG  model_status.py missing release routes"; exit 1; }
+grep -q 'release/gantt/diagnose-counts' routers/model_status.py \
+  && echo "  OK  release/gantt/diagnose-counts" \
+  || echo "  !!  diagnose-counts route missing — REF fetch 재실행"
 
 PY="uv run --frozen python"
 command -v uv >/dev/null 2>&1 || PY="python3"
