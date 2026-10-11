@@ -129,8 +129,37 @@ async def list_initiatives(
 
 @router.get("/release/calendar")
 async def release_calendar():
-    """2026 IR1~IR5 · SP01~SP26 고정 캘린더."""
-    return _release_gantt_service().get_release_calendar()
+    """2026 IR1~IR5 · SP01~SP26 고정 캘린더 (Jira 호출 없음)."""
+    from services.release_sprint_calendar_2026 import calendar_payload
+
+    return calendar_payload()
+
+
+@router.get("/release/discover")
+async def release_discover(
+    model: str | None = Query(None, description="UI model code e.g. H7_VI"),
+    label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
+    initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
+    project: str = Query("TVPLAT", description="Jira project key"),
+    all_initiatives: bool = Query(
+        False, description="true 면 라벨 Initiative 9건 전체, false 면 initiative_key 1건만"
+    ),
+):
+    """Epic 0건일 때 Jira 탐색 요약 (링크·Story Epic Link·fixVersion JQL)."""
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+    try:
+        return await _release_gantt_service().diagnose_release_links(
+            model=model,
+            label=label,
+            initiative_key=initiative_key,
+            project_key=project,
+            all_initiatives=all_initiatives,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 @router.get("/release/gantt")
@@ -139,6 +168,10 @@ async def release_gantt(
     label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
     initiative_key: str | None = Query(None, description="TVPLAT Initiative key"),
     project: str = Query("TVPLAT", description="Jira project key"),
+    refresh: bool = Query(False, description="true 시 5분 캐시 무시"),
+    all_initiatives: bool = Query(
+        False, description="true 면 라벨 Initiative 전체 Epic, false 면 initiative_key 1건 기준"
+    ),
 ):
     """Initiative 연계 Epic 실행 구간 + Milestone (2026 SP 캘린더 기준)."""
     if not (label and label.strip()) and model:
@@ -149,11 +182,16 @@ async def release_gantt(
             label = "SoundSuite_H7(VI)"
 
     try:
+        if refresh:
+            from cache import clear_cache
+
+            await clear_cache()
         return await _release_gantt_service().get_release_gantt(
             model=model,
             label=label,
             initiative_key=initiative_key,
             project_key=project,
+            all_initiatives=all_initiatives,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

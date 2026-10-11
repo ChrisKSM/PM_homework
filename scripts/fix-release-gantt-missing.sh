@@ -17,19 +17,44 @@ fetch() {
   echo "  + $2"
 }
 
+fetch backend/jira_client.py jira_client.py
+fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/services/release_gantt_service.py services/release_gantt_service.py
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
 fetch backend/routers/model_status.py routers/model_status.py
+
+echo ""
+echo "=== route check ==="
+grep -q 'release/gantt' routers/model_status.py && grep -q 'release/discover' routers/model_status.py \
+  && echo "  OK  release/* routes in model_status.py" \
+  || { echo "  NG  model_status.py missing release routes"; exit 1; }
 
 PY="uv run --frozen python"
 command -v uv >/dev/null 2>&1 || PY="python3"
 
 echo ""
+echo "=== JQL 400 fix (linkedIssues 키 1개씩, scope 1 Initiative) ==="
+if grep -q 'issue in linkedIssues({keys_clause})' services/release_gantt_service.py 2>/dev/null; then
+  echo "  NG  구버전 — linkedIssues 다키 JQL → Jira 400. REF fetch 재실행"
+  exit 1
+fi
+grep -q 'linkedIssues 는 키 1개씩' services/release_gantt_service.py && echo "  OK  per-key linkedIssues"
+grep -q '_scope_initiative_keys' services/release_gantt_service.py && echo "  OK  scope_initiative_keys"
+grep -q 'epics = \[e for e in epics if e.get("milestones")\]' services/release_gantt_service.py \
+  && echo "  OK  milestone-only epics filter" \
+  || echo "  !!  milestone epic filter missing — REF 최신인지 확인"
+grep -q '"status": _field_text(fields.get("status"))' services/release_gantt_service.py \
+  && echo "  OK  milestone status in API" \
+  || echo "  !!  milestone status field missing"
+
+echo ""
 echo "=== import check ==="
 test -f services/release_gantt_service.py
 test -f services/release_sprint_calendar_2026.py
-$PY -c "from services import release_gantt_service; import main; print('  OK  main:app import')"
+$PY -c "import tvjira_client; from services import release_gantt_service; import main; print('  OK  main:app import')"
+$PY -c "from services.release_sprint_calendar_2026 import calendar_payload; assert calendar_payload()['sprintMax']==26; print('  OK  release calendar SP26')"
 
 echo ""
 echo "=== Done — restart ==="
 echo "  sh scripts/restart-be-route-port.sh"
+echo "  curl -s 'http://127.0.0.1:8000/api/model-status/release/gantt?model=H7_VI&label=SoundSuite_H7(VI)' | python3 -m json.tool | head -40"
