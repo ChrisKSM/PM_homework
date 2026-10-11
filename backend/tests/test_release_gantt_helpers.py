@@ -87,6 +87,16 @@ def test_pick_demo_epic_matches_initiative_title():
     assert hit and hit["key"] == "TVPLAT-969298"
 
 
+def test_pick_demo_epic_bracket_avrm_prefix():
+    init_summary = "[AVRM-5194] webOS Audio 2.0 AI Sound Pro+ 고도화"
+    epic_summary = "[Demo][AVRM-5194] webOS Audio 2.0 AI Sound Pro+ 고도화"
+    rows = [
+        {"key": "TVPLAT-969298", "fields": {"summary": epic_summary, "issuetype": {"name": "Epic"}}},
+    ]
+    hit = pick_demo_epic(rows, init_summary)
+    assert hit and hit["key"] == "TVPLAT-969298"
+
+
 def test_demo_milestone_jql_epic_link_only():
     jql = demo_milestone_jql_for_epic("TVPLAT-969298", "TVPLAT")
     assert '"Epic Link" = TVPLAT-969298' in jql

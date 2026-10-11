@@ -32,6 +32,7 @@ export interface ReleaseMilestone {
 export interface ReleaseEpicRow {
   issueKey: string
   summary: string
+  initiativeKey?: string
   color: string
   startSp: number
   endSp: number
@@ -63,6 +64,12 @@ export interface ModelReleaseGanttResponse {
       fromInitiativeGraph?: string[]
       fromLinkedWorkItems?: string[]
       harmonyEpicKeys?: string[]
+      demoEpicCount?: number
+      demoMilestoneInventory?: Array<{
+        initiativeKey?: string
+        demoEpicKey?: string
+        milestoneCount?: number
+      }>
     }
     epicCount?: number
     milestoneCount?: number

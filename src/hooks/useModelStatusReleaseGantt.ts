@@ -48,7 +48,7 @@ export function useModelStatusReleaseGantt(
             norm,
             initKey,
             false,
-            !initKey,
+            true,
           ),
         null,
       )

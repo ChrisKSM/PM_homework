@@ -293,7 +293,7 @@ async def release_gantt(
     project: str = Query("TVPLAT", description="Jira project key"),
     refresh: bool = Query(False, description="true 시 5분 캐시 무시"),
     all_initiatives: bool = Query(
-        False, description="true 면 라벨 Initiative 전체 Epic, false 면 initiative_key 1건 기준"
+        True, description="true 면 라벨 Initiative 9건 [Demo] Epic, false 면 initiative_key 1건만"
     ),
 ):
     """Initiative 연계 Epic 실행 구간 + Milestone (2026 SP 캘린더 기준)."""

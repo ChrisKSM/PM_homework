@@ -7,7 +7,7 @@ import type { ModelReleaseGanttData, ReleaseMilestone } from '../../types/modelS
 import { jiraBrowseUrl } from '../../utils/jiraBrowseUrl'
 import {
   computeReleaseGanttKpis,
-  filterEpicsWithMilestones,
+  syncEpicMilestonesFromGlobal,
   todayLineOffsetPx,
 } from '../../utils/releaseGanttKpi'
 
@@ -50,8 +50,8 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
     epics: [],
   }
 
-  const gantt = useMemo(() => filterEpicsWithMilestones(rawGantt), [rawGantt])
-  const kpis = useMemo(() => computeReleaseGanttKpis(rawGantt), [rawGantt])
+  const gantt = useMemo(() => syncEpicMilestonesFromGlobal(rawGantt), [rawGantt])
+  const kpis = useMemo(() => computeReleaseGanttKpis(gantt), [gantt])
   const todayPx = useMemo(() => todayLineOffsetPx(gantt, COL_W), [gantt])
 
   const sprints = useMemo(
@@ -68,6 +68,9 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
 
   const gridW = sprints.length * COL_W
   const initiative = releaseData?.initiative ?? initData?.issues?.[0] ?? null
+  const initiativeCount =
+    releaseData?.meta?.initiativeCount ?? initData?.issues?.length ?? 0
+  const demoEpicCount = releaseData?.meta?.discovery?.demoEpicCount as number | undefined
   const source = releaseData?.source ?? 'mock'
   const metaErrors = releaseData?.meta?.errors ?? []
 
@@ -103,10 +106,11 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
           <div>
             <h3 className="text-sm font-bold text-gray-900">릴리즈 Gantt · Milestone Epic</h3>
             <p className="text-[11px] text-gray-500">
-              Milestone 보유 Epic만 · issuetype=Milestone
+              [Demo] Epic · Initiative당 Milestone (issuetype=Milestone)
               {source === 'jira' ? (
                 <span className="ml-1 text-emerald-600 font-medium">
-                  · Epic {gantt.epics.length} · Milestone {gantt.milestones.length}
+                  · Initiative {initiativeCount} · [Demo] Epic {demoEpicCount ?? gantt.epics.length} ·
+                  Milestone {gantt.milestones.length}
                 </span>
               ) : (
                 <span className="ml-1 text-amber-600">· mock</span>
@@ -125,8 +129,15 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
           </div>
         )}
 
-        <div className="px-4 py-2 bg-slate-50 border-b border-surface-border text-[11px]">
-          <span className="font-semibold text-gray-500 mr-2">Initiative</span>
+        <div className="px-4 py-2 bg-slate-50 border-b border-surface-border text-[11px] space-y-1">
+          <div>
+            <span className="font-semibold text-gray-500 mr-2">Initiative</span>
+            <span className="text-gray-700">
+              {initiativeCount > 0
+                ? `라벨 ${initiativeCount}건 · [Demo] Epic ${gantt.epics.length}행`
+                : `(${modelCode} — Initiative 탭)`}
+            </span>
+          </div>
           {initiative ? (
             <a
               href={initiative.issueUrl || jiraBrowseUrl('key' in initiative ? initiative.key : '')}
@@ -134,13 +145,11 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
               rel="noreferrer"
               className="text-violet-700 font-medium hover:underline inline-flex items-center gap-1"
             >
-              {initiative.key} · {initiative.summary.slice(0, 48)}
+              대표 {initiative.key} · {initiative.summary.slice(0, 48)}
               {initiative.summary.length > 48 ? '…' : ''}
               <ExternalLink size={12} />
             </a>
-          ) : (
-            <span className="text-gray-400">({modelCode} — Initiative 탭)</span>
-          )}
+          ) : null}
         </div>
 
         <div className="overflow-x-auto">
@@ -158,7 +167,7 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
                 className="shrink-0 px-3 py-2 text-[10px] font-bold text-gray-600 border-r border-gray-200"
                 style={{ width: LABEL_W }}
               >
-                EPIC (Milestone 있음)
+                [Demo] EPIC
               </div>
               <div className="flex" style={{ width: gridW }}>
                 {gantt.irBands.map((ir) => {
@@ -231,6 +240,9 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
                   >
                     {epic.issueKey}
                   </a>
+                  {epic.initiativeKey ? (
+                    <div className="text-[9px] text-gray-400 font-mono">{epic.initiativeKey}</div>
+                  ) : null}
                   <div className="text-[10px] text-gray-600 mt-0.5 leading-snug">{epic.summary}</div>
                   <div className="text-[9px] text-violet-600 mt-1">
                     Milestone {(epic.milestones ?? []).length}건

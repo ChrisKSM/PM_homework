@@ -81,8 +81,27 @@ export interface ReleaseGanttKpiResult {
  * KPI-1: 2026 릴리즈 캘린더 SP(26) 중 오늘 기준 경과 SP 수
  * KPI-2: Milestone 이슈 완료율 (Jira status)
  */
+export function syncEpicMilestonesFromGlobal(gantt: ModelReleaseGanttData): ModelReleaseGanttData {
+  const global = gantt.milestones ?? []
+  if (!global.length) return gantt
+  const byEpic = new Map<string, ReleaseMilestone[]>()
+  for (const m of global) {
+    const ek = m.epicKey ?? ''
+    if (!ek) continue
+    const list = byEpic.get(ek) ?? []
+    list.push(m)
+    byEpic.set(ek, list)
+  }
+  const epics = gantt.epics.map((e) => {
+    const nested = e.milestones ?? []
+    const merged = nested.length ? nested : (byEpic.get(e.issueKey) ?? [])
+    return merged.length ? { ...e, milestones: merged } : e
+  })
+  return { ...gantt, epics, milestones: global }
+}
+
 export function computeReleaseGanttKpis(gantt: ModelReleaseGanttData, day = new Date()): ReleaseGanttKpiResult {
-  const filtered = filterEpicsWithMilestones(gantt)
+  const synced = syncEpicMilestonesFromGlobal(gantt)
   const sprints = gantt.sprints ?? []
   const spTotal = gantt.sprintMax - gantt.sprintMin + 1
   const today = new Date(day)
@@ -102,7 +121,8 @@ export function computeReleaseGanttKpis(gantt: ModelReleaseGanttData, day = new 
     spElapsed = Math.max(0, (sprintForDate([], today) ?? gantt.sprintMin) - gantt.sprintMin)
   }
 
-  const milestones: ReleaseMilestone[] = filtered.milestones
+  const milestones: ReleaseMilestone[] =
+    synced.milestones?.length ? synced.milestones : synced.epics.flatMap((e) => e.milestones ?? [])
   const milestoneTotal = milestones.length
   const milestoneDone = milestones.filter((m) => isMilestoneDone(m.status)).length
 

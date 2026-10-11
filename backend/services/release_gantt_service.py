@@ -24,7 +24,7 @@ from services.quality_service import _field_text
 from tvjira_client import tvjira_get_issue, tvjira_issue_browse_url, tvjira_search_all
 
 # Pod/FE 에서 구버전(cf[10801] Milestone JQL) 배포 여부 확인용
-RELEASE_GANTT_SERVICE_BUILD = "2026-03-11-demo-epic-milestone-v5"
+RELEASE_GANTT_SERVICE_BUILD = "2026-03-11-demo-epic-all-initiatives-v6"
 
 _DEMO_EPIC_PREFIX = "[Demo]"
 
@@ -113,26 +113,41 @@ def expected_demo_epic_summaries(initiative_summary: str) -> list[str]:
     return [f"{_DEMO_EPIC_PREFIX}{base}", f"{_DEMO_EPIC_PREFIX} {base}"]
 
 
+def _strip_demo_prefix(epic_summary: str) -> str | None:
+    s = (epic_summary or "").strip()
+    if not s.startswith(_DEMO_EPIC_PREFIX):
+        return None
+    rest = s[len(_DEMO_EPIC_PREFIX) :].lstrip()
+    return _normalize_issue_summary(rest) if rest else None
+
+
 def pick_demo_epic(linked_epic_rows: list[dict], initiative_summary: str) -> dict | None:
     """linkedIssues Epic 중 Initiative 와 짝인 [Demo]… Epic 1건."""
     if not linked_epic_rows:
         return None
     exact = {_normalize_issue_summary(s) for s in expected_demo_epic_summaries(initiative_summary)}
-    base = (initiative_summary or "").strip()
+    base_norm = _normalize_issue_summary(initiative_summary)
+    demo_typed: list[dict] = []
     for raw in linked_epic_rows:
         fields = raw.get("fields") or {}
         if not _looks_like_epic(fields.get("issuetype")):
             continue
-        es = _normalize_issue_summary(fields.get("summary") or "")
+        summary = fields.get("summary") or ""
+        es = _normalize_issue_summary(summary)
         if es in exact:
             return raw
-    for raw in linked_epic_rows:
-        fields = raw.get("fields") or {}
-        if not _looks_like_epic(fields.get("issuetype")):
-            continue
-        es = fields.get("summary") or ""
-        if es.startswith(_DEMO_EPIC_PREFIX) and base and base in es:
+        tail = _strip_demo_prefix(summary)
+        if tail and base_norm and tail == base_norm:
             return raw
+        if summary.strip().startswith(_DEMO_EPIC_PREFIX):
+            demo_typed.append(raw)
+    base = (initiative_summary or "").strip()
+    for raw in demo_typed:
+        es = (raw.get("fields") or {}).get("summary") or ""
+        if base and base in es:
+            return raw
+    if len(demo_typed) == 1:
+        return demo_typed[0]
     return None
 
 
@@ -818,7 +833,8 @@ async def get_release_gantt(
     milestone_fix_versions = _collect_milestone_fix_versions(inits)
     milestone_fix_version = milestone_fix_versions[0] if milestone_fix_versions else "Audio_2025"
 
-    scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, all_initiatives)
+    scope_all = all_initiatives if initiative_key else True
+    scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, scope_all)
 
     if jira_label or initiative_keys:
         scope_set = set(scope_keys)
@@ -852,8 +868,17 @@ async def get_release_gantt(
             r["initiativeKey"] for r in demo_inventory if r.get("demoEpicMissing")
         ]
 
+        demo_key_to_init = {
+            (r.get("demoEpicKey") or ""): r.get("initiativeKey")
+            for r in demo_inventory
+            if r.get("demoEpicKey")
+        }
         for i, raw in enumerate(demo_raws):
-            epics.append(_map_epic(raw, i))
+            mapped = _map_epic(raw, i)
+            dk = mapped.get("issueKey") or ""
+            if dk in demo_key_to_init:
+                mapped["initiativeKey"] = demo_key_to_init[dk]
+            epics.append(mapped)
 
         if not epics and jira_label:
             harmony_raw = await _fetch_harmony_epics_for_label(jira_label, errors)
@@ -935,7 +960,7 @@ async def get_release_gantt(
             "initiativeKeys": initiative_keys,
             "initiativeCount": len(initiative_keys),
             "scopeInitiativeKeys": scope_keys,
-            "allInitiatives": all_initiatives,
+            "allInitiatives": scope_all,
             "discoveredEpicKeys": sorted(discovered_epic_keys),
             "discovery": discovery,
             "epicCount": len(epics),
