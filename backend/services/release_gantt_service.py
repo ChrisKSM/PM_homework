@@ -299,17 +299,16 @@ async def _search_epics_for_initiatives(
     seen: dict[str, dict] = {}
     jql_used: list[str] = []
 
-    def _accept_epic_raw(raw: dict) -> bool:
-        fields = raw.get("fields") or {}
-        return _looks_like_epic(fields.get("issuetype"))
-
     for jql in _initiative_epic_jqls(initiative_keys, project_key):
         try:
             rows = await tvjira_search_all(jql, _EPIC_FIELDS)
             jql_used.append(jql)
             for raw in rows:
                 key = raw.get("key") or ""
-                if not key or key in seen or not _accept_epic_raw(raw):
+                if not key or key in seen:
+                    continue
+                fields = raw.get("fields") or {}
+                if "parent =" in jql and not _looks_like_epic(fields.get("issuetype")):
                     continue
                 seen[key] = raw
         except Exception as ex:
@@ -612,10 +611,12 @@ async def get_release_gantt(
             for j, raw in enumerate(harmony_raw):
                 epics.append(_map_epic(raw, j, issue_url_fn=_harmony_issue_browse_url))
 
+        raw_epic_count = len(epics)
         epic_keys = [e["issueKey"] for e in epics if e.get("issueKey")]
         raw_ms, ms_jqls = await _search_milestones_merged(
             epic_keys, milestone_fix_versions, project_key, errors
         )
+        raw_ms_count = len(raw_ms)
         by_epic: dict[str, list[dict]] = {k: [] for k in epic_keys}
         for raw in raw_ms:
             f = raw.get("fields") or {}
@@ -624,12 +625,16 @@ async def get_release_gantt(
             if not ms:
                 continue
             milestones_global.append(ms)
-            ek = ms.get("epicKey") or ""
-            if ek in by_epic:
-                by_epic[ek].append(ms)
+            ek = (ms.get("epicKey") or epic_hint or "").strip()
+            if ek:
+                by_epic.setdefault(ek, []).append(ms)
         epics = [_finalize_epic_span({**e, "milestones": by_epic.get(e["issueKey"], [])}) for e in epics]
-        epics = [e for e in epics if e.get("milestones")]
+        epics_with_ms = [e for e in epics if e.get("milestones")]
+        epics = epics_with_ms
         milestones_global = [m for e in epics for m in e.get("milestones") or []]
+        discovery["rawEpicCount"] = raw_epic_count
+        discovery["milestoneRowsFetched"] = raw_ms_count
+        discovery["epicsWithMilestones"] = len(epics_with_ms)
 
     cal = calendar_payload()
     return {
