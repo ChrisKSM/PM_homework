@@ -1,7 +1,11 @@
 #!/bin/sh
 # FE pod — 모델현황 요약 + 전 모델 일정 mock(H7/H5 SW) + status 페이지 안정화
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/fe-model-status-summary-kpi-patch.sh?v=3" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/fe-model-status-summary-kpi-patch.sh?v=4" | sh
+#
+# Mongo overview 일정 반영 (기본 ON, 끄려면 SEED_OVERVIEW=0):
+#   SEED_OVERVIEW=0 curl -fsSL ".../fe-model-status-summary-kpi-patch.sh?v=4" | sh
+#
 #
 # 포함: KPI-1 소수 1자리, HW/SW 타임라인, story-sp-kpi 클라이언트, modelStatusDisabled,
 #       overview mock(SIT/FC1), ErrorBoundary·build-version reload guard
@@ -47,7 +51,11 @@ fetch src/main.tsx src/main.tsx
 fetch src/components/ErrorBoundary.tsx src/components/ErrorBoundary.tsx
 
 fetch scripts/verify-model-status-summary-fe-deployed.sh scripts/verify-model-status-summary-fe-deployed.sh
+fetch scripts/push-overview-seed-from-github.sh scripts/push-overview-seed-from-github.sh
+fetch scripts/diagnose-model-status-fe-overview.sh scripts/diagnose-model-status-fe-overview.sh
 chmod +x scripts/verify-model-status-summary-fe-deployed.sh
+chmod +x scripts/push-overview-seed-from-github.sh
+chmod +x scripts/diagnose-model-status-fe-overview.sh
 
 grep -q buildOverviewEventsTimeline src/utils/modelStatusMilestones.ts && echo "OK  HW/SW overview timeline"
 grep -q ModelStatusOverviewEventTimeline src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK  summary dashboard wiring"
@@ -77,3 +85,17 @@ if [ -x scripts/verify-model-status-summary-fe-deployed.sh ]; then
 else
   echo "  sh scripts/verify-model-status-summary-fe-deployed.sh"
 fi
+
+if [ "${SEED_OVERVIEW:-1}" != "0" ]; then
+  echo ""
+  echo "=== Mongo overview seed (loadOverview > FE mock) ==="
+  API_BASE="${API_BASE:-https://be-audio-test.apps.axstudio.lge.com/api}" \
+    REF="$REF" sh scripts/push-overview-seed-from-github.sh || {
+    echo "WARN: overview seed failed — BE/VPN 또는 API_BASE 확인 후:" >&2
+    echo "  API_BASE=... REF=$REF sh scripts/push-overview-seed-from-github.sh" >&2
+  }
+fi
+
+echo ""
+echo "=== 진단 (소스/build/공용URL/Mongo) ==="
+sh scripts/diagnose-model-status-fe-overview.sh || true
