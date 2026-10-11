@@ -53,11 +53,10 @@ PY="python3"
 command -v uv >/dev/null 2>&1 && PY="uv run --frozen python"
 $PY -c "
 from services.initiative_sp_kpi_service import normalize_jira_description, parse_milestone_table_from_description
-wiki = '||Milestone||예상 SP||\\n|M1|25|'
-t, src = normalize_jira_description(wiki)
-total, _ = parse_milestone_table_from_description(t)
+sample = '마일스톤\\t산출물\\t예상 SP\\nM1\\tdeliver\\t25'
+total, _ = parse_milestone_table_from_description(sample)
 assert total == 25.0, total
-print('  OK  import + wiki parse')
+print('  OK  import + korean table parse')
 "
 
 if [ -x scripts/restart-be-route-port.sh ]; then

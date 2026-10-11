@@ -73,8 +73,8 @@ PY="python3"
 command -v uv >/dev/null 2>&1 && PY="uv run --frozen python"
 $PY -c "
 from services.initiative_sp_kpi_service import parse_milestone_table_from_description
-t,r=parse_milestone_table_from_description('마일스톤\t예상 SP\nM1\tx\t25')
-assert t==25.0
+t,r=parse_milestone_table_from_description('마일스톤\t산출물\t예상 SP\nM1\tdeliver\t25')
+assert t==25.0, t
 import main
 print('  OK  import main + korean header parse')
 "
