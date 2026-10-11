@@ -1,10 +1,16 @@
 #!/bin/sh
 # BE pod — Initiative Description Milestones → story-sp-kpi API
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/0bf92dc/scripts/apply-be-story-sp-kpi.sh" | sh
+# Pod git remote 가 LGE 내부면 checkout 대신 curl | sh 사용.
+#
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/2b706bc/scripts/apply-be-story-sp-kpi.sh" | sh
+# router 로컬 수정 유지:
+#   SKIP_ROUTER=1 curl -fsSL ".../apply-be-story-sp-kpi.sh" | sh
+# 또는: .../patch-be-story-sp-kpi-service-only.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-0bf92dc}"
+REF_SHA="${REF_SHA:-2b706bc}"
+SKIP_ROUTER="${SKIP_ROUTER:-0}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
@@ -18,10 +24,14 @@ echo "=== apply-be-story-sp-kpi (${REF_SHA}) ==="
 mkdir -p services routers
 fetch backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
 fetch backend/tvjira_client.py tvjira_client.py
-fetch backend/routers/model_status.py routers/model_status.py
+if [ "$SKIP_ROUTER" = "1" ]; then
+  echo "  skip routers/model_status.py (SKIP_ROUTER=1)"
+else
+  fetch backend/routers/model_status.py routers/model_status.py
+fi
 
 grep -q 'story-sp-kpi' routers/model_status.py || { echo "NG router missing story-sp-kpi"; exit 1; }
-grep -q 'parse_milestone_table_from_description' services/initiative_sp_kpi_service.py || exit 1
+grep -q normalize_jira_description services/initiative_sp_kpi_service.py || exit 1
 echo "  OK  routes + service"
 
 PY="uv run --frozen python"
