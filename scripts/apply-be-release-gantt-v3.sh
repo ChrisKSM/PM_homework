@@ -7,7 +7,7 @@
 #   REF_SHA=efe837f sh scripts/apply-be-release-gantt-v3.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-f63d5d8}"
+REF_SHA="${REF_SHA:-825b737}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
@@ -38,6 +38,7 @@ grep -q 'def nearest_sprint_for_day' services/release_sprint_calendar_2026.py \
     echo "  NG  calendar 파일 구버전 — release_gantt_service 와 쌍으로 배포 필요"
     exit 1
   }
+fetch backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
 fetch backend/routers/model_status.py routers/model_status.py
 fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
 chmod +x scripts/patch-config-release-gantt-fixversion.sh 2>/dev/null || true
@@ -52,6 +53,8 @@ $PY -c "from services import release_gantt_service; import main; print('  OK  im
 
 grep -q 'diagnose-counts' routers/model_status.py && echo "  OK  diagnose-counts route" || echo "  !!  router missing diagnose-counts"
 grep -q 'demo-milestones' routers/model_status.py && echo "  OK  demo-milestones route" || echo "  !!  demo-milestones route missing"
+grep -q 'story-sp-kpi' routers/model_status.py && echo "  OK  story-sp-kpi route" || echo "  !!  story-sp-kpi missing — REF_SHA bump"
+test -f services/initiative_sp_kpi_service.py && echo "  OK  initiative_sp_kpi_service.py" || exit 1
 
 if [ -x scripts/restart-be-route-port.sh ]; then
   sh scripts/restart-be-route-port.sh

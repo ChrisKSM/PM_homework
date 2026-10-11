@@ -119,8 +119,24 @@ async def initiatives_story_sp_kpi(
         from services.initiative_sp_kpi_service import preview_story_sp_kpi
 
         return await preview_story_sp_kpi(model=model, label=label, project_key=project)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": f"initiative_sp_kpi_service missing: {e}",
+                "hint": "sh scripts/apply-be-story-sp-kpi.sh && restart-be-route-port.sh",
+                "plannedSpTotal": None,
+            },
+        ) from e
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(e),
+                "plannedSpTotal": None,
+                "hint": "TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
+            },
+        ) from e
 
 
 @router.get("/initiatives")
