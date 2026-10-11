@@ -1,7 +1,7 @@
 #!/bin/sh
 # BE pod — 릴리즈 Gantt 패치 (CDN 구버전 apply/fix 스크립트 우회)
 # 커밋 핀 URL — raw cache miss:
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/eb06ad6/scripts/apply-be-release-gantt-v3.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/15cd09e/scripts/apply-be-release-gantt-v3.sh" | sh
 #
 # 또는 pod:
 #   REF_SHA=eb06ad6 sh scripts/apply-be-release-gantt-v3.sh
