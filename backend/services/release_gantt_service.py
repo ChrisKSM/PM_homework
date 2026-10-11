@@ -730,6 +730,46 @@ def get_release_calendar() -> dict[str, Any]:
     return calendar_payload()
 
 
+def release_gantt_error_envelope(
+    *errors: str,
+    model: str | None = None,
+    label: str | None = None,
+    failed: bool = True,
+) -> dict[str, Any]:
+    """FastAPI HTTPException(detail=…) 대신 curl/FE 가 meta 를 읽을 수 있게 동일 스키마."""
+    cal = calendar_payload()
+    err_list = [e for e in errors if e]
+    return {
+        "meta": {
+            "asOf": datetime.now(timezone.utc).isoformat(),
+            "model": model,
+            "label": label,
+            "initiativeJql": None,
+            "milestoneFixVersion": None,
+            "milestoneFixVersions": [],
+            "epicJqls": [],
+            "milestoneJqls": [],
+            "initiativeKey": None,
+            "initiativeKeys": [],
+            "initiativeCount": 0,
+            "scopeInitiativeKeys": [],
+            "allInitiatives": False,
+            "discoveredEpicKeys": [],
+            "discovery": {
+                "failed": failed,
+                "serviceBuild": RELEASE_GANTT_SERVICE_BUILD,
+            },
+            "epicCount": 0,
+            "milestoneCount": 0,
+            "errors": err_list,
+        },
+        "calendar": cal,
+        "initiative": None,
+        "epics": [],
+        "milestones": [],
+    }
+
+
 async def diagnose_gantt_pipeline_counts(
     model: str | None = None,
     label: str | None = None,

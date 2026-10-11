@@ -24,7 +24,11 @@ echo "  OK  meta present (ping)"
 
 echo ""
 echo "=== release/gantt (label URL-encoded) ==="
-BODY="$(curl -sG -w '\n__HTTP__%{http_code}' "$URL" --data-urlencode "model=H7_VI" --data-urlencode "label=SoundSuite_H7(VI)")"
+BODY="$(curl -sG -w '\n__HTTP__%{http_code}' "$URL" \
+  --data-urlencode "model=H7_VI" \
+  --data-urlencode "label=SoundSuite_H7(VI)" \
+  --data-urlencode "all_initiatives=true" \
+  --data-urlencode "refresh=true")"
 HTTP_CODE="${BODY##*__HTTP__}"
 BODY="${BODY%__HTTP__*}"
 echo "  HTTP $HTTP_CODE"
