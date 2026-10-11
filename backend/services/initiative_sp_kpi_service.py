@@ -27,10 +27,8 @@ _SP_CELL = re.compile(r"^\d+(?:\.\d+)?$")
 _WORK_ITEM_JQL_EXCLUDE = (
     "Initiative, initiative, Epic, epic, Milestone, mileStone, milestone"
 )
-_STORY_TYPE_JQL = (
-    "Story, story, Task, task, Sub-task, Subtask, sub-task, Bug, bug, "
-    "Feature, feature, Improvement, improvement"
-)
+# TV Jira Server: 긴 issuetype in (Story, Task, Feature, …) 는 400 — Gantt 와 동일하게 not in 사용
+_JQL_WORK_ITEMS = f"issuetype not in ({_WORK_ITEM_JQL_EXCLUDE})"
 
 
 def _wiki_table_lines(text: str) -> str:
@@ -493,11 +491,7 @@ async def _collect_initiative_story_sp(
     epic_keys |= extra
 
     await ingest(
-        f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
-        f'AND issue in linkedIssues("{ik}")'
-    )
-    await ingest(
-        f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
+        f'project = {project_key} AND {_JQL_WORK_ITEMS} '
         f'AND issue in linkedIssues("{ik}")'
     )
 
@@ -506,15 +500,13 @@ async def _collect_initiative_story_sp(
         chunk = epic_list[i : i + 12]
         or_epic = " OR ".join(f'"Epic Link" = {ek}' for ek in chunk)
         or_parent = " OR ".join(f"parent = {ek}" for ek in chunk)
-        await ingest(f'project = {project_key} AND ({or_epic})')
-        await ingest(f'project = {project_key} AND ({or_parent})')
+        await ingest(f'project = {project_key} AND {_JQL_WORK_ITEMS} AND ({or_epic})')
+        await ingest(f'project = {project_key} AND {_JQL_WORK_ITEMS} AND ({or_parent})')
 
     for ek in epic_list:
         for jql in (
-            f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
-            f'AND "Epic Link" = {ek}',
-            f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
-            f'AND parent = {ek}',
+            f'project = {project_key} AND {_JQL_WORK_ITEMS} AND "Epic Link" = {ek}',
+            f'project = {project_key} AND {_JQL_WORK_ITEMS} AND parent = {ek}',
         ):
             await ingest(jql)
 
@@ -568,10 +560,7 @@ async def debug_initiative_sp_snapshot(
     sample_issues: list[dict[str, Any]] = []
     for ek in ([demo_key] if demo_key else []) + [k for k in epic_key_list if k != demo_key][:2]:
         try:
-            jql = (
-                f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
-                f'AND "Epic Link" = {ek}'
-            )
+            jql = f'project = {project_key} AND {_JQL_WORK_ITEMS} AND "Epic Link" = {ek}'
             for st in (await tvjira_search_all(jql, story_fields))[:8]:
                 sf = st.get("fields") or {}
                 sample_issues.append(
