@@ -9,7 +9,7 @@
 # 또는: .../patch-be-story-sp-kpi-service-only.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-2b706bc}"
+REF_SHA="${REF_SHA:-dd2494d}"
 SKIP_ROUTER="${SKIP_ROUTER:-0}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"

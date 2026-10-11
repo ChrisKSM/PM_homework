@@ -4,10 +4,22 @@
 #
 #   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/b12f4be/scripts/patch-be-story-sp-kpi-service-only.sh" | sh
 set -e
-REF_SHA="${REF_SHA:-b12f4be}"
+REF_SHA="${REF_SHA:-dd2494d}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT" 2>/dev/null || { echo "NG: $ROOT 없음"; exit 1; }
+
+if [ -f "$ROOT/config.py" ] && [ -f "$ROOT/main.py" ]; then
+  :
+elif [ -f scripts/lib/require-be-pod.sh ]; then
+  # shellcheck source=scripts/lib/require-be-pod.sh
+  . scripts/lib/require-be-pod.sh
+  require_be_pod "$ROOT"
+else
+  echo "NG: BE pod가 아닙니다 (config.py · main.py 없음). hostname=$(hostname)"
+  echo "    → **project-be-audio-*** pod 에서 실행하세요. React pod 에서는 실행 금지."
+  exit 1
+fi
 
 fetch() {
   curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"
@@ -31,9 +43,12 @@ grep -q 'expand' tvjira_client.py || {
 if [ -f routers/model_status.py ] && grep -q 'story-sp-kpi' routers/model_status.py; then
   echo "  OK  story-sp-kpi route already in routers/model_status.py"
 else
-  echo "  !!  routers/model_status.py 에 story-sp-kpi 없음 — REF_SHA apply-be-story-sp-kpi 또는 수동 router 패치 필요"
+  echo "  !!  story-sp-kpi route missing — running router snippet patch"
+  fetch scripts/patch-be-story-sp-kpi-router-snippet.py scripts/patch-be-story-sp-kpi-router-snippet.py
+  python3 scripts/patch-be-story-sp-kpi-router-snippet.py "$ROOT"
 fi
 
+export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
 PY="python3"
 command -v uv >/dev/null 2>&1 && PY="uv run --frozen python"
 $PY -c "
