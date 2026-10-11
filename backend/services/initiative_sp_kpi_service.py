@@ -27,7 +27,10 @@ _SP_CELL = re.compile(r"^\d+(?:\.\d+)?$")
 _WORK_ITEM_JQL_EXCLUDE = (
     "Initiative, initiative, Epic, epic, Milestone, mileStone, milestone"
 )
-_STORY_TYPE_JQL = "Story, story, Task, task, Sub-task, Subtask, sub-task, Bug, bug"
+_STORY_TYPE_JQL = (
+    "Story, story, Task, task, Sub-task, Subtask, sub-task, Bug, bug, "
+    "Feature, feature, Improvement, improvement"
+)
 
 
 def _wiki_table_lines(text: str) -> str:
@@ -384,6 +387,11 @@ def _story_sp(fields: dict[str, Any]) -> float:
         return 0.0
 
 
+def _sum_consumed_sp_from_milestone_rows(rows: list[dict[str, Any]]) -> float:
+    """Description 표 '소모 SP' 열 합 (Jira Story SP 없을 때 fallback)."""
+    return sum(float(r["consumedSpInTable"]) for r in rows if r.get("consumedSpInTable") is not None)
+
+
 def _is_story_done(status: Any) -> bool:
     name = _field_text(status).lower()
     return any(x in name for x in ("done", "closed", "resolved", "complete", "완료"))
@@ -403,10 +411,13 @@ async def _collect_initiative_story_sp(
     )
 
     seen: set[str] = set()
+    touched: set[str] = set()
+    subtask_keys: set[str] = set()
     total = 0.0
     done = 0.0
     count = 0
     ik = initiative_key.strip().replace('"', '\\"')
+    fields_with_subs = list(dict.fromkeys([*story_fields, "subtasks"]))
 
     def absorb(raw: dict) -> None:
         nonlocal total, done, count
@@ -417,6 +428,7 @@ async def _collect_initiative_story_sp(
         it = sf.get("issuetype")
         if _looks_like_epic(it) or _looks_like_milestone(it, sf.get("summary") or ""):
             return
+        touched.add(key)
         sp = _story_sp(sf)
         if sp <= 0:
             return
@@ -426,9 +438,19 @@ async def _collect_initiative_story_sp(
         if _is_story_done(sf.get("status")):
             done += sp
 
-    async def ingest(jql: str) -> None:
+    def track_subtasks(raw: dict) -> None:
+        sf = raw.get("fields") or {}
+        for sub in sf.get("subtasks") or []:
+            if isinstance(sub, dict):
+                sk = sub.get("key")
+                if sk:
+                    subtask_keys.add(sk)
+
+    async def ingest(jql: str, *, track_subs: bool = True) -> None:
         try:
-            for raw in await tvjira_search_all(jql, story_fields):
+            for raw in await tvjira_search_all(jql, fields_with_subs):
+                if track_subs:
+                    track_subtasks(raw)
                 absorb(raw)
         except Exception as ex:
             errors.append(f"{initiative_key} story JQL: {ex}")
@@ -458,18 +480,31 @@ async def _collect_initiative_story_sp(
         f'AND issue in linkedIssues("{ik}")'
     )
 
-    for ek in sorted(epic_keys):
+    epic_list = sorted(epic_keys)
+    for i in range(0, len(epic_list), 12):
+        chunk = epic_list[i : i + 12]
+        or_epic = " OR ".join(f'"Epic Link" = {ek}' for ek in chunk)
+        or_parent = " OR ".join(f"parent = {ek}" for ek in chunk)
+        await ingest(f'project = {project_key} AND ({or_epic})')
+        await ingest(f'project = {project_key} AND ({or_parent})')
+
+    for ek in epic_list:
         for jql in (
             f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
             f'AND "Epic Link" = {ek}',
             f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
             f'AND parent = {ek}',
-            f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
-            f'AND "Epic Link" = {ek}',
-            f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
-            f'AND parent = {ek}',
         ):
             await ingest(jql)
+
+    pending_subs = sorted(subtask_keys - touched)
+    for i in range(0, len(pending_subs), 40):
+        chunk = pending_subs[i : i + 40]
+        keys_clause = ", ".join(chunk)
+        await ingest(
+            f"project = {project_key} AND key in ({keys_clause})",
+            track_subs=False,
+        )
 
     return total, done, count, len(epic_keys)
 
@@ -550,6 +585,7 @@ async def preview_story_sp_kpi(
     planned_total = 0.0
     story_sp_total = 0.0
     story_sp_done = 0.0
+    desc_consumed_total = 0.0
     errors: list[str] = []
 
     story_fields = [
@@ -573,6 +609,8 @@ async def preview_story_sp_kpi(
             search_text, rendered_text
         )
         planned_total += planned
+        desc_consumed = _sum_consumed_sp_from_milestone_rows(milestone_rows)
+        desc_consumed_total += desc_consumed
 
         actual = 0.0
         done = 0.0
@@ -585,6 +623,7 @@ async def preview_story_sp_kpi(
         except Exception as ex:
             errors.append(f"{key}: {ex}")
 
+        effective_consumed = actual if actual > 0 else desc_consumed
         story_sp_total += actual
         story_sp_done += done
         per_init.append(
@@ -597,24 +636,30 @@ async def preview_story_sp_kpi(
                 "plannedSpFromDescription": planned,
                 "milestones": milestone_rows,
                 "storySpConsumed": actual,
+                "consumedSpFromDescription": desc_consumed,
+                "effectiveSpConsumed": effective_consumed,
                 "storySpTotal": actual,
                 "storySpDone": done,
                 "storyCount": story_count,
                 "linkedEpicCount": epic_count,
-                "consumptionPctInitiative": round((actual / planned) * 1000, 10) / 10 if planned > 0 else None,
+                "consumptionPctInitiative": round((effective_consumed / planned) * 1000, 10) / 10
+                if planned > 0
+                else None,
                 "completionPctInitiative": round((done / planned) * 1000, 10) / 10 if planned > 0 else None,
             }
         )
 
+    effective_total = story_sp_total if story_sp_total > 0 else desc_consumed_total
+    consumption_source = "jiraStorySp" if story_sp_total > 0 else "descriptionConsumedSp"
     consumption_pct = (
-        round((story_sp_total / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
+        round((effective_total / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
     )
     completion_pct = (
         round((story_sp_done / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
     )
 
     out: dict[str, Any] = {
-        "kpiSchemaVersion": 3,
+        "kpiSchemaVersion": 4,
         "model": model,
         "label": jira_label,
         "initiativeCount": len(per_init),
@@ -624,17 +669,23 @@ async def preview_story_sp_kpi(
         "totalMilestoneRows": sum(len(x.get("milestones") or []) for x in per_init),
         "definition": {
             "plannedSp": "9 Initiatives · Description 표 컬럼 '예상 SP' 합",
-            "storySpConsumed": "Initiative linked Story(customfield_10808) SP 합 — 소진 SP",
-            "consumptionPct": "storySpConsumed / plannedSpTotal (소진율, KPI-1)",
+            "storySpConsumed": "Initiative Epic·Story customfield_10808 SP 합",
+            "consumedSpFromDescription": "Description 표 소모 SP 합 (Story SP 없을 때 fallback)",
+            "consumptionPct": "effectiveSpConsumed / plannedSpTotal (소진율, KPI-1)",
+            "consumptionPctSource": "jiraStorySp | descriptionConsumedSp",
             "completionPct": "완료 Story SP / plannedSpTotal (참고)",
             "notCalendarSp26": "릴리즈 Gantt SP 캘린더 경과율과 무관",
         },
         "plannedSpTotal": planned_total,
         "storySpConsumed": story_sp_total,
+        "consumedSpFromDescription": desc_consumed_total,
+        "effectiveSpConsumed": effective_total,
+        "consumptionPctSource": consumption_source,
         "storySpTotal": story_sp_total,
         "storySpDone": story_sp_done,
         "consumptionPct": consumption_pct,
         "burnPctVsPlan": consumption_pct,
+        "storyPointsField": settings.story_points_field,
         "completionPct": completion_pct,
         "byInitiative": per_init,
         "errors": errors,

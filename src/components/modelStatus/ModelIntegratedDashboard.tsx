@@ -143,8 +143,10 @@ export default function ModelIntegratedDashboard({
     releaseKpi?.kpi2Sub ?? '릴리즈 · Epic 탭 Jira Milestone (모델 미연동)'
   const consumptionPct = storySpKpi?.consumptionPct
   const spPct = consumptionPct ?? 0
+  const effectiveConsumed =
+    storySpKpi?.effectiveSpConsumed ?? storySpKpi?.storySpConsumed ?? storySpKpi?.storySpTotal
   const spSub = storySpKpi?.plannedSpTotal
-    ? `계획 ${storySpKpi.plannedSpTotal} SP · 소진 ${storySpKpi.storySpConsumed ?? storySpKpi.storySpTotal} SP · Initiative ${storySpKpi.initiativeCount ?? storySpKpi.byInitiative?.length ?? 0}건 (Description 예상 SP vs Story SP)`
+    ? `계획 ${storySpKpi.plannedSpTotal} SP · 소진 ${effectiveConsumed ?? 0} SP (${storySpKpi.consumptionPctSource === 'descriptionConsumedSp' ? '표 소모 SP' : 'Story SP'}) · Initiative ${storySpKpi.initiativeCount ?? storySpKpi.byInitiative?.length ?? 0}건`
     : jiraModelLive
       ? 'Initiative Description 예상 SP · Story SP — Jira 동기화 중'
       : 'Jira Initiative 라벨 미연동 모델'

@@ -15,9 +15,12 @@ export interface ModelStatusStorySpKpiInitiative {
     completionStatus: string
   }>
   storySpConsumed?: number
+  consumedSpFromDescription?: number
+  effectiveSpConsumed?: number
   storySpTotal: number
   storySpDone: number
   storyCount: number
+  linkedEpicCount?: number
   consumptionPctInitiative?: number | null
   completionPctInitiative?: number | null
 }
@@ -28,6 +31,9 @@ export interface ModelStatusStorySpKpiResponse {
   initiativeCount: number
   plannedSpTotal: number
   storySpConsumed: number
+  consumedSpFromDescription?: number
+  effectiveSpConsumed?: number
+  consumptionPctSource?: string
   storySpTotal: number
   storySpDone: number
   consumptionPct: number | null
