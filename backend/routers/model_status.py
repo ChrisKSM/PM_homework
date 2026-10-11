@@ -106,6 +106,9 @@ async def initiatives_story_sp_kpi(
     model: str | None = Query(None),
     label: str | None = Query(None),
     project: str = Query("TVPLAT"),
+    debug_initiative_key: str | None = Query(
+        None, description="예: TVPLAT-943406 — Description·Story SP 진단"
+    ),
 ):
     """
     KPI-1 SP 소진율 — 라벨 Initiative(9건) Description 표 '예상 SP' 합 vs Story SP 합.
@@ -118,7 +121,12 @@ async def initiatives_story_sp_kpi(
     try:
         from services.initiative_sp_kpi_service import preview_story_sp_kpi
 
-        return await preview_story_sp_kpi(model=model, label=label, project_key=project)
+        return await preview_story_sp_kpi(
+            model=model,
+            label=label,
+            project_key=project,
+            debug_initiative_key=debug_initiative_key,
+        )
     except ImportError as e:
         raise HTTPException(
             status_code=503,

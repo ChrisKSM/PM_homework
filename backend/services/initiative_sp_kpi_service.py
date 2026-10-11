@@ -27,6 +27,7 @@ _SP_CELL = re.compile(r"^\d+(?:\.\d+)?$")
 _WORK_ITEM_JQL_EXCLUDE = (
     "Initiative, initiative, Epic, epic, Milestone, mileStone, milestone"
 )
+_STORY_TYPE_JQL = "Story, story, Task, task, Sub-task, Subtask, sub-task, Bug, bug"
 
 
 def _wiki_table_lines(text: str) -> str:
@@ -135,13 +136,34 @@ async def fetch_initiative_description_text(initiative_key: str) -> tuple[str, s
     return "", "empty"
 
 
+def _html_tables_to_tsv(text: str) -> str | None:
+    """Jira rendered description `<table>` → TSV lines."""
+    if "<t" not in text.lower():
+        return None
+    rows_out: list[str] = []
+    for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", text, flags=re.I | re.S):
+        cells: list[str] = []
+        for cell in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, flags=re.I | re.S):
+            c = re.sub(r"<[^>]+>", " ", cell, flags=re.S)
+            c = unescape(c).replace("\u00a0", " ")
+            c = " ".join(c.split())
+            cells.append(c)
+        if cells:
+            rows_out.append("\t".join(cells))
+    return "\n".join(rows_out) if rows_out else None
+
+
 def _description_to_lines(description: str) -> list[str]:
     """Jira wiki/HTML 표 → 탭 구분 줄."""
     raw = unescape(description)
-    raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.I)
-    raw = re.sub(r"</tr>\s*", "\n", raw, flags=re.I)
-    raw = re.sub(r"</t[dh]>\s*", "\t", raw, flags=re.I)
-    raw = re.sub(r"<[^>]+>", "", raw)
+    tsv = _html_tables_to_tsv(raw)
+    if tsv:
+        raw = tsv
+    else:
+        raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.I)
+        raw = re.sub(r"</tr>\s*", "\n", raw, flags=re.I)
+        raw = re.sub(r"</t[dh]>\s*", "\t", raw, flags=re.I)
+        raw = re.sub(r"<[^>]+>", "", raw)
     raw = raw.replace("\u00a0", " ")
     lines: list[str] = []
     for ln in raw.splitlines():
@@ -354,6 +376,8 @@ def _story_sp(fields: dict[str, Any]) -> float:
     raw = fields.get(settings.story_points_field)
     if raw is None:
         return 0.0
+    if isinstance(raw, dict):
+        raw = raw.get("value") if raw.get("value") is not None else raw.get("name")
     try:
         return float(raw)
     except (TypeError, ValueError):
@@ -426,12 +450,20 @@ async def _collect_initiative_story_sp(
     epic_keys |= extra
 
     await ingest(
+        f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
+        f'AND issue in linkedIssues("{ik}")'
+    )
+    await ingest(
         f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
         f'AND issue in linkedIssues("{ik}")'
     )
 
     for ek in sorted(epic_keys):
         for jql in (
+            f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
+            f'AND "Epic Link" = {ek}',
+            f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) '
+            f'AND parent = {ek}',
             f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
             f'AND "Epic Link" = {ek}',
             f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
@@ -442,11 +474,70 @@ async def _collect_initiative_story_sp(
     return total, done, count, len(epic_keys)
 
 
+async def debug_initiative_sp_snapshot(
+    initiative_key: str,
+    project_key: str = "TVPLAT",
+) -> dict[str, Any]:
+    """Pod 진단 — Description 파싱 · Epic · Story SP 샘플."""
+    key = initiative_key.strip()
+    raw = await tvjira_get_issue(key, ["summary", "description"], expand="renderedFields")
+    fields = raw.get("fields") or {}
+    rendered = raw.get("renderedFields") or {}
+    search_text, _ = normalize_jira_description(fields.get("description"))
+    rendered_text, rend_src = normalize_jira_description(rendered.get("description"))
+    desc_text, planned, rows, src = _pick_best_description_parse(search_text, rendered_text)
+    story_fields = [
+        "summary",
+        "status",
+        "issuetype",
+        "parent",
+        settings.story_points_field,
+        settings.epic_link_field,
+    ]
+    errs: list[str] = []
+    consumed, done, scount, epics = await _collect_initiative_story_sp(
+        project_key, key, story_fields, errs
+    )
+    sample_issues: list[dict[str, Any]] = []
+    try:
+        jql = f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) AND issue in linkedIssues("{key}")'
+        for st in (await tvjira_search_all(jql, story_fields))[:5]:
+            sf = st.get("fields") or {}
+            sample_issues.append(
+                {
+                    "key": st.get("key"),
+                    "type": _field_text(sf.get("issuetype")),
+                    "sp": _story_sp(sf),
+                    "status": _field_text(sf.get("status")),
+                }
+            )
+    except Exception as ex:
+        errs.append(str(ex))
+    return {
+        "initiativeKey": key,
+        "summary": (fields.get("summary") or "")[:120],
+        "descriptionSource": src,
+        "renderedSource": rend_src,
+        "descriptionChars": len(desc_text),
+        "descriptionPreview": desc_text[:400],
+        "plannedSpFromDescription": planned,
+        "milestoneRowCount": len(rows),
+        "milestones": rows[:8],
+        "linkedEpicCount": epics,
+        "storySpConsumed": consumed,
+        "storySpDone": done,
+        "storyCount": scount,
+        "sampleLinkedStories": sample_issues,
+        "errors": errs,
+    }
+
+
 async def preview_story_sp_kpi(
     model: str | None = None,
     label: str | None = None,
     project_key: str = "TVPLAT",
     max_initiatives: int = 12,
+    debug_initiative_key: str | None = None,
 ) -> dict[str, Any]:
     """Initiative Description 계획 SP + Epic 하위 Story SP."""
     jira_label = resolve_initiative_label(model, label)
@@ -522,7 +613,8 @@ async def preview_story_sp_kpi(
         round((story_sp_done / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
     )
 
-    return {
+    out: dict[str, Any] = {
+        "kpiSchemaVersion": 3,
         "model": model,
         "label": jira_label,
         "initiativeCount": len(per_init),
@@ -547,3 +639,8 @@ async def preview_story_sp_kpi(
         "byInitiative": per_init,
         "errors": errors,
     }
+    if debug_initiative_key and debug_initiative_key.strip():
+        out["debug"] = await debug_initiative_sp_snapshot(
+            debug_initiative_key.strip(), project_key=project_key
+        )
+    return out
