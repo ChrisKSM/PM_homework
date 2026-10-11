@@ -40,6 +40,12 @@ if grep -q 'issue in linkedIssues({keys_clause})' services/release_gantt_service
 fi
 grep -q 'linkedIssues 는 키 1개씩' services/release_gantt_service.py && echo "  OK  per-key linkedIssues"
 grep -q '_scope_initiative_keys' services/release_gantt_service.py && echo "  OK  scope_initiative_keys"
+grep -q 'epics = \[e for e in epics if e.get("milestones")\]' services/release_gantt_service.py \
+  && echo "  OK  milestone-only epics filter" \
+  || echo "  !!  milestone epic filter missing — REF 최신인지 확인"
+grep -q '"status": _field_text(fields.get("status"))' services/release_gantt_service.py \
+  && echo "  OK  milestone status in API" \
+  || echo "  !!  milestone status field missing"
 
 echo ""
 echo "=== import check ==="

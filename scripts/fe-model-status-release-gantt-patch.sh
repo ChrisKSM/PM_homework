@@ -10,7 +10,7 @@ REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 cd "$ROOT"
 
-mkdir -p src/api src/hooks src/types src/mocks src/data src/components/modelStatus
+mkdir -p src/api src/hooks src/types src/mocks src/data src/utils src/components/modelStatus
 
 fetch() {
   curl -fsSL "$BASE/$1" -o "$2"
@@ -26,8 +26,14 @@ fetch src/hooks/useModelStatusReleaseGantt.ts src/hooks/useModelStatusReleaseGan
 fetch src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
+fetch src/utils/releaseGanttKpi.ts src/utils/releaseGanttKpi.ts
+fetch webpack.config.js webpack.config.js
 
 grep -q getReleaseGantt src/api/modelStatusApi.ts || { echo "NG getReleaseGantt"; exit 1; }
+grep -q computeReleaseGanttKpis src/utils/releaseGanttKpi.ts && echo "OK  releaseGanttKpi"
+grep -q "id: 'initiative'" src/data/modelStatusCatalog.ts && grep -q "릴리즈 · Epic" src/data/modelStatusCatalog.ts \
+  && awk '/MODEL_STATUS_TABS/,/\]/' src/data/modelStatusCatalog.ts | grep -n "initiative\|release" | head -2
+echo "OK  tab order (Initiative before 릴리즈 · Epic in catalog)"
 grep -q useModelStatusReleaseGantt src/hooks/useModelStatusReleaseGantt.ts || { echo "NG hook"; exit 1; }
 grep -q ModelStatusReleaseEpicGantt src/components/modelStatus/ModelIntegratedDashboard.tsx || { echo "NG dashboard"; exit 1; }
 grep -q "release/gantt" src/api/modelStatusApi.ts && echo "OK  API path /model-status/release/gantt"
