@@ -7,7 +7,7 @@
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
-REF_SHA="${REF_SHA:-$REF}"
+REF_SHA="${REF_SHA:-ed22ded}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 
 echo "=== fix release gantt services (ref $REF_SHA) bundle v2026-03-11.2 ==="
@@ -57,11 +57,13 @@ fi
 grep -A1 '@cached(ttl=300)' services/release_gantt_service.py | grep -q 'async def get_release_gantt' \
   && echo "  OK  cache on async get_release_gantt" \
   || echo "  !!  get_release_gantt cache placement — REF 확인"
-grep -q 'epics = \[e for e in epics if e.get("milestones")\]' services/release_gantt_service.py \
-  && echo "  OK  milestone-only epics filter" \
-  || echo "  !!  milestone epic filter missing — REF 최신인지 확인"
+if grep -E 'AND cf\[[0-9]+\]' services/release_gantt_service.py >/dev/null 2>&1; then
+  echo "  NG  cf[10801] Milestone JQL → Jira 400. apply-be-release-gantt-v3.sh (최신 REF_SHA) 재실행"
+  exit 1
+fi
 grep -q '_milestone_jql_for_epic' services/release_gantt_service.py \
   && grep -q '"Epic Link"' services/release_gantt_service.py \
+  && grep -q 'RELEASE_GANTT_SERVICE_BUILD' services/release_gantt_service.py \
   && echo "  OK  milestone Epic Link + fixVersion JQL" \
   || echo "  !!  milestone JQL pipeline missing — REF fetch"
 grep -q '"status": _field_text(fields.get("status"))' services/release_gantt_service.py \

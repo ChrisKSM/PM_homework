@@ -23,6 +23,9 @@ from services.model_status_initiative_service import (
 from services.quality_service import _field_text
 from tvjira_client import tvjira_get_issue, tvjira_issue_browse_url, tvjira_search_all
 
+# Pod/FE 에서 구버전(cf[10801] Milestone JQL) 배포 여부 확인용
+RELEASE_GANTT_SERVICE_BUILD = "2026-03-11-epic-link-jql-v4"
+
 _EPIC_COLORS = ("#3b82f6", "#86efac", "#a78bfa", "#059669", "#f97316", "#0ea5e9", "#6366f1")
 
 _EPIC_FIELDS = [
@@ -616,7 +619,11 @@ async def get_release_gantt(
     if jira_label or initiative_keys:
         raw_epics, epic_jqls = await _search_epics_for_initiatives(scope_keys, project_key, errors)
         discovered_epic_keys: set[str] = {r.get("key") for r in raw_epics if r.get("key")}
-        discovery: dict[str, Any] = {"pipeline": "initiative_linkedIssues_epic_per_key"}
+        discovery: dict[str, Any] = {
+            "pipeline": "initiative_linkedIssues_epic_per_key",
+            "serviceBuild": RELEASE_GANTT_SERVICE_BUILD,
+            "milestoneJqlEpicField": "Epic Link",
+        }
         for i, raw in enumerate(raw_epics):
             epics.append(_map_epic(raw, i))
 

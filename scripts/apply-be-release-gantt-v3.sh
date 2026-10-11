@@ -7,7 +7,7 @@
 #   REF_SHA=7dce6f1 sh scripts/apply-be-release-gantt-v3.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-e49a70d}"
+REF_SHA="${REF_SHA:-7dce6f1}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
@@ -23,6 +23,14 @@ mkdir -p scripts services routers
 fetch backend/jira_client.py jira_client.py
 fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/services/release_gantt_service.py services/release_gantt_service.py
+if grep -E 'AND cf\[[0-9]+\]' services/release_gantt_service.py >/dev/null 2>&1; then
+  echo "  NG  release_gantt_service.py uses cf[…] in JQL (TV Jira 400). REF_SHA=$REF_SHA 확인"
+  exit 1
+fi
+grep -q '"Epic Link"' services/release_gantt_service.py \
+  && grep -q 'RELEASE_GANTT_SERVICE_BUILD' services/release_gantt_service.py \
+  && echo "  OK  Milestone JQL uses Epic Link (not cf[10801])" \
+  || { echo "  NG  Epic Link milestone JQL missing — wrong REF_SHA?"; exit 1; }
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
 fetch backend/routers/model_status.py routers/model_status.py
 fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
