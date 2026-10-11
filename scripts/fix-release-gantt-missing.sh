@@ -50,6 +50,10 @@ grep -A1 '@cached(ttl=300)' services/release_gantt_service.py | grep -q 'async d
 grep -q 'epics = \[e for e in epics if e.get("milestones")\]' services/release_gantt_service.py \
   && echo "  OK  milestone-only epics filter" \
   || echo "  !!  milestone epic filter missing — REF 최신인지 확인"
+grep -q '_milestone_jql_for_epic' services/release_gantt_service.py \
+  && grep -q '"Epic Link"' services/release_gantt_service.py \
+  && echo "  OK  milestone Epic Link + fixVersion JQL" \
+  || echo "  !!  milestone JQL pipeline missing — REF fetch"
 grep -q '"status": _field_text(fields.get("status"))' services/release_gantt_service.py \
   && echo "  OK  milestone status in API" \
   || echo "  !!  milestone status field missing"

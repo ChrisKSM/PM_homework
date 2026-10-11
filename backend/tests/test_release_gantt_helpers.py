@@ -4,6 +4,8 @@ from services.release_gantt_service import (
     _epic_key_from_work_fields,
     _looks_like_epic,
     _looks_like_milestone,
+    _milestone_jql_for_epic,
+    _resolve_milestone_fix_version,
     _scope_initiative_keys,
 )
 
@@ -31,6 +33,18 @@ def test_looks_like_milestone():
 def test_scope_initiative_keys_returns_list_not_coroutine():
     """@cached on sync helper caused 'coroutine' object is not subscriptable in gantt."""
     keys = _scope_initiative_keys(["TVPLAT-1", "TVPLAT-2"], None, False)
-    assert keys == ["TVPLAT-1"]
+    assert keys == ["TVPLAT-1", "TVPLAT-2"]
     assert not asyncio.iscoroutine(keys)
-    assert _scope_initiative_keys(["A", "B"], None, True) == ["A", "B"]
+    assert _scope_initiative_keys(["A", "B"], "A", False) == ["A"]
+
+
+def test_milestone_jql_epic_link_and_fix_version():
+    jql = _milestone_jql_for_epic("TVPLAT-922544", "Audio_2025", "TVPLAT")
+    assert 'fixVersion = "Audio_2025"' in jql
+    assert '"Epic Link" = TVPLAT-922544' in jql
+    assert "Milestone" in jql
+
+
+def test_resolve_milestone_fix_version_from_initiative():
+    inits = [{"fields": {"fixVersions": [{"name": "Audio_2025"}]}}]
+    assert _resolve_milestone_fix_version(inits) == "Audio_2025"

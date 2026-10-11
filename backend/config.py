@@ -46,6 +46,9 @@ class Settings(BaseSettings):
     initiative_categorization_field: str = "customfield_35516"
     initiative_estimated_effort_field: str = "customfield_35454"
 
+    # 릴리즈 Gantt — Milestone JQL fixVersion (Initiative fixVersions 에 없을 때 fallback)
+    release_gantt_milestone_fix_version: str = "Audio_2025"
+
     # 조달 Request DoD (Story DoD customfield_18874 와 별도)
     procurement_dod_field: str = "customfield_10504"
 
