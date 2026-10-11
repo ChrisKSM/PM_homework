@@ -1,10 +1,10 @@
 #!/bin/sh
 # BE pod — Initiative Description Milestones → story-sp-kpi API
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/825b737/scripts/apply-be-story-sp-kpi.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/0bf92dc/scripts/apply-be-story-sp-kpi.sh" | sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-825b737}"
+REF_SHA="${REF_SHA:-0bf92dc}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
