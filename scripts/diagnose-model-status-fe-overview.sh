@@ -1,6 +1,7 @@
 #!/bin/sh
 # FE pod — 모델현황/전모델일정이 패치 후에도 안 바뀔 때 (소스 / build / 공용 URL / Mongo)
 #   sh scripts/diagnose-model-status-fe-overview.sh
+# script-version: 2026-10-11-v3
 set -e
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
@@ -10,6 +11,8 @@ FAIL=0
 ng() { echo "  NG  $1"; FAIL=1; }
 ok() { echo "  OK  $1"; }
 
+echo "diagnose-model-status-fe-overview.sh version: 2026-10-11-v3"
+echo ""
 echo "=== 1) 소스 (pod working tree) ==="
 if grep -q '2026-08-13' src/data/modelScheduleOverviewMock.ts 2>/dev/null; then
   ok "mock H7 SIT1 2026-08-13"
@@ -51,45 +54,38 @@ POD_MAIN=$(ls build/main.*.js 2>/dev/null | sed 's|.*/||' | head -1 || echo '?')
 if [ "$POD_BV" != "?" ] && [ "$REM_BV" = "$POD_BV" ]; then ok "build-version pod = shared"; else ng "build-version 불일치 — CI/Route에 pod build 미배포"; fi
 if [ -n "$POD_MAIN" ] && [ "$REM_MAIN" = "$POD_MAIN" ]; then ok "main.js pod = shared"; else ng "main.js 불일치 — 브라우저는 구 번들"; fi
 if [ "$REM_BV" != "$POD_BV" ] 2>/dev/null; then
-  echo "  → 조치: sh scripts/find-fe-deploy-url-candidates.sh 로 MATCH URL 접속"
-  echo "     또는 GitLab CI 배포로 공용 URL 갱신 (pod npm run build 만으로는 공용 URL 안 바뀜)"
+  echo "  → 공용 URL ≠ pod build (정상적인 workspace 구조)"
+  echo "  → 미리보기: sh scripts/preview-fe-build-in-pod.sh (포트 8888 포워드)"
+  echo "  → 공용 URL 갱신: GitLab tag release_1.0.xxx push → deploy job"
+fi
+
+echo ""
+echo "=== 3b) pod nginx가 build/ 를 serving 하는지 (선택) ==="
+if [ -n "$POD_BV" ] && [ "$POD_BV" != "?" ]; then
+  LOC_BV=$(curl -sf --connect-timeout 2 "http://127.0.0.1/build-version.txt" 2>/dev/null | tr -d '\n\r' || true)
+  LOC_MAIN=$(curl -sf --connect-timeout 2 "http://127.0.0.1/index.html" 2>/dev/null | grep -oE 'main\.[a-f0-9]+\.js' | head -1 || true)
+  if [ -n "$LOC_BV" ]; then
+    echo "  localhost build-version: $LOC_BV"
+    echo "  localhost main.js:       ${LOC_MAIN:-?}"
+    if [ "$LOC_BV" = "$POD_BV" ]; then ok "localhost = pod build (이 pod Route URL 쓰면 최신)"; else ng "localhost ≠ pod build/"; fi
+  else
+    echo "  (127.0.0.1:80 응답 없음 — preview-fe-build-in-pod.sh 사용)"
+  fi
 fi
 
 echo ""
 echo "=== 4) Mongo overview (loadOverview가 mock 대신 쓰는 데이터) ==="
-LOAD=$(curl -sf --connect-timeout 8 "$API_BASE/model-schedule/overview/load" 2>/dev/null || true)
-if [ -z "$LOAD" ]; then
-  ng "overview/load unreachable ($API_BASE) — BE/VPN 확인"
+if [ -x scripts/check-overview-mongo-h7.sh ]; then
+  API_BASE="$API_BASE" sh scripts/check-overview-mongo-h7.sh || ng "Mongo H7/H5 SIT1 check failed"
 else
-  echo "$LOAD" | python3 -c "
-import json, sys
-# BE spec 필드 등에 raw newline 이 있으면 strict JSON 파서가 실패 — 브라우저/axios 는 허용되는 경우 있음
-d = json.load(sys.stdin, strict=False)
-for model in ('H7_VI', 'H5'):
-    m = next((x for x in d.get('models', []) if x.get('model') == model), None)
-    if not m:
-        print('  NG ', model, 'not in mongo')
-        continue
-    sit1 = None
-    for e in m.get('events') or []:
-        if e.get('kind') != 'sw':
-            continue
-        n = (e.get('name') or '').replace(' ', '').upper()
-        if 'SIT' in n and ('1' in n or n.endswith('IT1')):
-            sit1 = (e.get('start'), e.get('end'))
-            break
-    if sit1 == ('2026-08-13', '2026-08-21'):
-        print('  OK ', model, 'SIT1', sit1[0], sit1[1])
-    else:
-        print('  NG ', model, 'SIT1 in mongo:', sit1, '(expect 2026-08-13 2026-08-21)')
-        print('       → SEED_OVERVIEW=1 로 fe 패치 또는 push-overview-seed-from-github.sh')
-"
+  ng "check-overview-mongo-h7.sh 없음 — diagnose 스크립트 GitHub v3 갱신"
 fi
 
 echo ""
 echo "=== 5) 요약 ==="
-echo "  · 일정 안 바뀜 → 대부분 (4) Mongo 구데이터 또는 (3) 구 FE 번들"
-echo "  · KPI 소수 → (3) 구 번들"
-echo "  · status 하얀 화면 → modelStatusDisabled + ErrorBoundary 번들 + Console 확인"
+echo "  · 화면 그대로 + 3번 NG → 브라우저가 react-audio.apps.axstudio.lge.com (구번들)"
+echo "  · pod build 확인 → preview 8888 또는 localhost(3b) MATCH"
+echo "  · 일정만 구버전 → 4번 NG 후: sh scripts/push-overview-seed-from-github.sh"
+echo "  · localStorage: model-schedule-overview-data 삭제"
 if [ "$FAIL" -ne 0 ]; then exit 1; fi
 echo "✅ 진단 통과"

@@ -53,9 +53,13 @@ fetch src/components/ErrorBoundary.tsx src/components/ErrorBoundary.tsx
 fetch scripts/verify-model-status-summary-fe-deployed.sh scripts/verify-model-status-summary-fe-deployed.sh
 fetch scripts/push-overview-seed-from-github.sh scripts/push-overview-seed-from-github.sh
 fetch scripts/diagnose-model-status-fe-overview.sh scripts/diagnose-model-status-fe-overview.sh
+fetch scripts/check-overview-mongo-h7.sh scripts/check-overview-mongo-h7.sh
+fetch scripts/preview-fe-build-in-pod.sh scripts/preview-fe-build-in-pod.sh
 chmod +x scripts/verify-model-status-summary-fe-deployed.sh
 chmod +x scripts/push-overview-seed-from-github.sh
 chmod +x scripts/diagnose-model-status-fe-overview.sh
+chmod +x scripts/check-overview-mongo-h7.sh
+chmod +x scripts/preview-fe-build-in-pod.sh
 
 grep -q buildOverviewEventsTimeline src/utils/modelStatusMilestones.ts && echo "OK  HW/SW overview timeline"
 grep -q ModelStatusOverviewEventTimeline src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK  summary dashboard wiring"
