@@ -9,8 +9,8 @@
     "PV": "2026/11/30",
     "MP": "2026/12/14",
     "HW Event": "PrePV",
-    "Start Date": "2026-08-13",
-    "End Date": "2026-08-21",
+    "Start Date": "2026-09-04",
+    "End Date": "2026-10-20",
     "SW Event": "S I T1"
   },
   {
@@ -23,8 +23,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV1",
-    "Start Date": "2026-09-11",
-    "End Date": "2026-09-18",
+    "Start Date": "2026-10-21",
+    "End Date": "2026-11-04",
     "SW Event": "S I T2"
   },
   {
@@ -37,8 +37,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV2",
-    "Start Date": "2026-09-29",
-    "End Date": "2026-10-08",
+    "Start Date": "2026-11-05",
+    "End Date": "2026-11-30",
     "SW Event": "S I T3"
   },
   {
@@ -51,8 +51,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "MP",
-    "Start Date": "2026-10-15",
-    "End Date": "2026-10-23",
+    "Start Date": "2026-12-14",
+    "End Date": "2026-12-14",
     "SW Event": "FC 1"
   },
   {
@@ -65,8 +65,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "ATS",
-    "Start Date": "2026-10-30",
-    "End Date": "2026-11-06",
+    "Start Date": "2027-02-08",
+    "End Date": "2027-02-08",
     "SW Event": "FC 2"
   },
   {
@@ -120,9 +120,9 @@
     "스펙": "300W, 3.1.3\n(7.1.5 Spatial Audio)\nDolby Atmos, DAFC",
     "PV": "2026/12/30",
     "MP": "2027/1/11",
-    "HW Event": "PrePV",
+    "HW Event": "-",
     "Start Date": "2026-10-21",
-    "End Date": "2026-10-28",
+    "End Date": "2026-11-25",
     "SW Event": "FC 1"
   },
   {
@@ -135,8 +135,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV1",
-    "Start Date": "2026-11-06",
-    "End Date": "2026-11-12",
+    "Start Date": "2026-10-21",
+    "End Date": "2026-11-25",
     "SW Event": "FC 2"
   },
   {
@@ -149,8 +149,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV2",
-    "Start Date": "2026-11-20",
-    "End Date": "2026-11-24",
+    "Start Date": "2026-11-26",
+    "End Date": "2026-12-30",
     "SW Event": "FC 3"
   },
   {
@@ -163,8 +163,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "MP",
-    "Start Date": "2026-12-03",
-    "End Date": "2026-12-11",
+    "Start Date": "2027-01-11",
+    "End Date": "2027-01-11",
     "SW Event": "QP 1"
   },
   {
@@ -177,8 +177,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "ATS",
-    "Start Date": "2026-12-21",
-    "End Date": "2026-12-23",
+    "Start Date": "2027-03-08",
+    "End Date": "2027-03-08",
     "SW Event": "QP 2"
   },
   {
@@ -191,8 +191,8 @@
     "PV": "2027/2/16",
     "MP": "2027/2/28",
     "HW Event": "PrePV",
-    "Start Date": "2026-10-12",
-    "End Date": "2026-10-16",
+    "Start Date": "2026-09-07",
+    "End Date": "2026-11-04",
     "SW Event": "SIT 1"
   },
   {
@@ -205,8 +205,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV1",
-    "Start Date": "2026-10-21",
-    "End Date": "2026-10-23",
+    "Start Date": "2026-11-05",
+    "End Date": "2026-12-14",
     "SW Event": "SIT 2"
   },
   {
@@ -219,8 +219,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV2",
-    "Start Date": "2026-11-02",
-    "End Date": "2026-11-10",
+    "Start Date": "2026-12-15",
+    "End Date": "2027-02-16",
     "SW Event": "FC 1"
   },
   {
@@ -233,8 +233,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "MP",
-    "Start Date": "2026-11-18",
-    "End Date": "2026-11-24",
+    "Start Date": "2027-02-28",
+    "End Date": "2027-02-28",
     "SW Event": "FC 2"
   },
   {
@@ -247,8 +247,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "ATS",
-    "Start Date": "2026-12-02",
-    "End Date": "2026-12-04",
+    "Start Date": "2027-04-25",
+    "End Date": "2027-04-25",
     "SW Event": "FC 3"
   },
   {
@@ -317,8 +317,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV1",
-    "Start Date": "2026-10-21",
-    "End Date": "2026-10-23",
+    "Start Date": "2026-11-05",
+    "End Date": "2026-12-14",
     "SW Event": "SIT 2"
   },
   {
@@ -331,8 +331,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV2",
-    "Start Date": "2026-11-02",
-    "End Date": "2026-11-10",
+    "Start Date": "2026-12-15",
+    "End Date": "2027-02-16",
     "SW Event": "FC 1"
   },
   {
@@ -345,8 +345,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "MP",
-    "Start Date": "2026-11-18",
-    "End Date": "2026-11-24",
+    "Start Date": "2027-02-28",
+    "End Date": "2027-02-28",
     "SW Event": "FC 2"
   },
   {
@@ -359,8 +359,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "ATS",
-    "Start Date": "2026-12-02",
-    "End Date": "2026-12-04",
+    "Start Date": "2027-04-25",
+    "End Date": "2027-04-25",
     "SW Event": "FC 3"
   },
   {
@@ -413,10 +413,10 @@
     "SW": "조용승",
     "스펙": "120W+120W\n서브우퍼",
     "PV": "2027/1/10",
-    "MP": "2027/2/28",
+    "MP": "2027/1/22",
     "HW Event": "PrePV",
-    "Start Date": "2026-10-12",
-    "End Date": "2026-10-16",
+    "Start Date": "2026-09-04",
+    "End Date": "2026-10-15",
     "SW Event": "Dev Test"
   },
   {
@@ -429,8 +429,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV1",
-    "Start Date": "2026-10-21",
-    "End Date": "2026-10-23",
+    "Start Date": "2026-10-16",
+    "End Date": "2026-12-04",
     "SW Event": "FC 1"
   },
   {
@@ -443,8 +443,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV2",
-    "Start Date": "2026-11-02",
-    "End Date": "2026-11-10",
+    "Start Date": "2026-12-05",
+    "End Date": "2027-01-10",
     "SW Event": "FC 2"
   },
   {
@@ -457,8 +457,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "MP",
-    "Start Date": "2026-11-18",
-    "End Date": "2026-11-24",
+    "Start Date": "2027-01-22",
+    "End Date": "2027-01-22",
     "SW Event": "QP 1"
   },
   {
@@ -471,8 +471,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "ATS",
-    "Start Date": "2026-12-02",
-    "End Date": "2026-12-04",
+    "Start Date": "2027-03-19",
+    "End Date": "2027-03-19",
     "SW Event": "QP 2"
   },
   {
@@ -723,8 +723,8 @@
     "PV": "2026/12/14",
     "MP": "2026/12/28",
     "HW Event": "PrePV",
-    "Start Date": "2026-08-25",
-    "End Date": "2026-09-02",
+    "Start Date": "2026-08-13",
+    "End Date": "2026-09-11",
     "SW Event": "Dev Test"
   },
   {
@@ -737,8 +737,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV1",
-    "Start Date": "2026-09-21",
-    "End Date": "2026-10-02",
+    "Start Date": "2026-09-12",
+    "End Date": "2026-11-09",
     "SW Event": "FC 1"
   },
   {
@@ -751,8 +751,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "PV2",
-    "Start Date": "2026-10-08",
-    "End Date": "2026-10-26",
+    "Start Date": "2026-11-10",
+    "End Date": "2026-12-14",
     "SW Event": "FC 2"
   },
   {
@@ -765,8 +765,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "MP",
-    "Start Date": "2026-11-24",
-    "End Date": "2026-12-01",
+    "Start Date": "2026-12-28",
+    "End Date": "2026-12-28",
     "SW Event": "QP 1"
   },
   {
@@ -779,8 +779,8 @@
     "PV": null,
     "MP": null,
     "HW Event": "ATS",
-    "Start Date": "2026-12-07",
-    "End Date": "2026-12-09",
+    "Start Date": "2027-02-22",
+    "End Date": "2027-02-22",
     "SW Event": "QP 2"
   },
   {

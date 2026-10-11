@@ -9,6 +9,8 @@ export interface PhaseSegment {
   start: Date
   end: Date
   label: string
+  /** 구간 길이 비율 (타임라인 flex) */
+  durationDays: number
 }
 
 export interface MilestoneTimeline {
@@ -16,12 +18,13 @@ export interface MilestoneTimeline {
   today: Date
   activePhase: MilestonePhase | null
   todayRatio: number
+  source: 'hw-overview' | 'mixed' | 'fallback'
 }
 
 function parseIso(s: string | undefined): Date | null {
   const t = String(s ?? '').trim().slice(0, 10)
   if (!t || t === '-' || t === 'NA') return null
-  const d = new Date(t)
+  const d = new Date(`${t}T12:00:00`)
   return Number.isNaN(d.getTime()) ? null : d
 }
 
@@ -37,18 +40,99 @@ function addDays(d: Date, n: number) {
   return r
 }
 
-function eventPhase(name: string): MilestonePhase | null {
-  const u = name.toUpperCase()
-  if (/\bFC\b|FC\s*\d|PREPV|PRE-PV/i.test(u)) return 'FC'
-  if (/\bPV\b|PREPV/i.test(u)) return 'PV'
-  if (/\bMP\b/.test(u)) return 'MP'
+function spanDays(start: Date, end: Date) {
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
+}
+
+function hwPhase(name: string): MilestonePhase | null {
+  const u = name.trim().toUpperCase()
+  if (u === 'PREPV' || u === 'PRE-PV') return 'FC'
+  if (u === 'PV1' || u === 'PV2' || u === 'PV') return 'PV'
+  if (u === 'MP') return 'MP'
   return null
 }
 
-/** overview + 검증 일정에서 FC / PV / MP 구간 추정 */
+function mergeSpan(a: { start: Date; end: Date } | null, s: Date, e: Date) {
+  if (!a) return { start: s, end: e }
+  return {
+    start: s < a.start ? s : a.start,
+    end: e > a.end ? e : a.end,
+  }
+}
+
+/** overview HW Event(PrePV/PV1/PV2/MP) → FC / PV / MP (전 모델 일정과 동일 소스) */
+export function buildHwEventTimeline(model: OverviewModel | null): MilestoneTimeline | null {
+  if (!model?.events?.length) return null
+  let fc: { start: Date; end: Date } | null = null
+  let pv: { start: Date; end: Date } | null = null
+  let mp: { start: Date; end: Date } | null = null
+
+  for (const ev of model.events) {
+    if (ev.kind !== 'hw') continue
+    const ph = hwPhase(ev.name)
+    if (!ph) continue
+    const s = parseIso(ev.start)
+    let e = parseIso(ev.end) ?? s
+    if (!s) continue
+    if (!e || e < s) e = s
+    if (ph === 'FC') fc = mergeSpan(fc, s, e)
+    if (ph === 'PV') pv = mergeSpan(pv, s, e)
+    if (ph === 'MP') mp = mergeSpan(mp, s, e)
+  }
+
+  const segments: PhaseSegment[] = []
+  if (fc) {
+    segments.push({
+      phase: 'FC',
+      start: fc.start,
+      end: fc.end,
+      label: 'FC',
+      durationDays: spanDays(fc.start, fc.end),
+    })
+  }
+  if (pv) {
+    segments.push({
+      phase: 'PV',
+      start: pv.start,
+      end: pv.end,
+      label: 'PV',
+      durationDays: spanDays(pv.start, pv.end),
+    })
+  }
+  if (mp) {
+    segments.push({
+      phase: 'MP',
+      start: mp.start,
+      end: mp.end,
+      label: 'MP',
+      durationDays: spanDays(mp.start, mp.end),
+    })
+  }
+  if (!segments.length) return null
+  return finalizeTimeline(segments, 'hw-overview')
+}
+
+function finalizeTimeline(segments: PhaseSegment[], source: MilestoneTimeline['source']): MilestoneTimeline {
+  const today = dayStart(new Date())
+  const rangeStart = segments[0].start.getTime()
+  const rangeEnd = segments[segments.length - 1].end.getTime()
+  const todayRatio = Math.min(1, Math.max(0, (today.getTime() - rangeStart) / (rangeEnd - rangeStart || 1)))
+  let activePhase: MilestonePhase | null = null
+  for (const seg of segments) {
+    if (today >= seg.start && today <= seg.end) activePhase = seg.phase
+  }
+  return { segments, today, activePhase, todayRatio, source }
+}
+
+/** @deprecated 검증 일정 혼합 — 모델현황 바는 buildHwEventTimeline 우선 */
 export function buildMilestoneTimeline(model: OverviewModel | null, verificationRows: ModelRow[]): MilestoneTimeline {
+  const hw = buildHwEventTimeline(model)
+  if (hw) return hw
+
   const today = dayStart(new Date())
   const segments: PhaseSegment[] = []
+  const code = model?.model ?? ''
+  const vRows = verificationRows.filter((r) => canonicalModelName(r.model) === canonicalModelName(code))
 
   let fcStart: Date | null = null
   let fcEnd: Date | null = null
@@ -57,43 +141,10 @@ export function buildMilestoneTimeline(model: OverviewModel | null, verification
   let mpStart: Date | null = null
   let mpEnd: Date | null = null
 
-  if (model) {
-    for (const ev of model.events ?? []) {
-      const ph = eventPhase(ev.name) ?? (ev.barType === 'fc' ? 'FC' : ev.barType === 'pv' ? 'PV' : ev.barType === 'mp' ? 'MP' : null)
-      if (!ph) continue
-      const s = parseIso(ev.start)
-      const e = parseIso(ev.end) ?? s
-      if (!s) continue
-      if (ph === 'FC') {
-        fcStart = fcStart ? (s < fcStart ? s : fcStart) : s
-        fcEnd = fcEnd ? (e > fcEnd ? e : fcEnd) : e ?? s
-      }
-      if (ph === 'PV') {
-        pvStart = pvStart ? (s < pvStart ? s : pvStart) : s
-        pvEnd = pvEnd ? (e > pvEnd ? e : pvEnd) : e ?? s
-      }
-      if (ph === 'MP') {
-        mpStart = mpStart ? (s < mpStart ? s : mpStart) : s
-        mpEnd = mpEnd ? (e > mpEnd ? e : mpEnd) : e ?? s
-      }
-    }
-    const pv = parseIso(model.pv)
-    const mp = parseIso(model.mp)
-    if (pv && !pvStart) {
-      pvStart = pv
-      pvEnd = addDays(pv, 14)
-    }
-    if (mp && !mpStart) {
-      mpStart = mp
-      mpEnd = addDays(mp, 30)
-    }
-  }
-
-  const code = model?.model ?? ''
-  const vRows = verificationRows.filter((r) => canonicalModelName(r.model) === canonicalModelName(code))
   for (const r of vRows) {
     for (const b of r.bars ?? []) {
-      const ph = eventPhase(b.label ?? '') ?? eventPhase(r.event)
+      const lab = (b.label ?? r.event ?? '').toUpperCase()
+      const ph = hwPhase(lab) ?? (/\bFC\b/.test(lab) ? 'FC' : /\bPV\b/.test(lab) ? 'PV' : /\bMP\b/.test(lab) ? 'MP' : null)
       if (!ph) continue
       const s = parseIso(b.start)
       const e = parseIso(b.end) ?? s
@@ -114,44 +165,36 @@ export function buildMilestoneTimeline(model: OverviewModel | null, verification
   }
 
   if (fcStart && fcEnd) {
-    segments.push({ phase: 'FC', start: fcStart, end: fcEnd, label: 'FC' })
-  } else if (!segments.length) {
-    const base = addDays(today, -30)
-    segments.push({ phase: 'FC', start: base, end: addDays(base, 60), label: 'FC (예정)' })
+    segments.push({ phase: 'FC', start: fcStart, end: fcEnd, label: 'FC', durationDays: spanDays(fcStart, fcEnd) })
   }
   if (pvStart && pvEnd) {
-    segments.push({ phase: 'PV', start: pvStart, end: pvEnd, label: 'PV' })
-  } else {
-    const last = segments[segments.length - 1]
-    segments.push({
-      phase: 'PV',
-      start: last ? addDays(last.end, 1) : addDays(today, 30),
-      end: last ? addDays(last.end, 45) : addDays(today, 75),
-      label: 'PV',
-    })
+    segments.push({ phase: 'PV', start: pvStart, end: pvEnd, label: 'PV', durationDays: spanDays(pvStart, pvEnd) })
   }
   if (mpStart && mpEnd) {
-    segments.push({ phase: 'MP', start: mpStart, end: mpEnd, label: 'MP' })
-  } else {
+    segments.push({ phase: 'MP', start: mpStart, end: mpEnd, label: 'MP', durationDays: spanDays(mpStart, mpEnd) })
+  }
+
+  if (!segments.length) {
+    const base = addDays(today, -30)
+    segments.push(
+      { phase: 'FC', start: base, end: addDays(base, 60), label: 'FC (예정)', durationDays: 61 },
+      { phase: 'PV', start: addDays(base, 61), end: addDays(base, 105), label: 'PV', durationDays: 45 },
+      { phase: 'MP', start: addDays(base, 106), end: addDays(base, 226), label: 'MP', durationDays: 121 },
+    )
+    return finalizeTimeline(segments, 'fallback')
+  }
+  while (segments.length < 3) {
     const last = segments[segments.length - 1]
+    const nextPhase = segments.length === 1 ? 'PV' : 'MP'
     segments.push({
-      phase: 'MP',
-      start: last ? addDays(last.end, 1) : addDays(today, 90),
-      end: last ? addDays(last.end, 120) : addDays(today, 180),
-      label: 'MP',
+      phase: nextPhase,
+      start: addDays(last.end, 1),
+      end: addDays(last.end, 30),
+      label: nextPhase,
+      durationDays: 30,
     })
   }
-
-  const rangeStart = segments[0].start.getTime()
-  const rangeEnd = segments[segments.length - 1].end.getTime()
-  const todayRatio = Math.min(1, Math.max(0, (today.getTime() - rangeStart) / (rangeEnd - rangeStart || 1)))
-
-  let activePhase: MilestonePhase | null = null
-  for (const seg of segments) {
-    if (today >= seg.start && today <= seg.end) activePhase = seg.phase
-  }
-
-  return { segments, today, activePhase, todayRatio }
+  return finalizeTimeline(segments, 'mixed')
 }
 
 export type SignalTone = 'green' | 'amber' | 'red'
@@ -173,7 +216,6 @@ export function verificationIssueCounts(model: OverviewModel | null, verificatio
   const code = model?.model ?? ''
   const rows = verificationRows.filter((r) => canonicalModelName(r.model) === canonicalModelName(code))
   const open = rows.filter((r) => r.status === 'NG' || r.status === '지연' || r.status === '진행중').length
-  const total = rows.length || 1
   const closed = rows.filter((r) => r.status === '완료' || r.status === '검증제외').length
   return { open, closed, total: rows.length, prdClosed: closed, prdTotal: Math.max(rows.length, 4) }
 }

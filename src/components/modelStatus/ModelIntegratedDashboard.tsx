@@ -10,9 +10,13 @@ import ModelStatusReleaseEpicGantt from './ModelStatusReleaseEpicGantt'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
   MODEL_STATUS_TABS,
+  isModelStatusModelDisabled,
   type ModelStatusProductGroupId,
   type ModelStatusTabId,
 } from '../../data/modelStatusCatalog'
+import { useModelStatusReleaseGantt } from '../../hooks/useModelStatusReleaseGantt'
+import { computeReleaseGanttKpis } from '../../utils/releaseGanttKpi'
+import { MODEL_INITIATIVE_JIRA_MODELS } from '../../api/modelStatusApi'
 import type { OverviewModel } from '../../types/modelScheduleOverview'
 import type { ModelRow } from '../../utils/modelScheduleRows'
 import { canonicalModelName } from '../../utils/modelScheduleRows'
@@ -45,17 +49,23 @@ function phaseColor(phase: string) {
   return 'from-orange-500 to-orange-600'
 }
 
+const OVERVIEW_MODEL_ALIASES: Record<string, string> = {
+  SB_CH: 'CB-SH',
+  CB_SH: 'CB-SH',
+}
+
 function resolveOverviewModel(models: OverviewModel[], groupId: ModelStatusProductGroupId, modelCode: string) {
   const group = MODEL_STATUS_PRODUCT_GROUPS.find((g) => g.id === groupId)
   const cat = group?.overviewCategory
   const norm = canonicalModelName(modelCode)
+  const dataKey = OVERVIEW_MODEL_ALIASES[norm] ?? norm
   return (
     models.find(
       (m) =>
-        canonicalModelName(m.model) === norm &&
+        canonicalModelName(m.model) === dataKey &&
         (!cat || normalizeOverviewCategory(m.category) === cat || m.category === cat),
     ) ??
-    models.find((m) => canonicalModelName(m.model) === norm) ??
+    models.find((m) => canonicalModelName(m.model) === dataKey) ??
     null
   )
 }
@@ -112,9 +122,18 @@ export default function ModelIntegratedDashboard({
     [overviewModels, productGroupId, modelCode],
   )
 
+  const { data: releaseGanttData } = useModelStatusReleaseGantt(
+    modelCode,
+    MODEL_INITIATIVE_JIRA_MODELS.has(canonicalModelName(modelCode)),
+  )
+
   const timeline = useMemo(
     () => buildMilestoneTimeline(overview, verificationRows),
     [overview, verificationRows],
+  )
+  const timelineFlexTotal = useMemo(
+    () => timeline.segments.reduce((acc, s) => acc + (s.durationDays || 1), 0),
+    [timeline.segments],
   )
   const signal = useMemo(
     () => overallSignal(overview, verificationRows, timeline),
@@ -122,12 +141,18 @@ export default function ModelIntegratedDashboard({
   )
   const issues = useMemo(() => verificationIssueCounts(overview, verificationRows), [overview, verificationRows])
 
-  const milestoneDone = timeline.segments.filter((s) => timeline.today > s.end).length
-  const milestoneTotal = timeline.segments.length
-  const schedulePct = Math.round((milestoneDone / milestoneTotal) * 100)
-  const spDone = issues.closed * 10 + 20
-  const spTotal = Math.max(issues.total * 10, 424)
-  const spPct = Math.min(100, Math.round((spDone / spTotal) * 1000) / 10)
+  const releaseKpi = useMemo(() => {
+    if (!releaseGanttData?.gantt || releaseGanttData.source !== 'jira') return null
+    return computeReleaseGanttKpis(releaseGanttData.gantt)
+  }, [releaseGanttData])
+
+  const schedulePct = releaseKpi?.kpi2Pct ?? 0
+  const scheduleSub =
+    releaseKpi?.kpi2Sub ?? '릴리즈 · Epic 탭 Jira Milestone (모델 미연동)'
+  const spPct = releaseKpi?.kpi1Pct ?? 0
+  const spSub =
+    releaseKpi?.kpi1Sub ??
+    '릴리즈 · Epic SP 경과율 (2026 SP01~26 캘린더 — Story Point 합산 아님)'
 
   const showJiraManager = modelCode === 'S80C'
 
@@ -153,21 +178,29 @@ export default function ModelIntegratedDashboard({
           ))}
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {modelList.map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => onModelChange(m)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-[11px] font-medium border',
-                modelCode === m
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white text-gray-700 border-gray-200 hover:border-blue-200',
-              )}
-            >
-              {m.replace(/_/g, ' ')}
-            </button>
-          ))}
+          {modelList.map((m) => {
+            const disabled = isModelStatusModelDisabled(m)
+            return (
+              <button
+                key={m}
+                type="button"
+                disabled={disabled}
+                onClick={() => !disabled && onModelChange(m)}
+                className={clsx(
+                  'px-3 py-1.5 rounded-lg text-[11px] font-medium border',
+                  disabled &&
+                    'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-60',
+                  !disabled &&
+                    (modelCode === m
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-200 hover:border-blue-200'),
+                )}
+                title={disabled ? '준비 중 — 추후 활성화' : undefined}
+              >
+                {m.replace(/_/g, ' ')}
+              </button>
+            )
+          })}
           {!modelList.length && (
             <span className="text-xs text-gray-400 py-1">등록된 모델 없음 (overview seed 확인)</span>
           )}
@@ -180,10 +213,12 @@ export default function ModelIntegratedDashboard({
             <div
               key={seg.phase}
               className={clsx(
-                'flex-1 flex flex-col justify-center px-3 text-white bg-gradient-to-r relative',
+                'flex flex-col justify-center px-3 text-white bg-gradient-to-r relative min-w-[72px]',
                 phaseColor(seg.phase),
               )}
               style={{
+                flex: `${seg.durationDays || 1} 1 0`,
+                maxWidth: `${Math.round(((seg.durationDays || 1) / timelineFlexTotal) * 100)}%`,
                 clipPath: seg.phase === 'MP' ? undefined : 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)',
               }}
             >
@@ -200,7 +235,10 @@ export default function ModelIntegratedDashboard({
           title="오늘"
         />
         <p className="text-[10px] text-gray-500 mt-2">
-          현재 단계: <b>{timeline.activePhase ?? '—'}</b> · HW/SW Event는 overview · 검증 일정 바 라벨(FC/PV/MP) 반영
+          현재 단계: <b>{timeline.activePhase ?? '—'}</b> ·{' '}
+          {timeline.source === 'hw-overview'
+            ? '전 모델 일정 HW Event(PrePV→FC, PV1·PV2→PV, MP) · 구간 너비=기간 비율'
+            : 'overview · 검증 일정 fallback'}
         </p>
       </div>
 
@@ -212,19 +250,23 @@ export default function ModelIntegratedDashboard({
         </div>
         <KpiCard
           label="KPI-2 일정 준수율"
-          value={`${schedulePct}% ▶`}
-          sub={`마일스톤 ${milestoneDone}/${milestoneTotal} 정시`}
+          value={`${schedulePct}%`}
+          sub={scheduleSub}
           tone={schedulePct >= 90 ? 'success' : 'warning'}
           icon={<Target size={16} />}
-          trend={{ value: 5, label: '추세 일정 유지' }}
+          trend={releaseKpi ? { value: 0, label: '릴리즈 · Epic Milestone' } : undefined}
         />
         <KpiCard
           label="KPI-1 작업 완료율"
-          value={`${spPct}% ▲`}
-          sub={`${spDone}/${spTotal} SP`}
+          value={`${spPct}%`}
+          sub={spSub}
           tone={spPct >= 95 ? 'success' : 'info'}
           icon={<TrendingUp size={16} />}
-          trend={{ value: 8, label: '목표 ≥95%' }}
+          trend={
+            releaseKpi
+              ? { value: 0, label: 'SP 경과=2026 릴리즈 캘린더 종료 SP 비율' }
+              : undefined
+          }
         />
         <KpiCard
           label="요구사항 진척 (PRD)"

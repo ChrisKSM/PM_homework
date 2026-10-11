@@ -6,6 +6,7 @@ import { modelScheduleApi } from '../api/modelScheduleApi'
 import { OVERVIEW_MOCK_MODELS } from '../data/modelScheduleOverviewMock'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
+  isModelStatusModelDisabled,
   type ModelStatusProductGroupId,
   type ModelStatusTabId,
 } from '../data/modelStatusCatalog'
@@ -62,15 +63,19 @@ export default function ModelScheduleStatusPage() {
     const list = group.models.length
       ? group.models
       : overviewModels.filter((m) => m.category.includes(group.label)).map((m) => m.model)
-    if (list.length && !list.includes(modelCode)) {
-      setModelCode(list[0])
+    const enabled = list.filter((m) => !isModelStatusModelDisabled(m))
+    const pick = enabled[0] ?? list[0]
+    if (pick && (!list.includes(modelCode) || isModelStatusModelDisabled(modelCode))) {
+      setModelCode(pick)
     }
   }, [group, modelCode, overviewModels])
 
   const handleProductGroupChange = (id: ModelStatusProductGroupId) => {
     setProductGroupId(id)
     const g = MODEL_STATUS_PRODUCT_GROUPS.find((x) => x.id === id)!
-    if (g.models[0]) setModelCode(g.models[0])
+    const enabled = g.models.filter((m) => !isModelStatusModelDisabled(m))
+    if (enabled[0]) setModelCode(enabled[0])
+    else if (g.models[0]) setModelCode(g.models[0])
   }
 
   return (

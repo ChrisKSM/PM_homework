@@ -15,6 +15,13 @@ export interface ModelStatusProductGroup {
   models: string[]
 }
 
+/** 모델현황에서 선택 비활성 (gray) — 추후 활성화 */
+export const MODEL_STATUS_DISABLED_MODELS = new Set<string>(['H5', 'M5_VI'])
+
+export function isModelStatusModelDisabled(modelCode: string): boolean {
+  return MODEL_STATUS_DISABLED_MODELS.has(modelCode.trim().toUpperCase().replace(/-/g, '_'))
+}
+
 export const MODEL_STATUS_PRODUCT_GROUPS: ModelStatusProductGroup[] = [
   {
     id: 'sound-suite',
@@ -32,7 +39,7 @@ export const MODEL_STATUS_PRODUCT_GROUPS: ModelStatusProductGroup[] = [
     id: 'bt-soundbar',
     label: 'BT Soundbar',
     overviewCategory: '사운드바(BT)',
-    models: ['S80C', 'SB_CH'],
+    models: ['S80C', 'CB-SH'],
   },
   {
     id: 'party-speaker',
