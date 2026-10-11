@@ -57,4 +57,5 @@ $PY -c "from services.release_sprint_calendar_2026 import calendar_payload; asse
 echo ""
 echo "=== Done — restart ==="
 echo "  sh scripts/restart-be-route-port.sh"
-echo "  curl -s 'http://127.0.0.1:8000/api/model-status/release/gantt?model=H7_VI&label=SoundSuite_H7(VI)' | python3 -m json.tool | head -40"
+echo "  sh scripts/verify-release-gantt-be.sh"
+echo "  curl -sG 'http://127.0.0.1:8000/api/model-status/release/gantt' --data-urlencode 'model=H7_VI' --data-urlencode 'label=SoundSuite_H7(VI)' | python3 -m json.tool | head -40"

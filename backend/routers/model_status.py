@@ -135,6 +135,26 @@ async def release_calendar():
     return calendar_payload()
 
 
+@router.get("/release/gantt/ping")
+async def release_gantt_ping():
+    """배포 확인 — TV Jira 호출 없음. 응답에 meta 가 있으면 release_gantt BE 파일·라우트 정상."""
+    svc = _release_gantt_service()
+    cal = svc.get_release_calendar()
+    return {
+        "ok": True,
+        "meta": {
+            "ping": True,
+            "errors": [],
+            "epicCount": 0,
+            "milestoneCount": 0,
+            "sprintMax": cal.get("sprintMax"),
+        },
+        "calendar": cal,
+        "epics": [],
+        "milestones": [],
+    }
+
+
 @router.get("/release/discover")
 async def release_discover(
     model: str | None = Query(None, description="UI model code e.g. H7_VI"),
