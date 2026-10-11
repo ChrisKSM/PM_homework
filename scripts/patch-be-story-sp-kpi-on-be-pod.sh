@@ -24,9 +24,32 @@ else
 fi
 require_be_pod "$ROOT"
 
+fetch_one() {
+  url="$1"
+  out="$2"
+  if curl -fsSL -H "Cache-Control: no-cache" --connect-timeout 15 "$url" -o "$out"; then
+    return 0
+  fi
+  return 1
+}
+
 fetch() {
-  curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"
-  echo "  + $2"
+  rel="$1"
+  out="$2"
+  for base in \
+    "$BASE" \
+    "https://cdn.jsdelivr.net/gh/ChrisKSM/PM_homework@d98e756" \
+    "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b" \
+    "https://raw.githubusercontent.com/ChrisKSM/PM_homework/d98e756"; do
+    if fetch_one "$base/$rel" "$out"; then
+      echo "  + $out  (← $base)"
+      return 0
+    fi
+  done
+  echo "NG: fetch failed $rel (GitHub raw 404/차단?)"
+  echo "    → BE pod에서: sh scripts/patch-be-story-sp-kpi-standalone.sh"
+  echo "    → 또는 GitHub에서 scripts/patch-be-story-sp-kpi-standalone.sh 를 scp 후 실행"
+  exit 1
 }
 
 echo "=== patch-be-story-sp-kpi-on-be-pod (${REF_SHA}) hostname=$(hostname) ==="
