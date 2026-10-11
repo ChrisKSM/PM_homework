@@ -99,12 +99,19 @@ class TvJiraClient:
     def __init__(self) -> None:
         self.base_url = settings.tvjira_base_url.rstrip("/")
 
-    async def get_issue(self, issue_key: str, fields: list[str] | None = None) -> dict:
+    async def get_issue(
+        self,
+        issue_key: str,
+        fields: list[str] | None = None,
+        expand: str | None = None,
+    ) -> dict:
         key = issue_key.strip()
         url = f"{self.base_url}/rest/api/2/issue/{key}"
         params: dict[str, Any] = {}
         if fields:
             params["fields"] = ",".join(fields)
+        if expand:
+            params["expand"] = expand
         token = resolve_tvjira_token()
         async with _make_authed_client(token, settings.tvjira_verify_ssl) as client:
             resp = await client.get(url, params=params)
@@ -132,8 +139,12 @@ class TvJiraClient:
             return resp.json()
 
 
-async def tvjira_get_issue(issue_key: str, fields: list[str]) -> dict:
-    return await TvJiraClient().get_issue(issue_key, fields)
+async def tvjira_get_issue(
+    issue_key: str,
+    fields: list[str],
+    expand: str | None = None,
+) -> dict:
+    return await TvJiraClient().get_issue(issue_key, fields, expand=expand)
 
 
 async def tvjira_search_all(jql: str, fields: list[str]) -> list[dict]:

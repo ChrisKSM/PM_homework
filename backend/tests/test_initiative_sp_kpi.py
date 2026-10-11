@@ -1,4 +1,7 @@
-from services.initiative_sp_kpi_service import parse_milestone_table_from_description
+from services.initiative_sp_kpi_service import (
+    normalize_jira_description,
+    parse_milestone_table_from_description,
+)
 
 SAMPLE_TABLE = """
 Milestones
@@ -24,3 +27,19 @@ def test_parse_milestone_table_expected_sp_sum():
 
 def test_parse_empty():
     assert parse_milestone_table_from_description("") == (0.0, [])
+
+
+WIKI_TABLE = """
+h2. Milestones
+||Milestone||내용||Target Sprint||Due date||예상 SP||완료 여부||
+|M1|LGSE 8.4 라이브러리|2026_IR3SP14|2026-07-16|25||
+|M2|audio_server|2026_IR3SP15|2026-07-30|30||
+"""
+
+
+def test_parse_jira_wiki_table():
+    text, src = normalize_jira_description(WIKI_TABLE)
+    assert src == "wiki"
+    total, rows = parse_milestone_table_from_description(text)
+    assert total == 55.0
+    assert rows[0]["plannedSp"] == 25

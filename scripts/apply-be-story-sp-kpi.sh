@@ -17,6 +17,7 @@ fetch() {
 echo "=== apply-be-story-sp-kpi (${REF_SHA}) ==="
 mkdir -p services routers
 fetch backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
+fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/routers/model_status.py routers/model_status.py
 
 grep -q 'story-sp-kpi' routers/model_status.py || { echo "NG router missing story-sp-kpi"; exit 1; }
