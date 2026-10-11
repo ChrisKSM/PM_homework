@@ -12,8 +12,16 @@
 #
 set -e
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
-BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
+# CDN stale 방지 — 커밋 핀: REF_SHA=abc1234 또는 최신 브랜치
+REF_SHA="${REF_SHA:-$REF}"
+BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
+PATCH_BUNDLE="2026-03-11-release-gantt-3"
+
+raw_fetch() {
+  # shellcheck disable=SC2086
+  curl -fsSL -H "Cache-Control: no-cache" -H "Pragma: no-cache" "$1" -o "$2"
+}
 
 run_fe() {
   cd "$ROOT"
@@ -25,10 +33,24 @@ run_fe() {
 
 run_be() {
   cd "$ROOT"
+  echo "=== BE patch bundle $PATCH_BUNDLE (ref $REF_SHA) ==="
   mkdir -p scripts services routers
-  curl -fsSL "$BASE/scripts/fix-release-gantt-missing.sh" -o scripts/fix-release-gantt-missing.sh
+  raw_fetch "$BASE/scripts/fix-release-gantt-missing.sh" scripts/fix-release-gantt-missing.sh
   chmod +x scripts/fix-release-gantt-missing.sh
-  REF="$REF" sh scripts/fix-release-gantt-missing.sh
+  REF="$REF" REF_SHA="$REF_SHA" sh scripts/fix-release-gantt-missing.sh
+
+  echo ""
+  echo "=== helper scripts (direct fetch — fix 스크립트 CDN 구버전 대비) ==="
+  for helper in diagnose-release-gantt-jira.sh verify-release-gantt-be.sh; do
+    raw_fetch "$BASE/scripts/$helper" "scripts/$helper"
+    chmod +x "scripts/$helper"
+    echo "  + scripts/$helper"
+  done
+  test -f scripts/diagnose-release-gantt-jira.sh || {
+    echo "NG  scripts/diagnose-release-gantt-jira.sh download failed"
+    exit 1
+  }
+
   if [ -x scripts/restart-be-route-port.sh ]; then
     sh scripts/restart-be-route-port.sh
   else

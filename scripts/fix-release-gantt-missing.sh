@@ -7,13 +7,14 @@
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
-BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
+REF_SHA="${REF_SHA:-$REF}"
+BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 
-echo "=== fix release gantt services (ref $REF) ==="
+echo "=== fix release gantt services (ref $REF_SHA) bundle v2026-03-11.2 ==="
 mkdir -p services routers scripts
 
 fetch() {
-  curl -fsSL "$BASE/$1" -o "$2"
+  curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"
   echo "  + $2"
 }
 
