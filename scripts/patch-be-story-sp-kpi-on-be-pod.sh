@@ -69,15 +69,9 @@ grep -q normalize_jira_description services/initiative_sp_kpi_service.py
 grep -q consumptionPct services/initiative_sp_kpi_service.py || echo "  warn: old service ref — bump REF_SHA"
 
 export PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}"
-PY="python3"
-command -v uv >/dev/null 2>&1 && PY="uv run --frozen python"
-$PY -c "
-from services.initiative_sp_kpi_service import parse_milestone_table_from_description
-t,r=parse_milestone_table_from_description('마일스톤\t산출물\t예상 SP\nM1\tdeliver\t25')
-assert t==25.0, t
-import main
-print('  OK  import main + korean header parse')
-"
+fetch scripts/verify-story-sp-kpi-import.py scripts/verify-story-sp-kpi-import.py
+chmod +x scripts/verify-story-sp-kpi-import.py 2>/dev/null || true
+python3 scripts/verify-story-sp-kpi-import.py
 
 if [ -x scripts/restart-be-route-port.sh ]; then
   sh scripts/restart-be-route-port.sh
