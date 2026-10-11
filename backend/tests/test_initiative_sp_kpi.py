@@ -53,6 +53,21 @@ M3	DNN 적용	CPU OK	owner	BSP	2026_IR4SP16	40	5	시작전
 """
 
 
+HTML_TABLE = """
+<table>
+<tr><th>마일스톤</th><th>산출물</th><th>예상 SP</th></tr>
+<tr><td>M1</td><td>deliver</td><td>25</td></tr>
+<tr><td>M2</td><td>next</td><td>30</td></tr>
+</table>
+"""
+
+
+def test_parse_html_table():
+    total, rows = parse_milestone_table_from_description(HTML_TABLE)
+    assert total == 55.0
+    assert len(rows) == 2
+
+
 def test_parse_korean_milestone_table():
     total, rows = parse_milestone_table_from_description(KOREAN_HEADER_TABLE)
     assert total == 95.0
