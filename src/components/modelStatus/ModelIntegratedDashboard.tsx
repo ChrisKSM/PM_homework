@@ -137,7 +137,10 @@ export default function ModelIntegratedDashboard({
   const scheduleSub =
     releaseKpi?.kpi2Sub ?? '릴리즈 · Epic 탭 Jira Milestone (모델 미연동)'
   const consumptionPct = storySpKpi?.consumptionPct
-  const spPct = consumptionPct ?? 0
+  const spPctLabel =
+    consumptionPct != null && Number.isFinite(consumptionPct)
+      ? `${(Math.round(consumptionPct * 10) / 10).toFixed(1)}%`
+      : '—'
   const effectiveConsumed =
     storySpKpi?.effectiveSpConsumed ?? storySpKpi?.storySpConsumed ?? storySpKpi?.storySpTotal
   const consumedSourceLabel =
@@ -236,9 +239,13 @@ export default function ModelIntegratedDashboard({
         />
         <KpiCard
           label="KPI-1 SP 소진율"
-          value={consumptionPct != null ? `${spPct}%` : '—'}
+          value={spPctLabel}
           sub={spSub}
-          tone={consumptionPct != null && spPct >= 95 ? 'success' : 'info'}
+          tone={
+            consumptionPct != null && Number.isFinite(consumptionPct) && consumptionPct >= 95
+              ? 'success'
+              : 'info'
+          }
           icon={<TrendingUp size={16} />}
           trend={
             storySpKpi
