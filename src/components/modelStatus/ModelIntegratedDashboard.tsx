@@ -11,10 +11,10 @@ import ModelStatusOverviewEventTimeline from './ModelStatusOverviewEventTimeline
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
   MODEL_STATUS_TABS,
-  isModelStatusModelDisabled,
   type ModelStatusProductGroupId,
   type ModelStatusTabId,
 } from '../../data/modelStatusCatalog'
+import { isModelStatusModelDisabled } from '../../utils/modelStatusDisabled'
 import { useModelStatusReleaseGantt } from '../../hooks/useModelStatusReleaseGantt'
 import { useModelStatusStorySpKpi } from '../../hooks/useModelStatusStorySpKpi'
 import { computeReleaseGanttKpis } from '../../utils/releaseGanttKpi'

@@ -15,12 +15,10 @@ export interface ModelStatusProductGroup {
   models: string[]
 }
 
-/** 모델현황에서 선택 비활성 (gray) — 추후 활성화 */
-export const MODEL_STATUS_DISABLED_MODELS = new Set<string>(['H5', 'M5_VI'])
-
-export function isModelStatusModelDisabled(modelCode: string): boolean {
-  return MODEL_STATUS_DISABLED_MODELS.has(modelCode.trim().toUpperCase().replace(/-/g, '_'))
-}
+export {
+  MODEL_STATUS_DISABLED_MODELS,
+  isModelStatusModelDisabled,
+} from '../utils/modelStatusDisabled'
 
 export const MODEL_STATUS_PRODUCT_GROUPS: ModelStatusProductGroup[] = [
   {

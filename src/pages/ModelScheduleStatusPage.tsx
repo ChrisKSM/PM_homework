@@ -6,10 +6,10 @@ import { modelScheduleApi } from '../api/modelScheduleApi'
 import { OVERVIEW_MOCK_MODELS } from '../data/modelScheduleOverviewMock'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
-  isModelStatusModelDisabled,
   type ModelStatusProductGroupId,
   type ModelStatusTabId,
 } from '../data/modelStatusCatalog'
+import { isModelStatusModelDisabled } from '../utils/modelStatusDisabled'
 import type { OverviewModel } from '../types/modelScheduleOverview'
 import type { ModelRow } from '../utils/modelScheduleRows'
 import { prepareOverviewModels } from '../utils/modelScheduleOverviewRows'

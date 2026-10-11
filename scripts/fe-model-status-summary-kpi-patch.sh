@@ -14,7 +14,7 @@ if [ ! -f package.json ] || [ ! -d src ]; then
   exit 1
 fi
 
-mkdir -p scripts src/data src/utils src/types src/hooks src/api src/components/modelStatus
+mkdir -p scripts src/data src/utils src/types src/hooks src/api src/components/modelStatus src/pages
 
 fetch() {
   if ! curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"; then
@@ -37,6 +37,8 @@ fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/utils/releaseGanttKpi.ts src/utils/releaseGanttKpi.ts
 fetch src/utils/modelScheduleOverviewRows.ts src/utils/modelScheduleOverviewRows.ts
 fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
+fetch src/utils/modelStatusDisabled.ts src/utils/modelStatusDisabled.ts
+fetch src/pages/ModelScheduleStatusPage.tsx src/pages/ModelScheduleStatusPage.tsx
 
 fetch scripts/verify-model-status-summary-fe-deployed.sh scripts/verify-model-status-summary-fe-deployed.sh
 chmod +x scripts/verify-model-status-summary-fe-deployed.sh
@@ -45,9 +47,14 @@ grep -q buildOverviewEventsTimeline src/utils/modelStatusMilestones.ts && echo "
 grep -q ModelStatusOverviewEventTimeline src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK  summary dashboard wiring"
 grep -q getStorySpKpi src/api/modelStatusApi.ts && echo "OK  story-sp-kpi API client"
 grep -q SP26 src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx && echo "OK  release tab SP26 label (not summary KPI-1)"
-grep -q isModelStatusModelDisabled src/data/modelStatusCatalog.ts && echo "OK  modelStatusCatalog exports"
+grep -q isModelStatusModelDisabled src/utils/modelStatusDisabled.ts && echo "OK  modelStatusDisabled util"
+grep -q modelStatusDisabled src/pages/ModelScheduleStatusPage.tsx && echo "OK  status page imports util"
 
-npm run build
+npm run build 2>&1 | tee /tmp/fe-summary-build.log
+if grep -q "isModelStatusModelDisabled" /tmp/fe-summary-build.log; then
+  echo "NG: webpack export warning — modelStatusCatalog.ts 와 utils/modelStatusDisabled.ts 를 함께 반영했는지 확인" >&2
+  exit 1
+fi
 
 echo ""
 echo "=== FE build done ==="
