@@ -2,9 +2,9 @@
 # BE pod — story-sp-kpi 파서만 갱신 (routers/model_status.py 는 건드리지 않음)
 # 로컬 router 수정이 있거나 git checkout 불가할 때 사용.
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/2b706bc/scripts/patch-be-story-sp-kpi-service-only.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/b12f4be/scripts/patch-be-story-sp-kpi-service-only.sh" | sh
 set -e
-REF_SHA="${REF_SHA:-2b706bc}"
+REF_SHA="${REF_SHA:-b12f4be}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT" 2>/dev/null || { echo "NG: $ROOT 없음"; exit 1; }
