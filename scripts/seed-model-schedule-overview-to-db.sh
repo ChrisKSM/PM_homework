@@ -31,6 +31,13 @@ d = json.load(sys.stdin)
 print('count:', d.get('count', len(d.get('models', []))))
 models = [m.get('model','') for m in d.get('models', [])]
 print('models:', ', '.join(models[:10]), '...' if len(models)>10 else '')
+for m in d.get('models', []):
+    if m.get('model') == 'H7_VI':
+        for e in m.get('events') or []:
+            if e.get('kind')=='hw' and e.get('name')=='PrePV':
+                print('H7_VI PrePV:', e.get('start'), e.get('end'))
+                break
+        break
 "
 
 echo "=== Done ==="
