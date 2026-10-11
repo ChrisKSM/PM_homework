@@ -33,6 +33,15 @@ PY="uv run --frozen python"
 command -v uv >/dev/null 2>&1 || PY="python3"
 
 echo ""
+echo "=== JQL 400 fix (linkedIssues 키 1개씩, scope 1 Initiative) ==="
+if grep -q 'issue in linkedIssues({keys_clause})' services/release_gantt_service.py 2>/dev/null; then
+  echo "  NG  구버전 — linkedIssues 다키 JQL → Jira 400. REF fetch 재실행"
+  exit 1
+fi
+grep -q 'linkedIssues 는 키 1개씩' services/release_gantt_service.py && echo "  OK  per-key linkedIssues"
+grep -q '_scope_initiative_keys' services/release_gantt_service.py && echo "  OK  scope_initiative_keys"
+
+echo ""
 echo "=== import check ==="
 test -f services/release_gantt_service.py
 test -f services/release_sprint_calendar_2026.py
@@ -42,3 +51,4 @@ $PY -c "from services.release_sprint_calendar_2026 import calendar_payload; asse
 echo ""
 echo "=== Done — restart ==="
 echo "  sh scripts/restart-be-route-port.sh"
+echo "  curl -s 'http://127.0.0.1:8000/api/model-status/release/gantt?model=H7_VI&label=SoundSuite_H7(VI)' | python3 -m json.tool | head -40"
