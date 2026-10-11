@@ -14,7 +14,7 @@ if [ ! -f package.json ] || [ ! -d src ]; then
   exit 1
 fi
 
-mkdir -p src/utils src/types src/hooks src/api src/components/modelStatus src/utils
+mkdir -p scripts src/data src/utils src/types src/hooks src/api src/components/modelStatus
 
 fetch() {
   if ! curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"; then
@@ -36,11 +36,16 @@ fetch src/hooks/useModelStatusStorySpKpi.ts src/hooks/useModelStatusStorySpKpi.t
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/utils/releaseGanttKpi.ts src/utils/releaseGanttKpi.ts
 fetch src/utils/modelScheduleOverviewRows.ts src/utils/modelScheduleOverviewRows.ts
+fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
+
+fetch scripts/verify-model-status-summary-fe-deployed.sh scripts/verify-model-status-summary-fe-deployed.sh
+chmod +x scripts/verify-model-status-summary-fe-deployed.sh
 
 grep -q buildOverviewEventsTimeline src/utils/modelStatusMilestones.ts && echo "OK  HW/SW overview timeline"
 grep -q ModelStatusOverviewEventTimeline src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK  summary dashboard wiring"
 grep -q getStorySpKpi src/api/modelStatusApi.ts && echo "OK  story-sp-kpi API client"
 grep -q SP26 src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx && echo "OK  release tab SP26 label (not summary KPI-1)"
+grep -q isModelStatusModelDisabled src/data/modelStatusCatalog.ts && echo "OK  modelStatusCatalog exports"
 
 npm run build
 
@@ -52,4 +57,8 @@ echo "  cat build/build-version.txt"
 cat build/build-version.txt 2>/dev/null || true
 echo ""
 echo "  → git commit + push + GitLab deploy (공용 URL 은 CI/Route 갱신 필요)"
-echo "  sh scripts/verify-model-status-summary-fe-deployed.sh"
+if [ -x scripts/verify-model-status-summary-fe-deployed.sh ]; then
+  sh scripts/verify-model-status-summary-fe-deployed.sh
+else
+  echo "  sh scripts/verify-model-status-summary-fe-deployed.sh"
+fi

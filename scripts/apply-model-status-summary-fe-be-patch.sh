@@ -18,6 +18,10 @@ PATCH_ID="2026-03-11-summary-timeline-sp-kpi-v5"
 
 run_fe() {
   cd "$ROOT"
+  mkdir -p scripts
+  curl -fsSL -H "Cache-Control: no-cache" "$BASE/scripts/verify-model-status-summary-fe-deployed.sh" \
+    -o scripts/verify-model-status-summary-fe-deployed.sh
+  chmod +x scripts/verify-model-status-summary-fe-deployed.sh
   curl -fsSL -H "Cache-Control: no-cache" "$BASE/scripts/fe-model-status-summary-kpi-patch.sh" \
     -o /tmp/fe-summary-patch.sh
   chmod +x /tmp/fe-summary-patch.sh

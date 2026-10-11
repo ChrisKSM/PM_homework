@@ -14,7 +14,7 @@ MAIN=$(ls build/main.*.js 2>/dev/null | head -1)
 CHUNK=$(ls build/*.js 2>/dev/null | head -5)
 
 ok=0
-for needle in ModelStatusOverviewEventTimeline buildOverviewEventsTimeline getStorySpKpi worklogSp SP26; do
+for needle in "HW Event (PrePV" "SW Event (SIT" worklogSp consumptionPctSource "SP26 캘린더"; do
   if grep -q "$needle" $MAIN build/*.js 2>/dev/null; then
     echo "OK  bundle contains: $needle"
     ok=$((ok + 1))
