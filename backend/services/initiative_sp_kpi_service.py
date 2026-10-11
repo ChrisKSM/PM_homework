@@ -1,20 +1,7 @@
 """
-KPI-1 작업 완료율 (Story Point) — 설계 메모
+KPI-1 작업 완료율 (Story Point) — Initiative Description Milestones 표.
 
-목표 정의 (PM 요청):
-  · **분모(계획 SP)**: 라벨 하위 각 Initiative **Description** 안 Milestones 표의
-    「예상 SP」열 합 (9 Initiative 합산 또는 모델 단위 합).
-  · **분자(실적 SP)**: 동일 Initiative → linked Epic → Epic Link 하위 **Story** 의
-    `settings.story_points_field` 합. 완료율은 status Done/Closed 기준 completed SP / planned SP.
-
-현재 릴리즈 Gantt KPI-1(76.9% 등)은 **2026 SP01~26 캘린더 중 종료 SP 비율**이라
-위 정의와 **다릅니다**. FE 요약 카드는 본 API 연동 후 교체 예정.
-
-구현 단계:
-  1. Initiative search fields + `description` fetch
-  2. `parse_planned_sp_from_description(html)` — wiki 표 | M* | SP 패턴
-  3. Epic/Story JQL per initiative (release_gantt linkedIssues 패턴 재사용)
-  4. `GET /api/model-status/initiatives/story-sp-kpi`
+표 컬럼: Milestone | … | Target Sprint | Due date | 예상 SP | 완료 여부 | …
 """
 from __future__ import annotations
 
@@ -31,26 +18,167 @@ from services.model_status_initiative_service import (
 from services.quality_service import _field_text
 from tvjira_client import tvjira_search_all
 
+_MILESTONE_ID = re.compile(r"^M[1-9]\d*$", re.I)
+_DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
-def parse_planned_sp_from_description(description: str | None) -> tuple[float, list[dict[str, Any]]]:
-    """Description wiki/HTML 에서 Milestone 표 예상 SP 추출 (best-effort)."""
+
+def _description_to_lines(description: str) -> list[str]:
+    """Jira wiki/HTML 표 → 탭 구분 줄."""
+    raw = unescape(description)
+    raw = re.sub(r"<br\s*/?>", "\n", raw, flags=re.I)
+    raw = re.sub(r"</tr>\s*", "\n", raw, flags=re.I)
+    raw = re.sub(r"</t[dh]>\s*", "\t", raw, flags=re.I)
+    raw = re.sub(r"<[^>]+>", "", raw)
+    raw = raw.replace("\u00a0", " ")
+    lines: list[str] = []
+    for ln in raw.splitlines():
+        ln = ln.strip()
+        if ln:
+            lines.append(ln)
+    return lines
+
+
+def _split_cells(line: str) -> list[str]:
+    if "\t" in line:
+        return [c.strip() for c in line.split("\t")]
+    return [c.strip() for c in re.split(r"\s{2,}", line) if c.strip()]
+
+
+def _header_index(headers: list[str]) -> dict[str, int | None]:
+    idx: dict[str, int | None] = {
+        "milestone": 0,
+        "summary": None,
+        "targetSprint": None,
+        "dueDate": None,
+        "plannedSp": None,
+        "completion": None,
+    }
+    for j, h in enumerate(headers):
+        hl = h.lower().replace(" ", "")
+        if h == "Milestone" or hl == "milestone":
+            idx["milestone"] = j
+        if "내용" in h:
+            idx["summary"] = j
+        if "target" in hl and "sprint" in hl:
+            idx["targetSprint"] = j
+        if "due" in hl and "date" in hl:
+            idx["dueDate"] = j
+        if "예상" in h and "sp" in hl:
+            idx["plannedSp"] = j
+        if "완료" in h:
+            idx["completion"] = j
+    return idx
+
+
+def _parse_milestone_row_fallback(line: str) -> dict[str, Any] | None:
+    """헤더 없을 때 M1 … YYYY-MM-DD SP 패턴."""
+    cells = _split_cells(line)
+    if not cells or not _MILESTONE_ID.match(cells[0]):
+        return None
+    ms = cells[0].upper()
+    sp_val: float | None = None
+    due: str | None = None
+    for i, c in enumerate(cells):
+        dm = _DATE.search(c)
+        if dm:
+            due = dm.group(1)
+            if i + 1 < len(cells):
+                nxt = cells[i + 1].strip()
+                if re.match(r"^\d+(?:\.\d+)?$", nxt):
+                    sp_val = float(nxt)
+            break
+    if sp_val is None:
+        nums = [float(x) for x in re.findall(r"(?<!\d)(\d+(?:\.\d+)?)(?!\d)", " ".join(cells[1:]))]
+        for n in reversed(nums):
+            if 1 <= n <= 500:
+                sp_val = n
+                break
+    if sp_val is None:
+        return None
+    summary = cells[1] if len(cells) > 1 else ""
+    return {
+        "milestone": ms,
+        "summary": summary[:120],
+        "targetSprint": "",
+        "dueDate": due or "",
+        "plannedSp": sp_val,
+        "completionStatus": "",
+    }
+
+
+def parse_milestone_table_from_description(description: str | None) -> tuple[float, list[dict[str, Any]]]:
+    """
+    Initiative Description Milestones 표 파싱.
+    Returns (planned_sp_sum, rows).
+    """
     if not description or not str(description).strip():
         return 0.0, []
-    text = unescape(str(description))
-    text = re.sub(r"<[^>]+>", " ", text)
-    text = re.sub(r"\s+", " ", text)
+
+    lines = _description_to_lines(str(description))
+    col: dict[str, int | None] | None = None
     rows: list[dict[str, Any]] = []
-    total = 0.0
-    for m in re.finditer(r"(M\d+|IR\d+\s*M\d+)[^\d]{0,40}?(\d+(?:\.\d+)?)\s*SP", text, re.I):
-        sp = float(m.group(2))
-        rows.append({"milestone": m.group(1), "plannedSp": sp})
-        total += sp
-    if total <= 0:
-        nums = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)\s*SP", text, re.I)]
-        total = sum(nums)
-        for i, sp in enumerate(nums[:20]):
-            rows.append({"milestone": f"row{i+1}", "plannedSp": sp})
-    return total, rows
+
+    for line in lines:
+        if "예상" in line and "SP" in line and ("Milestone" in line or "Due date" in line):
+            col = _header_index(_split_cells(line))
+            continue
+        if col is None:
+            fb = _parse_milestone_row_fallback(line)
+            if fb:
+                rows.append(fb)
+            continue
+
+        cells = _split_cells(line)
+        if len(cells) < 2:
+            continue
+        mi = col.get("milestone") or 0
+        if mi >= len(cells):
+            continue
+        ms = cells[mi].strip()
+        if not _MILESTONE_ID.match(ms):
+            continue
+        sp_i = col.get("plannedSp")
+        if sp_i is None or sp_i >= len(cells):
+            fb = _parse_milestone_row_fallback(line)
+            if fb:
+                rows.append(fb)
+            continue
+        sp_raw = cells[sp_i].strip()
+        if not re.match(r"^\d+(?:\.\d+)?$", sp_raw):
+            continue
+        sp = float(sp_raw)
+        summary_i = col.get("summary")
+        summary = cells[summary_i].strip() if summary_i is not None and summary_i < len(cells) else ""
+        ts_i = col.get("targetSprint")
+        due_i = col.get("dueDate")
+        comp_i = col.get("completion")
+        rows.append(
+            {
+                "milestone": ms.upper(),
+                "summary": summary[:120],
+                "targetSprint": cells[ts_i].strip() if ts_i is not None and ts_i < len(cells) else "",
+                "dueDate": cells[due_i].strip() if due_i is not None and due_i < len(cells) else "",
+                "plannedSp": sp,
+                "completionStatus": cells[comp_i].strip() if comp_i is not None and comp_i < len(cells) else "",
+            }
+        )
+
+    seen: set[str] = set()
+    unique: list[dict[str, Any]] = []
+    for r in rows:
+        k = r["milestone"]
+        if k in seen:
+            continue
+        seen.add(k)
+        unique.append(r)
+
+    total = sum(r["plannedSp"] for r in unique)
+    return total, unique
+
+
+def parse_planned_sp_from_description(description: str | None) -> tuple[float, list[dict[str, Any]]]:
+    """호환 alias — milestone 표 파싱."""
+    return parse_milestone_table_from_description(description)
 
 
 def _story_sp(fields: dict[str, Any]) -> float:
@@ -74,7 +202,7 @@ async def preview_story_sp_kpi(
     project_key: str = "TVPLAT",
     max_initiatives: int = 12,
 ) -> dict[str, Any]:
-    """Initiative Description 계획 SP + (샘플) Story SP — 진단/FE 연동용."""
+    """Initiative Description 계획 SP + Epic 하위 Story SP."""
     jira_label = resolve_initiative_label(model, label)
     if not jira_label:
         return {"error": "label required", "plannedSpTotal": 0, "actualSpTotal": 0}
@@ -93,7 +221,7 @@ async def preview_story_sp_kpi(
         key = raw.get("key") or ""
         f = raw.get("fields") or {}
         desc = f.get("description") or ""
-        planned, planned_rows = parse_planned_sp_from_description(desc)
+        planned, milestone_rows = parse_milestone_table_from_description(desc)
         planned_total += planned
 
         actual = 0.0
@@ -131,10 +259,11 @@ async def preview_story_sp_kpi(
                 "initiativeKey": key,
                 "summary": (f.get("summary") or "")[:80],
                 "plannedSpFromDescription": planned,
-                "plannedRowsSample": planned_rows[:5],
+                "milestones": milestone_rows,
                 "storySpTotal": actual,
                 "storySpDone": done,
                 "storyCount": story_count,
+                "completionPctInitiative": round((done / planned) * 1000, 10) / 10 if planned > 0 else None,
             }
         )
 
@@ -147,10 +276,11 @@ async def preview_story_sp_kpi(
         "model": model,
         "label": jira_label,
         "definition": {
-            "plannedSp": "Initiative description Milestones table (예상 SP sum)",
-            "actualSp": "Sum story points on Stories under Initiative linked Epics",
-            "completionPct": "storySpDone / plannedSp (when planned > 0)",
-            "notCalendarSp26": "Release Gantt KPI-1 calendar elapsed ≠ this metric",
+            "plannedSp": "Sum of Milestones table column '예상 SP' per Initiative description",
+            "storySpDone": "Sum SP on done/closed Stories under linked Epics",
+            "completionPct": "storySpDone / plannedSpTotal",
+            "burnPctVsPlan": "storySpTotal / plannedSpTotal (optional)",
+            "notCalendarSp26": "Release Gantt KPI-1 (20/26 week elapsed) is unrelated",
         },
         "plannedSpTotal": planned_total,
         "storySpTotal": story_sp_total,
