@@ -7,6 +7,7 @@ import ModelStatusMetaCard from './ModelStatusMetaCard'
 import ManagerDashboardBody from './ManagerDashboardBody'
 import ModelStatusInitiativePanel from './ModelStatusInitiativePanel'
 import ModelStatusReleaseEpicGantt from './ModelStatusReleaseEpicGantt'
+import ModelStatusOverviewEventTimeline from './ModelStatusOverviewEventTimeline'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
   MODEL_STATUS_TABS,
@@ -23,7 +24,7 @@ import { canonicalModelName } from '../../utils/modelScheduleRows'
 import { normalizeOverviewCategory } from '../../utils/modelScheduleOverviewRows'
 import {
   buildMilestoneTimeline,
-  fmtShortDate,
+  buildOverviewEventsTimeline,
   overallSignal,
   verificationIssueCounts,
   type SignalTone,
@@ -41,12 +42,6 @@ function SignalBadge({ tone }: { tone: SignalTone }) {
       <span className="text-2xl font-bold text-gray-900">{cfg.label}</span>
     </div>
   )
-}
-
-function phaseColor(phase: string) {
-  if (phase === 'FC') return 'from-emerald-500 to-emerald-600'
-  if (phase === 'PV') return 'from-blue-500 to-blue-600'
-  return 'from-orange-500 to-orange-600'
 }
 
 const OVERVIEW_MODEL_ALIASES: Record<string, string> = {
@@ -127,13 +122,10 @@ export default function ModelIntegratedDashboard({
     MODEL_INITIATIVE_JIRA_MODELS.has(canonicalModelName(modelCode)),
   )
 
+  const eventsTimeline = useMemo(() => buildOverviewEventsTimeline(overview), [overview])
   const timeline = useMemo(
     () => buildMilestoneTimeline(overview, verificationRows),
     [overview, verificationRows],
-  )
-  const timelineFlexTotal = useMemo(
-    () => timeline.segments.reduce((acc, s) => acc + (s.durationDays || 1), 0),
-    [timeline.segments],
   )
   const signal = useMemo(
     () => overallSignal(overview, verificationRows, timeline),
@@ -149,10 +141,11 @@ export default function ModelIntegratedDashboard({
   const schedulePct = releaseKpi?.kpi2Pct ?? 0
   const scheduleSub =
     releaseKpi?.kpi2Sub ?? '릴리즈 · Epic 탭 Jira Milestone (모델 미연동)'
-  const spPct = releaseKpi?.kpi1Pct ?? 0
-  const spSub =
-    releaseKpi?.kpi1Sub ??
-    '릴리즈 · Epic SP 경과율 (2026 SP01~26 캘린더 — Story Point 합산 아님)'
+  const calendarSpPct = releaseKpi?.kpi1Pct
+  const spPct = calendarSpPct ?? 0
+  const spSub = releaseKpi
+    ? `Story SP KPI 연동 예정 · (참고) 릴리즈 SP 캘린더 경과 ${calendarSpPct}% = ${releaseKpi.kpi1Sub}`
+    : 'Initiative Description 예상 SP 합 vs Epic·Story SP — BE /initiatives/story-sp-kpi'
 
   const showJiraManager = modelCode === 'S80C'
 
@@ -207,40 +200,13 @@ export default function ModelIntegratedDashboard({
         </div>
       </div>
 
-      <div className="relative rounded-2xl border border-surface-border bg-white p-4 overflow-hidden">
-        <div className="flex h-14 rounded-xl overflow-hidden shadow-inner">
-          {timeline.segments.map((seg) => (
-            <div
-              key={seg.phase}
-              className={clsx(
-                'flex flex-col justify-center px-3 text-white bg-gradient-to-r relative min-w-[72px]',
-                phaseColor(seg.phase),
-              )}
-              style={{
-                flex: `${seg.durationDays || 1} 1 0`,
-                maxWidth: `${Math.round(((seg.durationDays || 1) / timelineFlexTotal) * 100)}%`,
-                clipPath: seg.phase === 'MP' ? undefined : 'polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%)',
-              }}
-            >
-              <span className="text-xs font-bold tracking-wide">{seg.label}</span>
-              <span className="text-[10px] opacity-90">
-                {fmtShortDate(seg.start)} — {fmtShortDate(seg.end)}
-              </span>
-            </div>
-          ))}
+      {eventsTimeline ? (
+        <ModelStatusOverviewEventTimeline timeline={eventsTimeline} />
+      ) : (
+        <div className="rounded-2xl border border-surface-border bg-white p-4 text-[11px] text-gray-500">
+          overview HW/SW Event 없음 — 전 모델 일정 seed 확인
         </div>
-        <div
-          className="absolute top-4 bottom-4 w-0.5 bg-violet-600 z-10 pointer-events-none"
-          style={{ left: `calc(16px + (100% - 32px) * ${timeline.todayRatio})` }}
-          title="오늘"
-        />
-        <p className="text-[10px] text-gray-500 mt-2">
-          현재 단계: <b>{timeline.activePhase ?? '—'}</b> ·{' '}
-          {timeline.source === 'hw-overview'
-            ? '전 모델 일정 HW Event(PrePV→FC, PV1·PV2→PV, MP) · 구간 너비=기간 비율'
-            : 'overview · 검증 일정 fallback'}
-        </p>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
         <div className="bg-white border border-surface-border rounded-xl p-4 border-t-[3px] border-t-emerald-600">
@@ -278,7 +244,7 @@ export default function ModelIntegratedDashboard({
         <KpiCard
           label="이슈 / 리스크"
           value={`${issues.open}/${issues.total || '—'}`}
-          sub={`현재 Event(${timeline.activePhase ?? '-'}) 구간 NG·지연·진행중`}
+          sub={`현재 Event(${eventsTimeline?.activeEventLabel ?? timeline.activePhase ?? '-'}) NG·지연·진행중`}
           tone={issues.open > 0 ? 'danger' : 'success'}
           icon={<AlertTriangle size={16} />}
         />

@@ -1,6 +1,7 @@
 import type { OverviewModel } from '../types/modelScheduleOverview'
 import type { ModelRow } from './modelScheduleRows'
 import { canonicalModelName } from './modelScheduleRows'
+import { classifyEventKind, isValidOverviewEvent } from './modelScheduleOverviewRows'
 
 export type MilestonePhase = 'FC' | 'PV' | 'MP'
 
@@ -223,4 +224,71 @@ export function verificationIssueCounts(model: OverviewModel | null, verificatio
 export function fmtShortDate(d: Date) {
   const y = d.getFullYear() % 100
   return `${y}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+}
+
+export interface OverviewEventBar {
+  name: string
+  kind: 'hw' | 'sw'
+  start: Date
+  end: Date
+  leftPct: number
+  widthPct: number
+}
+
+export interface OverviewEventsTimeline {
+  rangeStart: Date
+  rangeEnd: Date
+  today: Date
+  todayRatio: number
+  hwBars: OverviewEventBar[]
+  swBars: OverviewEventBar[]
+  activeEventLabel: string | null
+}
+
+function eventKindForBar(name: string, kind?: string): 'hw' | 'sw' | null {
+  const k = classifyEventKind(name, kind)
+  return k === 'hw' || k === 'sw' ? k : null
+}
+
+/** 전 모델 일정 overview — HW·SW 이벤트를 동일 시간축(상대 비율)에 배치 */
+export function buildOverviewEventsTimeline(model: OverviewModel | null): OverviewEventsTimeline | null {
+  if (!model?.events?.length) return null
+  const parsed: { name: string; kind: 'hw' | 'sw'; start: Date; end: Date }[] = []
+  for (const ev of model.events) {
+    if (!isValidOverviewEvent(ev)) continue
+    const kind = eventKindForBar(ev.name, ev.kind)
+    if (!kind) continue
+    const s = parseIso(ev.start)
+    let e = parseIso(ev.end) ?? s
+    if (!s) continue
+    if (!e || e < s) e = s
+    parsed.push({ name: ev.name.trim(), kind, start: s, end: e })
+  }
+  if (!parsed.length) return null
+
+  let rangeStart = parsed[0].start
+  let rangeEnd = parsed[0].end
+  for (const p of parsed) {
+    if (p.start < rangeStart) rangeStart = p.start
+    if (p.end > rangeEnd) rangeEnd = p.end
+  }
+  const spanMs = Math.max(rangeEnd.getTime() - rangeStart.getTime(), 86400000)
+  const today = dayStart(new Date())
+  const todayRatio = Math.min(1, Math.max(0, (today.getTime() - rangeStart.getTime()) / spanMs))
+
+  const toBar = (p: (typeof parsed)[0]): OverviewEventBar => {
+    const leftPct = ((p.start.getTime() - rangeStart.getTime()) / spanMs) * 100
+    const widthPct = Math.max(((p.end.getTime() - p.start.getTime()) / spanMs) * 100, 1.2)
+    return { name: p.name, kind: p.kind, start: p.start, end: p.end, leftPct, widthPct }
+  }
+
+  const hwBars = parsed.filter((p) => p.kind === 'hw').sort((a, b) => a.start.getTime() - b.start.getTime()).map(toBar)
+  const swBars = parsed.filter((p) => p.kind === 'sw').sort((a, b) => a.start.getTime() - b.start.getTime()).map(toBar)
+
+  let activeEventLabel: string | null = null
+  for (const p of parsed) {
+    if (today >= p.start && today <= p.end) activeEventLabel = `${p.kind.toUpperCase()} · ${p.name}`
+  }
+
+  return { rangeStart, rangeEnd, today, todayRatio, hwBars, swBars, activeEventLabel }
 }

@@ -78,8 +78,9 @@ export interface ReleaseGanttKpiResult {
 }
 
 /**
- * KPI-1: 2026 릴리즈 캘린더 SP(26) 중 오늘 기준 경과 SP 수
- * KPI-2: Milestone 이슈 완료율 (Jira status)
+ * KPI-1 (릴리즈 탭): 2026 릴리즈 **캘린더** SP26 중 종료된 SP 비율 — Story Point 작업 완료율 아님.
+ * KPI-2: Milestone issuetype Jira 완료율.
+ * 요약 대시보드 KPI-1(작업 완료율)은 Initiative Description 계획 SP vs Story SP (별도 API).
  */
 export function syncEpicMilestonesFromGlobal(gantt: ModelReleaseGanttData): ModelReleaseGanttData {
   const global = gantt.milestones ?? []
@@ -136,8 +137,9 @@ export function computeReleaseGanttKpis(gantt: ModelReleaseGanttData, day = new 
     milestoneTotal,
     milestoneDone,
     kpi1Pct,
-    kpi1Sub: `경과 SP ${spElapsed}/${spTotal} (2026 SP01~SP${String(spTotal).padStart(2, '0')} 캘린더)`,
-    kpi1Detail: 'KPI-1 = 릴리즈 연간 스프린트 중 종료일이 지난 SP 비율 (Story Point 합산이 아님)',
+    kpi1Sub: `캘린더 경과 SP ${spElapsed}/${spTotal} (2026 SP01~SP${String(spTotal).padStart(2, '0')})`,
+    kpi1Detail:
+      '릴리즈 Gantt KPI-1 = 연간 SP **주차** 중 오늘 이전에 **종료한 SP 개수** 비율. Initiative Milestone **예상 SP**·Story **실적 SP**와 무관',
     kpi2Pct,
     kpi2Sub: `마일스톤 완료 ${milestoneDone}/${milestoneTotal}`,
     kpi2Detail: 'KPI-2 = Epic 하위 Milestone issuetype · Jira Done/Closed/Resolved 비율',
