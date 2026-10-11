@@ -1,7 +1,7 @@
 #!/bin/sh
 # FE pod — 릴리즈 · Epic 탭 (9 Initiative · [Demo] Epic · 전체 Milestone KPI)
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/b2ea452/scripts/fe-model-status-release-gantt-patch.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/838d214/scripts/fe-model-status-release-gantt-patch.sh" | sh
 #
 # 또는:
 #   REF_SHA=f63d5d8 sh scripts/fe-model-status-release-gantt-patch.sh
