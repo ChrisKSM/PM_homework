@@ -145,8 +145,14 @@ export default function ModelIntegratedDashboard({
   const spPct = consumptionPct ?? 0
   const effectiveConsumed =
     storySpKpi?.effectiveSpConsumed ?? storySpKpi?.storySpConsumed ?? storySpKpi?.storySpTotal
+  const consumedSourceLabel =
+    storySpKpi?.consumptionPctSource === 'worklogSp'
+      ? 'worklog'
+      : storySpKpi?.consumptionPctSource === 'descriptionConsumedSp'
+        ? '표 소모 SP'
+        : 'Story SP'
   const spSub = storySpKpi?.plannedSpTotal
-    ? `계획 ${storySpKpi.plannedSpTotal} SP · 소진 ${effectiveConsumed ?? 0} SP (${storySpKpi.consumptionPctSource === 'descriptionConsumedSp' ? '표 소모 SP' : 'Story SP'}) · Initiative ${storySpKpi.initiativeCount ?? storySpKpi.byInitiative?.length ?? 0}건`
+    ? `계획 ${storySpKpi.plannedSpTotal} SP · 소진 ${effectiveConsumed ?? 0} SP (${consumedSourceLabel}${storySpKpi.spHoursPerPoint ? ` · 1sp=${storySpKpi.spHoursPerPoint}h` : ''}) · Initiative ${storySpKpi.initiativeCount ?? storySpKpi.byInitiative?.length ?? 0}건`
     : jiraModelLive
       ? 'Initiative Description 예상 SP · Story SP — Jira 동기화 중'
       : 'Jira Initiative 라벨 미연동 모델'

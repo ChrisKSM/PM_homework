@@ -7,6 +7,7 @@ KPI-1 SP 소진율 — 모델 라벨 Initiative 9건 Description 표 + Story SP.
 """
 from __future__ import annotations
 
+import asyncio
 import re
 from html import unescape
 from typing import Any
@@ -19,7 +20,11 @@ from services.model_status_initiative_service import (
 )
 from services.quality_service import _field_text
 from services.risk_service import _description_text
-from tvjira_client import tvjira_get_issue, tvjira_search_all
+from tvjira_client import (
+    tvjira_get_issue,
+    tvjira_issue_worklog_total_seconds,
+    tvjira_search_all,
+)
 
 _MILESTONE_ID = re.compile(r"^M[1-9]\d*$", re.I)
 _DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
@@ -387,6 +392,79 @@ def _parse_sp_cell(raw: str) -> float | None:
     return None
 
 
+def _sp_hours_per_point() -> float:
+    raw = getattr(settings, "sp_hours_per_point", 4.0)
+    try:
+        v = float(raw)
+        return v if v > 0 else 4.0
+    except (TypeError, ValueError):
+        return 4.0
+
+
+def _seconds_to_sp(seconds: int) -> float:
+    return (seconds / 3600.0) / _sp_hours_per_point()
+
+
+async def _collect_worklog_sp_for_issues(
+    issue_done: dict[str, bool],
+    errors: list[str],
+    *,
+    max_issues: int = 400,
+) -> tuple[float, float, int, float]:
+    """
+    Initiative 하위 Story/Task 전체 worklog → SP (WorklogReport: 1sp = 4h).
+    search fields.worklog 은 20건 제한이라 issue/worklog API 사용.
+    """
+    keys = sorted(issue_done.keys())
+    if len(keys) > max_issues:
+        errors.append(f"worklog: capped at {max_issues}/{len(keys)} issues")
+        keys = keys[:max_issues]
+    if not keys:
+        return 0.0, 0.0, 0, 0.0
+
+    sem = asyncio.Semaphore(10)
+    total_sec = 0
+    done_sec = 0
+    with_wl = 0
+
+    async def one(issue_key: str) -> None:
+        nonlocal total_sec, done_sec, with_wl
+        async with sem:
+            try:
+                sec = await tvjira_issue_worklog_total_seconds(issue_key)
+            except Exception as ex:
+                errors.append(f"worklog {issue_key}: {ex}")
+                return
+            if sec <= 0:
+                return
+            with_wl += 1
+            total_sec += sec
+            if issue_done.get(issue_key):
+                done_sec += sec
+
+    await asyncio.gather(*(one(k) for k in keys))
+    return (
+        round(_seconds_to_sp(total_sec) * 1000) / 1000,
+        round(_seconds_to_sp(done_sec) * 1000) / 1000,
+        with_wl,
+        round((total_sec / 3600.0) * 1000) / 1000,
+    )
+
+
+def _pick_effective_consumed(
+    worklog_sp: float,
+    jira_story_sp: float,
+    desc_sp: float,
+) -> tuple[float, str]:
+    if worklog_sp > 0:
+        return worklog_sp, "worklogSp"
+    if jira_story_sp > 0:
+        return jira_story_sp, "jiraStorySp"
+    if desc_sp > 0:
+        return desc_sp, "descriptionConsumedSp"
+    return 0.0, "descriptionConsumedSp"
+
+
 def _story_sp(fields: dict[str, Any]) -> float:
     raw = fields.get(settings.story_points_field)
     if raw is None:
@@ -415,8 +493,8 @@ async def _collect_initiative_story_sp(
     story_fields: list[str],
     errors: list[str],
     initiative_summary: str = "",
-) -> tuple[float, float, int, int, int]:
-    """Initiative → Epic → Story/Task SP (Epic Link · parent · linkedIssues)."""
+) -> tuple[float, float, int, int, int, dict[str, bool]]:
+    """Initiative → Epic → Story/Task SP + worklog 대상 이슈 (Epic Link · parent · linkedIssues)."""
     from services.release_gantt_service import (
         _discover_epic_keys_from_linked_work_items,
         _looks_like_epic,
@@ -427,6 +505,7 @@ async def _collect_initiative_story_sp(
 
     seen: set[str] = set()
     touched: set[str] = set()
+    issue_done: dict[str, bool] = {}
     subtask_keys: set[str] = set()
     total = 0.0
     done = 0.0
@@ -444,6 +523,7 @@ async def _collect_initiative_story_sp(
         if _looks_like_epic(it) or _looks_like_milestone(it, ""):
             return
         touched.add(key)
+        issue_done[key] = _is_story_done(sf.get("status"))
         sp = _story_sp(sf)
         if sp <= 0:
             return
@@ -519,7 +599,7 @@ async def _collect_initiative_story_sp(
             track_subs=False,
         )
 
-    return total, done, count, len(epic_keys), len(touched)
+    return total, done, count, len(epic_keys), len(touched), issue_done
 
 
 async def debug_initiative_sp_snapshot(
@@ -546,10 +626,12 @@ async def debug_initiative_sp_snapshot(
 
     summary = (fields.get("summary") or "")[:120]
     errs: list[str] = []
-    consumed, done, scount, epics, work_touched = await _collect_initiative_story_sp(
+    consumed, done, scount, epics, work_touched, issue_done = await _collect_initiative_story_sp(
         project_key, key, story_fields, errs, initiative_summary=summary
     )
+    wl_sp, wl_done, wl_issue_count, wl_hours = await _collect_worklog_sp_for_issues(issue_done, errs)
     desc_consumed = _sum_consumed_sp_from_milestone_rows(rows)
+    effective, eff_src = _pick_effective_consumed(wl_sp, consumed, desc_consumed)
     linked_rows = await tvjira_search_all(
         linked_epic_jql_for_initiative(key, project_key),
         ["summary", "issuetype"],
@@ -563,15 +645,22 @@ async def debug_initiative_sp_snapshot(
             jql = f'project = {project_key} AND {_JQL_WORK_ITEMS} AND "Epic Link" = {ek}'
             for st in (await tvjira_search_all(jql, story_fields))[:8]:
                 sf = st.get("fields") or {}
-                sample_issues.append(
-                    {
-                        "key": st.get("key"),
-                        "epicLink": ek,
-                        "type": _field_text(sf.get("issuetype")),
-                        "sp": _story_sp(sf),
-                        "status": _field_text(sf.get("status")),
-                    }
-                )
+                ik = st.get("key") or ""
+                entry: dict[str, Any] = {
+                    "key": ik,
+                    "epicLink": ek,
+                    "type": _field_text(sf.get("issuetype")),
+                    "sp": _story_sp(sf),
+                    "status": _field_text(sf.get("status")),
+                }
+                if ik and len(sample_issues) < 5:
+                    try:
+                        sec = await tvjira_issue_worklog_total_seconds(ik)
+                        entry["worklogHours"] = round(sec / 3600.0, 2)
+                        entry["worklogSp"] = round(_seconds_to_sp(sec), 2)
+                    except Exception as ex:
+                        entry["worklogError"] = str(ex)
+                sample_issues.append(entry)
         except Exception as ex:
             errs.append(f"{ek}: {ex}")
     return {
@@ -592,6 +681,13 @@ async def debug_initiative_sp_snapshot(
         "storySpConsumed": consumed,
         "storySpDone": done,
         "storyCount": scount,
+        "worklogSpConsumed": wl_sp,
+        "worklogSpDone": wl_done,
+        "worklogIssueCount": wl_issue_count,
+        "worklogHoursTotal": wl_hours,
+        "spHoursPerPoint": _sp_hours_per_point(),
+        "effectiveSpConsumed": effective,
+        "consumptionPctSource": eff_src,
         "sampleEpicWorkItems": sample_issues,
         "storyPointsField": settings.story_points_field,
         "epics": epics,
@@ -619,6 +715,8 @@ async def preview_story_sp_kpi(
     planned_total = 0.0
     story_sp_total = 0.0
     story_sp_done = 0.0
+    worklog_sp_total = 0.0
+    worklog_sp_done = 0.0
     desc_consumed_total = 0.0
     errors: list[str] = []
 
@@ -651,20 +749,29 @@ async def preview_story_sp_kpi(
         story_count = 0
         epic_count = 0
         work_touched = 0
+        wl_sp = 0.0
+        wl_done = 0.0
+        issue_done: dict[str, bool] = {}
         try:
-            actual, done, story_count, epic_count, work_touched = await _collect_initiative_story_sp(
-                project_key,
-                key,
-                story_fields,
-                errors,
-                initiative_summary=(f.get("summary") or ""),
+            actual, done, story_count, epic_count, work_touched, issue_done = (
+                await _collect_initiative_story_sp(
+                    project_key,
+                    key,
+                    story_fields,
+                    errors,
+                    initiative_summary=(f.get("summary") or ""),
+                )
             )
+            wl_sp, wl_done, _, _ = await _collect_worklog_sp_for_issues(issue_done, errors)
         except Exception as ex:
             errors.append(f"{key}: {ex}")
 
-        effective_consumed = actual if actual > 0 else desc_consumed
+        effective_consumed, init_source = _pick_effective_consumed(wl_sp, actual, desc_consumed)
         story_sp_total += actual
         story_sp_done += done
+        worklog_sp_total += wl_sp
+        worklog_sp_done += wl_done
+        completion_numer = wl_done if init_source == "worklogSp" else done
         per_init.append(
             {
                 "initiativeKey": key,
@@ -675,8 +782,11 @@ async def preview_story_sp_kpi(
                 "plannedSpFromDescription": planned,
                 "milestones": milestone_rows,
                 "storySpConsumed": actual,
+                "worklogSpConsumed": wl_sp,
+                "worklogSpDone": wl_done,
                 "consumedSpFromDescription": desc_consumed,
                 "effectiveSpConsumed": effective_consumed,
+                "consumptionPctSource": init_source,
                 "storySpTotal": actual,
                 "storySpDone": done,
                 "storyCount": story_count,
@@ -685,21 +795,29 @@ async def preview_story_sp_kpi(
                 "consumptionPctInitiative": round((effective_consumed / planned) * 1000, 10) / 10
                 if planned > 0
                 else None,
-                "completionPctInitiative": round((done / planned) * 1000, 10) / 10 if planned > 0 else None,
+                "completionPctInitiative": round((completion_numer / planned) * 1000, 10) / 10
+                if planned > 0
+                else None,
             }
         )
 
-    effective_total = story_sp_total if story_sp_total > 0 else desc_consumed_total
-    consumption_source = "jiraStorySp" if story_sp_total > 0 else "descriptionConsumedSp"
+    effective_total, consumption_source = _pick_effective_consumed(
+        worklog_sp_total, story_sp_total, desc_consumed_total
+    )
     consumption_pct = (
         round((effective_total / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
     )
+    completion_numer = (
+        worklog_sp_done
+        if consumption_source == "worklogSp"
+        else story_sp_done
+    )
     completion_pct = (
-        round((story_sp_done / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
+        round((completion_numer / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
     )
 
     out: dict[str, Any] = {
-        "kpiSchemaVersion": 4,
+        "kpiSchemaVersion": 5,
         "model": model,
         "label": jira_label,
         "initiativeCount": len(per_init),
@@ -709,14 +827,18 @@ async def preview_story_sp_kpi(
         "totalMilestoneRows": sum(len(x.get("milestones") or []) for x in per_init),
         "definition": {
             "plannedSp": "9 Initiatives · Description 표 컬럼 '예상 SP' 합",
-            "storySpConsumed": "Initiative Epic·Story customfield_10808 SP 합",
-            "consumedSpFromDescription": "Description 표 소모 SP 합 (Story SP 없을 때 fallback)",
+            "worklogSpConsumed": f"Epic 하위 Story worklog 합 → SP (1sp={_sp_hours_per_point()}h, WorklogReport 동일)",
+            "storySpConsumed": "Jira Story Points(customfield_10808) — worklog 없을 때 fallback",
+            "consumedSpFromDescription": "Description 표 소모 SP — worklog·Jira SP 없을 때 fallback",
             "consumptionPct": "effectiveSpConsumed / plannedSpTotal (소진율, KPI-1)",
-            "consumptionPctSource": "jiraStorySp | descriptionConsumedSp",
-            "completionPct": "완료 Story SP / plannedSpTotal (참고)",
+            "consumptionPctSource": "worklogSp | jiraStorySp | descriptionConsumedSp",
+            "completionPct": "완료 이슈 worklog SP(또는 Story SP) / plannedSpTotal (참고)",
             "notCalendarSp26": "릴리즈 Gantt SP 캘린더 경과율과 무관",
         },
         "plannedSpTotal": planned_total,
+        "worklogSpConsumed": worklog_sp_total,
+        "worklogSpDone": worklog_sp_done,
+        "spHoursPerPoint": _sp_hours_per_point(),
         "storySpConsumed": story_sp_total,
         "consumedSpFromDescription": desc_consumed_total,
         "effectiveSpConsumed": effective_total,

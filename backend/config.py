@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     # 커스텀 필드 ID (LGE Jira Server)
     story_points_field: str = "customfield_10808"
+    # WorklogReport / KPI-1: 1 Story Point = N hours logged
+    sp_hours_per_point: float = 4.0
     epic_name_field: str = "customfield_10804"
     epic_link_field: str = "customfield_10801"
     sprint_field: str = "customfield_10800"
