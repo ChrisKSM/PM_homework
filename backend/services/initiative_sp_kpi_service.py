@@ -204,7 +204,7 @@ def _header_index(headers: list[str]) -> dict[str, int | None]:
             idx["dueDate"] = j
         if "예상" in h and "sp" in hl:
             idx["plannedSp"] = j
-        if "소모" in h and "sp" in hl:
+        if ("소모" in h or "소진" in h) and "sp" in hl:
             idx["consumedSp"] = j
         if "완료" in h:
             idx["completion"] = j
@@ -310,9 +310,10 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
                 rows.append(fb)
             continue
         sp_raw = cells[sp_i].strip()
-        if not _SP_CELL.match(sp_raw):
+        sp_parsed = _parse_sp_cell(sp_raw)
+        if sp_parsed is None:
             continue
-        sp = float(sp_raw)
+        sp = sp_parsed
         if not ms:
             fb = _parse_milestone_row_fallback(line)
             if fb:
@@ -326,9 +327,7 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
         cons_i = col.get("consumedSp")
         consumed_table: float | None = None
         if cons_i is not None and cons_i < len(cells):
-            cr = cells[cons_i].strip()
-            if re.match(r"^\d+(?:\.\d+)?$", cr):
-                consumed_table = float(cr)
+            consumed_table = _parse_sp_cell(cells[cons_i].strip())
         rows.append(
             {
                 "milestone": ms if ms.startswith("M") else ms,
@@ -375,6 +374,21 @@ def parse_planned_sp_from_description(description: str | None) -> tuple[float, l
     return parse_milestone_table_from_description(description)
 
 
+def _parse_sp_cell(raw: str) -> float | None:
+    s = (raw or "").strip()
+    if not s:
+        return None
+    if _SP_CELL.match(s):
+        return float(s)
+    m = re.search(r"(\d+(?:\.\d+)?)", s)
+    if m:
+        try:
+            return float(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+
 def _story_sp(fields: dict[str, Any]) -> float:
     raw = fields.get(settings.story_points_field)
     if raw is None:
@@ -402,12 +416,15 @@ async def _collect_initiative_story_sp(
     initiative_key: str,
     story_fields: list[str],
     errors: list[str],
-) -> tuple[float, float, int, int]:
+    initiative_summary: str = "",
+) -> tuple[float, float, int, int, int]:
     """Initiative → Epic → Story/Task SP (Epic Link · parent · linkedIssues)."""
     from services.release_gantt_service import (
         _discover_epic_keys_from_linked_work_items,
         _looks_like_epic,
         _looks_like_milestone,
+        linked_epic_jql_for_initiative,
+        pick_demo_epic,
     )
 
     seen: set[str] = set()
@@ -426,7 +443,7 @@ async def _collect_initiative_story_sp(
             return
         sf = raw.get("fields") or {}
         it = sf.get("issuetype")
-        if _looks_like_epic(it) or _looks_like_milestone(it, sf.get("summary") or ""):
+        if _looks_like_epic(it) or _looks_like_milestone(it, ""):
             return
         touched.add(key)
         sp = _story_sp(sf)
@@ -456,15 +473,19 @@ async def _collect_initiative_story_sp(
             errors.append(f"{initiative_key} story JQL: {ex}")
 
     epic_keys: set[str] = set()
-    epic_jql = (
-        f'project = {project_key} AND issuetype in (Epic, epic) '
-        f'AND issue in linkedIssues("{ik}")'
-    )
+    linked_epic_rows: list[dict] = []
     try:
-        for raw_epic in await tvjira_search_all(epic_jql, ["summary", "issuetype"]):
+        linked_epic_rows = await tvjira_search_all(
+            linked_epic_jql_for_initiative(initiative_key, project_key),
+            ["summary", "issuetype"],
+        )
+        for raw_epic in linked_epic_rows:
             ek = raw_epic.get("key")
             if ek:
                 epic_keys.add(ek)
+        demo = pick_demo_epic(linked_epic_rows, initiative_summary)
+        if demo and demo.get("key"):
+            epic_keys.add(demo["key"])
     except Exception as ex:
         errors.append(f"{initiative_key} epics: {ex}")
 
@@ -506,7 +527,7 @@ async def _collect_initiative_story_sp(
             track_subs=False,
         )
 
-    return total, done, count, len(epic_keys)
+    return total, done, count, len(epic_keys), len(touched)
 
 
 async def debug_initiative_sp_snapshot(
@@ -529,40 +550,64 @@ async def debug_initiative_sp_snapshot(
         settings.story_points_field,
         settings.epic_link_field,
     ]
+    from services.release_gantt_service import linked_epic_jql_for_initiative, pick_demo_epic
+
+    summary = (fields.get("summary") or "")[:120]
     errs: list[str] = []
-    consumed, done, scount, epics = await _collect_initiative_story_sp(
-        project_key, key, story_fields, errs
+    consumed, done, scount, epics, work_touched = await _collect_initiative_story_sp(
+        project_key, key, story_fields, errs, initiative_summary=summary
     )
+    desc_consumed = _sum_consumed_sp_from_milestone_rows(rows)
+    linked_rows = await tvjira_search_all(
+        linked_epic_jql_for_initiative(key, project_key),
+        ["summary", "issuetype"],
+    )
+    demo = pick_demo_epic(linked_rows, summary)
+    demo_key = demo.get("key") if demo else None
+    epic_key_list = [r.get("key") for r in linked_rows if r.get("key")]
     sample_issues: list[dict[str, Any]] = []
-    try:
-        jql = f'project = {project_key} AND issuetype in ({_STORY_TYPE_JQL}) AND issue in linkedIssues("{key}")'
-        for st in (await tvjira_search_all(jql, story_fields))[:5]:
-            sf = st.get("fields") or {}
-            sample_issues.append(
-                {
-                    "key": st.get("key"),
-                    "type": _field_text(sf.get("issuetype")),
-                    "sp": _story_sp(sf),
-                    "status": _field_text(sf.get("status")),
-                }
+    for ek in ([demo_key] if demo_key else []) + [k for k in epic_key_list if k != demo_key][:2]:
+        try:
+            jql = (
+                f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
+                f'AND "Epic Link" = {ek}'
             )
-    except Exception as ex:
-        errs.append(str(ex))
+            for st in (await tvjira_search_all(jql, story_fields))[:8]:
+                sf = st.get("fields") or {}
+                sample_issues.append(
+                    {
+                        "key": st.get("key"),
+                        "epicLink": ek,
+                        "type": _field_text(sf.get("issuetype")),
+                        "sp": _story_sp(sf),
+                        "status": _field_text(sf.get("status")),
+                    }
+                )
+        except Exception as ex:
+            errs.append(f"{ek}: {ex}")
     return {
         "initiativeKey": key,
-        "summary": (fields.get("summary") or "")[:120],
+        "summary": summary,
         "descriptionSource": src,
         "renderedSource": rend_src,
         "descriptionChars": len(desc_text),
         "descriptionPreview": desc_text[:400],
         "plannedSpFromDescription": planned,
+        "consumedSpFromDescription": desc_consumed,
         "milestoneRowCount": len(rows),
         "milestones": rows[:8],
+        "demoEpicKey": demo_key,
+        "linkedEpicKeys": epic_key_list[:12],
         "linkedEpicCount": epics,
+        "linkedWorkItemCount": work_touched,
         "storySpConsumed": consumed,
         "storySpDone": done,
         "storyCount": scount,
-        "sampleLinkedStories": sample_issues,
+        "sampleEpicWorkItems": sample_issues,
+        "storyPointsField": settings.story_points_field,
+        "epics": epics,
+        "stories": scount,
+        "samples": sample_issues,
         "errors": errs,
     }
 
@@ -616,9 +661,14 @@ async def preview_story_sp_kpi(
         done = 0.0
         story_count = 0
         epic_count = 0
+        work_touched = 0
         try:
-            actual, done, story_count, epic_count = await _collect_initiative_story_sp(
-                project_key, key, story_fields, errors
+            actual, done, story_count, epic_count, work_touched = await _collect_initiative_story_sp(
+                project_key,
+                key,
+                story_fields,
+                errors,
+                initiative_summary=(f.get("summary") or ""),
             )
         except Exception as ex:
             errors.append(f"{key}: {ex}")
@@ -642,6 +692,7 @@ async def preview_story_sp_kpi(
                 "storySpDone": done,
                 "storyCount": story_count,
                 "linkedEpicCount": epic_count,
+                "linkedWorkItemCount": work_touched,
                 "consumptionPctInitiative": round((effective_consumed / planned) * 1000, 10) / 10
                 if planned > 0
                 else None,
@@ -691,7 +742,20 @@ async def preview_story_sp_kpi(
         "errors": errors,
     }
     if debug_initiative_key and debug_initiative_key.strip():
-        out["debug"] = await debug_initiative_sp_snapshot(
-            debug_initiative_key.strip(), project_key=project_key
-        )
+        try:
+            out["debug"] = await debug_initiative_sp_snapshot(
+                debug_initiative_key.strip(), project_key=project_key
+            )
+        except Exception as ex:
+            out["debug"] = {"error": str(ex), "initiativeKey": debug_initiative_key.strip()}
+    if effective_total <= 0 and per_init and "probe" not in out:
+        first = per_init[0]
+        out["probe"] = {
+            "storyPointsField": settings.story_points_field,
+            "hint": "debug_initiative_key=TVPLAT-943406 · sh scripts/upgrade-story-sp-kpi-router.py",
+            "sampleInitiative": first.get("initiativeKey"),
+            "linkedEpicCount": first.get("linkedEpicCount"),
+            "linkedWorkItemCount": first.get("linkedWorkItemCount"),
+            "errorsSample": errors[:8],
+        }
     return out

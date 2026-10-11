@@ -13,6 +13,7 @@ files = [
     ("backend/services/initiative_sp_kpi_service.py", "backend/services/initiative_sp_kpi_service.py"),
     ("backend/tvjira_client.py", "backend/tvjira_client.py"),
     ("scripts/patch-be-story-sp-kpi-router-snippet.py", "scripts/patch-be-story-sp-kpi-router-snippet.py"),
+    ("scripts/upgrade-story-sp-kpi-router.py", "scripts/upgrade-story-sp-kpi-router.py"),
     ("scripts/lib/require-be-pod.sh", "scripts/lib/require-be-pod.sh"),
 ]
 buf = io.BytesIO()
@@ -22,11 +23,11 @@ with tarfile.open(fileobj=buf, mode="w:gz") as tar:
 b64 = base64.b64encode(buf.getvalue()).decode()
 
 script = """#!/bin/sh
-# standalone-v4 — offline story-sp-kpi BE patch (no git)
+# standalone-v5 — offline story-sp-kpi BE patch (no git)
 set -e
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
-echo "=== patch-be-story-sp-kpi-standalone v4 ==="
+echo "=== patch-be-story-sp-kpi-standalone v5 ==="
 if [ ! -f config.py ] || [ ! -f main.py ]; then
   echo "NG: BE pod only. hostname=$(hostname)"
   exit 1
@@ -38,10 +39,16 @@ tar xzf /tmp/sp-kpi-bundle.tgz -C /tmp/sp-kpi-extract
 cp /tmp/sp-kpi-extract/backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
 cp /tmp/sp-kpi-extract/backend/tvjira_client.py tvjira_client.py
 cp /tmp/sp-kpi-extract/scripts/patch-be-story-sp-kpi-router-snippet.py scripts/patch-be-story-sp-kpi-router-snippet.py
+cp /tmp/sp-kpi-extract/scripts/upgrade-story-sp-kpi-router.py scripts/upgrade-story-sp-kpi-router.py
 cp /tmp/sp-kpi-extract/scripts/lib/require-be-pod.sh scripts/lib/require-be-pod.sh
-chmod +x scripts/patch-be-story-sp-kpi-router-snippet.py
+chmod +x scripts/patch-be-story-sp-kpi-router-snippet.py scripts/upgrade-story-sp-kpi-router.py
 if ! grep -q story-sp-kpi routers/model_status.py 2>/dev/null; then
   python3 scripts/patch-be-story-sp-kpi-router-snippet.py "$ROOT"
+fi
+python3 scripts/upgrade-story-sp-kpi-router.py "$ROOT" || true
+if ! grep -q debug_initiative_key routers/model_status.py 2>/dev/null; then
+  echo "NG: router still missing debug_initiative_key — run upgrade with --force"
+  python3 scripts/upgrade-story-sp-kpi-router.py --force "$ROOT"
 fi
 # Verify script — written here (never rely on cached /tmp or old bundle)
 cat > scripts/verify-story-sp-kpi-import.py << 'ENDVERIFY'

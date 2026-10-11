@@ -14,6 +14,9 @@ async def initiatives_story_sp_kpi(
     model: str | None = Query(None),
     label: str | None = Query(None),
     project: str = Query("TVPLAT"),
+    debug_initiative_key: str | None = Query(
+        None, description="예: TVPLAT-943406 — Description·Story SP 진단"
+    ),
 ):
     """
     KPI-1 SP 소진율 — 라벨 Initiative Description '예상 SP' 합 vs Story SP 합.
@@ -25,7 +28,12 @@ async def initiatives_story_sp_kpi(
     try:
         from services.initiative_sp_kpi_service import preview_story_sp_kpi
 
-        return await preview_story_sp_kpi(model=model, label=label, project_key=project)
+        return await preview_story_sp_kpi(
+            model=model,
+            label=label,
+            project_key=project,
+            debug_initiative_key=debug_initiative_key,
+        )
     except ImportError as e:
         raise HTTPException(
             status_code=503,
@@ -56,7 +64,13 @@ def main() -> int:
         return 1
     text = path.read_text(encoding="utf-8")
     if ROUTE_MARKER in text:
-        print("OK  story-sp-kpi route already present")
+        if "debug_initiative_key" in text:
+            print("OK  story-sp-kpi route already present (with debug_initiative_key)")
+        else:
+            print(
+                "WARN story-sp-kpi present but missing debug_initiative_key — "
+                "run: python3 scripts/upgrade-story-sp-kpi-router.py"
+            )
         return 0
     import re
 
