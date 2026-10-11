@@ -14,6 +14,10 @@ from services.release_gantt_service import (
     _milestone_jql_variants,
     _resolve_milestone_fix_version,
     _scope_initiative_keys,
+    pick_demo_epic,
+    demo_milestone_jql_for_epic,
+    linked_epic_jql_for_initiative,
+    expected_demo_epic_summaries,
 )
 
 
@@ -71,6 +75,27 @@ def test_nearest_sprint_for_2025_due_date():
 
 def test_sprint_from_milestone_summary():
     assert _sprint_from_milestone_summary("IR1 M3 Gate") == 8
+
+
+def test_pick_demo_epic_matches_initiative_title():
+    inits = "Sound Suite 7 VI Release"
+    rows = [
+        {"key": "TVPLAT-1", "fields": {"summary": "other", "issuetype": {"name": "Epic"}}},
+        {"key": "TVPLAT-969298", "fields": {"summary": f"[Demo]{inits}", "issuetype": {"name": "Epic"}}},
+    ]
+    hit = pick_demo_epic(rows, inits)
+    assert hit and hit["key"] == "TVPLAT-969298"
+
+
+def test_demo_milestone_jql_epic_link_only():
+    jql = demo_milestone_jql_for_epic("TVPLAT-969298", "TVPLAT")
+    assert '"Epic Link" = TVPLAT-969298' in jql
+    assert "fixVersion" not in jql
+    assert "linkedIssues" in linked_epic_jql_for_initiative("TVPLAT-943406", "TVPLAT")
+
+
+def test_expected_demo_epic_summaries():
+    assert "[Demo]Foo" in expected_demo_epic_summaries("Foo")
 
 
 def test_map_milestone_uses_summary_when_due_outside_2026():

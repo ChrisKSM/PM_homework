@@ -185,6 +185,34 @@ async def release_calendar():
     return calendar_payload()
 
 
+@router.get("/release/gantt/demo-milestones")
+async def release_gantt_demo_milestones(
+    model: str | None = Query(None),
+    label: str | None = Query(None),
+    project: str = Query("TVPLAT"),
+    initiative_key: str | None = Query(None),
+    all_initiatives: bool = Query(True, description="false 면 initiative_key 1건만"),
+):
+    """
+    Initiative → linked Epic 중 [Demo]+Initiative제목 Epic → Epic Link Milestone 전체 목록.
+    총 마일스톤 건수 확인용 (fixVersion JQL 미사용).
+    """
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+    try:
+        return await _release_gantt_service().list_demo_milestone_inventory(
+            model=model,
+            label=label,
+            project_key=project,
+            all_initiatives=all_initiatives,
+            initiative_key=initiative_key,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
 @router.get("/release/gantt/diagnose-counts")
 async def release_gantt_diagnose_counts(
     model: str | None = Query(None),

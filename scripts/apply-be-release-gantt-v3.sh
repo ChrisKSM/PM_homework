@@ -51,6 +51,7 @@ command -v uv >/dev/null 2>&1 || PY="python3"
 $PY -c "from services import release_gantt_service; import main; print('  OK  import main')"
 
 grep -q 'diagnose-counts' routers/model_status.py && echo "  OK  diagnose-counts route" || echo "  !!  router missing diagnose-counts"
+grep -q 'demo-milestones' routers/model_status.py && echo "  OK  demo-milestones route" || echo "  !!  demo-milestones route missing"
 
 if [ -x scripts/restart-be-route-port.sh ]; then
   sh scripts/restart-be-route-port.sh
