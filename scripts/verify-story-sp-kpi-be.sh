@@ -13,10 +13,19 @@ import json
 d = json.load(open("/tmp/sp_kpi.json"))
 if "plannedSpTotal" in d and d["plannedSpTotal"] is not None:
     print("plannedSpTotal", d["plannedSpTotal"])
-    print("storySpDone", d.get("storySpDone"), "storySpTotal", d.get("storySpTotal"))
-    print("completionPct", d.get("completionPct"))
-    inits = [x for x in d.get("byInitiative") or [] if x.get("milestones")]
-    print("initiativesWithMilestoneTable", len(inits))
+    print("storySpConsumed", d.get("storySpConsumed"), "consumptionPct", d.get("consumptionPct"))
+    print("initiativeCount", d.get("initiativeCount"), "withPlanned", d.get("initiativesWithPlannedSp"))
+    print("totalMilestoneRows", d.get("totalMilestoneRows"))
+    for x in (d.get("byInitiative") or [])[:3]:
+        print(
+            x.get("initiativeKey"),
+            "plan", x.get("plannedSpFromDescription"),
+            "stories", x.get("storyCount"),
+            "epics", x.get("linkedEpicCount"),
+            "src", x.get("descriptionSource"),
+        )
+    if d.get("errors"):
+        print("errors", d["errors"][:5])
     exit(0)
 detail = d.get("detail")
 if isinstance(detail, dict):

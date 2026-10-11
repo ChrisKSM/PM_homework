@@ -23,6 +23,10 @@ from tvjira_client import tvjira_get_issue, tvjira_search_all
 
 _MILESTONE_ID = re.compile(r"^M[1-9]\d*$", re.I)
 _DATE = re.compile(r"(\d{4}-\d{2}-\d{2})")
+_SP_CELL = re.compile(r"^\d+(?:\.\d+)?$")
+_WORK_ITEM_JQL_EXCLUDE = (
+    "Initiative, initiative, Epic, epic, Milestone, mileStone, milestone"
+)
 
 
 def _wiki_table_lines(text: str) -> str:
@@ -182,6 +186,19 @@ def _header_index(headers: list[str]) -> dict[str, int | None]:
     return idx
 
 
+def _normalize_milestone_label(raw: str) -> str | None:
+    s = (raw or "").strip()
+    if not s or len(s) > 40:
+        return None
+    if "시작전" in s or "해당없음" in s:
+        return None
+    if _MILESTONE_ID.match(s):
+        return s.upper()
+    if re.match(r"^\d+$", s):
+        return f"M{s}"
+    return s[:24]
+
+
 def _is_milestone_table_header(cells: list[str]) -> bool:
     if not cells:
         return False
@@ -260,9 +277,7 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
         mi = col.get("milestone") or 0
         if mi >= len(cells):
             continue
-        ms = cells[mi].strip()
-        if not _MILESTONE_ID.match(ms):
-            continue
+        ms = _normalize_milestone_label(cells[mi].strip())
         sp_i = col.get("plannedSp")
         if sp_i is None or sp_i >= len(cells):
             fb = _parse_milestone_row_fallback(line)
@@ -270,9 +285,14 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
                 rows.append(fb)
             continue
         sp_raw = cells[sp_i].strip()
-        if not re.match(r"^\d+(?:\.\d+)?$", sp_raw):
+        if not _SP_CELL.match(sp_raw):
             continue
         sp = float(sp_raw)
+        if not ms:
+            fb = _parse_milestone_row_fallback(line)
+            if fb:
+                rows.append(fb)
+            continue
         summary_i = col.get("summary")
         summary = cells[summary_i].strip() if summary_i is not None and summary_i < len(cells) else ""
         ts_i = col.get("targetSprint")
@@ -286,7 +306,7 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
                 consumed_table = float(cr)
         rows.append(
             {
-                "milestone": ms.upper(),
+                "milestone": ms if ms.startswith("M") else ms,
                 "summary": summary[:120],
                 "targetSprint": cells[ts_i].strip() if ts_i is not None and ts_i < len(cells) else "",
                 "dueDate": cells[due_i].strip() if due_i is not None and due_i < len(cells) else "",
@@ -296,10 +316,10 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
             }
         )
 
-    seen: set[str] = set()
+    seen: set[tuple[str, float]] = set()
     unique: list[dict[str, Any]] = []
     for r in rows:
-        k = r["milestone"]
+        k = (r["milestone"], r["plannedSp"])
         if k in seen:
             continue
         seen.add(k)
@@ -307,6 +327,22 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
 
     total = sum(r["plannedSp"] for r in unique)
     return total, unique
+
+
+def _pick_best_description_parse(
+    search_text: str,
+    rendered_text: str,
+) -> tuple[str, float, list[dict[str, Any]], str]:
+    """search vs renderedFields 중 Milestones 표 파싱이 더 풍부한 쪽."""
+    p1, r1 = parse_milestone_table_from_description(search_text)
+    p2, r2 = parse_milestone_table_from_description(rendered_text)
+    if p2 > p1 or (p2 == p1 and len(r2) > len(r1)):
+        return rendered_text, p2, r2, "renderedHtml"
+    if p1 > 0 or r1:
+        return search_text, p1, r1, "search"
+    if rendered_text.strip():
+        return rendered_text, p2, r2, "renderedHtml"
+    return search_text, p1, r1, "empty"
 
 
 def parse_planned_sp_from_description(description: str | None) -> tuple[float, list[dict[str, Any]]]:
@@ -333,50 +369,77 @@ async def _collect_initiative_story_sp(
     project_key: str,
     initiative_key: str,
     story_fields: list[str],
-) -> tuple[float, float, int]:
-    """Initiative 연결 Story SP 합 (linkedIssues + Epic Link, 중복 제거)."""
+    errors: list[str],
+) -> tuple[float, float, int, int]:
+    """Initiative → Epic → Story/Task SP (Epic Link · parent · linkedIssues)."""
+    from services.release_gantt_service import (
+        _discover_epic_keys_from_linked_work_items,
+        _looks_like_epic,
+        _looks_like_milestone,
+    )
+
     seen: set[str] = set()
     total = 0.0
     done = 0.0
     count = 0
+    ik = initiative_key.strip().replace('"', '\\"')
+
+    def absorb(raw: dict) -> None:
+        nonlocal total, done, count
+        key = raw.get("key")
+        if not key or key in seen:
+            return
+        sf = raw.get("fields") or {}
+        it = sf.get("issuetype")
+        if _looks_like_epic(it) or _looks_like_milestone(it, sf.get("summary") or ""):
+            return
+        sp = _story_sp(sf)
+        if sp <= 0:
+            return
+        seen.add(key)
+        count += 1
+        total += sp
+        if _is_story_done(sf.get("status")):
+            done += sp
 
     async def ingest(jql: str) -> None:
-        nonlocal total, done, count
-        issues = await tvjira_search_all(jql, story_fields)
-        for st in issues:
-            key = st.get("key")
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            sf = st.get("fields") or {}
-            sp = _story_sp(sf)
-            if sp <= 0:
-                continue
-            count += 1
-            total += sp
-            if _is_story_done(sf.get("status")):
-                done += sp
+        try:
+            for raw in await tvjira_search_all(jql, story_fields):
+                absorb(raw)
+        except Exception as ex:
+            errors.append(f"{initiative_key} story JQL: {ex}")
 
-    await ingest(
-        f'project = {project_key} AND issuetype in (Story, story) '
-        f'AND issue in linkedIssues("{initiative_key}")'
-    )
-
+    epic_keys: set[str] = set()
     epic_jql = (
         f'project = {project_key} AND issuetype in (Epic, epic) '
-        f'AND issue in linkedIssues("{initiative_key}")'
+        f'AND issue in linkedIssues("{ik}")'
     )
-    epics = await tvjira_search_all(epic_jql, ["summary"])
-    for raw_epic in epics:
-        ek = raw_epic.get("key")
-        if not ek:
-            continue
-        await ingest(
-            f'project = {project_key} AND issuetype in (Story, story) '
-            f'AND "Epic Link" = {ek}'
-        )
+    try:
+        for raw_epic in await tvjira_search_all(epic_jql, ["summary", "issuetype"]):
+            ek = raw_epic.get("key")
+            if ek:
+                epic_keys.add(ek)
+    except Exception as ex:
+        errors.append(f"{initiative_key} epics: {ex}")
 
-    return total, done, count
+    extra = await _discover_epic_keys_from_linked_work_items([initiative_key], project_key, errors)
+    epic_keys |= extra
+
+    await ingest(
+        f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
+        f'AND issue in linkedIssues("{ik}")'
+    )
+
+    for ek in sorted(epic_keys):
+        for jql in (
+            f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
+            f'AND "Epic Link" = {ek}',
+            f'project = {project_key} AND issuetype not in ({_WORK_ITEM_JQL_EXCLUDE}) '
+            f'AND parent = {ek}',
+        ):
+            await ingest(jql)
+
+    return total, done, count, len(epic_keys)
 
 
 async def preview_story_sp_kpi(
@@ -398,29 +461,35 @@ async def preview_story_sp_kpi(
     story_sp_done = 0.0
     errors: list[str] = []
 
-    story_fields = ["summary", "status", "issuetype", settings.story_points_field, settings.epic_link_field]
+    story_fields = [
+        "summary",
+        "status",
+        "issuetype",
+        "parent",
+        settings.story_points_field,
+        settings.epic_link_field,
+    ]
 
     for raw in inits[:max_initiatives]:
         key = raw.get("key") or ""
         f = raw.get("fields") or {}
         desc_raw = f.get("description")
-        desc_text, desc_src = normalize_jira_description(desc_raw)
-        planned, milestone_rows = parse_milestone_table_from_description(desc_text)
-        if planned <= 0 and key:
-            fetched, fetched_src = await fetch_initiative_description_text(key)
-            if fetched.strip():
-                p2, rows2 = parse_milestone_table_from_description(fetched)
-                if p2 > 0 or len(rows2) > len(milestone_rows):
-                    desc_text, desc_src = fetched, fetched_src
-                    planned, milestone_rows = p2, rows2
+        search_text, _ = normalize_jira_description(desc_raw)
+        rendered_text = ""
+        if key:
+            rendered_text, _ = await fetch_initiative_description_text(key)
+        desc_text, planned, milestone_rows, desc_src = _pick_best_description_parse(
+            search_text, rendered_text
+        )
         planned_total += planned
 
         actual = 0.0
         done = 0.0
         story_count = 0
+        epic_count = 0
         try:
-            actual, done, story_count = await _collect_initiative_story_sp(
-                project_key, key, story_fields
+            actual, done, story_count, epic_count = await _collect_initiative_story_sp(
+                project_key, key, story_fields, errors
             )
         except Exception as ex:
             errors.append(f"{key}: {ex}")
@@ -440,6 +509,7 @@ async def preview_story_sp_kpi(
                 "storySpTotal": actual,
                 "storySpDone": done,
                 "storyCount": story_count,
+                "linkedEpicCount": epic_count,
                 "consumptionPctInitiative": round((actual / planned) * 1000, 10) / 10 if planned > 0 else None,
                 "completionPctInitiative": round((done / planned) * 1000, 10) / 10 if planned > 0 else None,
             }
@@ -456,6 +526,10 @@ async def preview_story_sp_kpi(
         "model": model,
         "label": jira_label,
         "initiativeCount": len(per_init),
+        "initiativesWithPlannedSp": sum(
+            1 for x in per_init if (x.get("plannedSpFromDescription") or 0) > 0
+        ),
+        "totalMilestoneRows": sum(len(x.get("milestones") or []) for x in per_init),
         "definition": {
             "plannedSp": "9 Initiatives · Description 표 컬럼 '예상 SP' 합",
             "storySpConsumed": "Initiative linked Story(customfield_10808) SP 합 — 소진 SP",
