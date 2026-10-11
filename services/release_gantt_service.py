@@ -24,7 +24,9 @@ from services.quality_service import _field_text
 from tvjira_client import tvjira_get_issue, tvjira_issue_browse_url, tvjira_search_all
 
 # Pod/FE 에서 구버전(cf[10801] Milestone JQL) 배포 여부 확인용
-RELEASE_GANTT_SERVICE_BUILD = "2026-03-11-epic-link-jql-v4"
+RELEASE_GANTT_SERVICE_BUILD = "2026-03-11-demo-epic-milestone-v5"
+
+_DEMO_EPIC_PREFIX = "[Demo]"
 
 _EPIC_COLORS = ("#3b82f6", "#86efac", "#a78bfa", "#059669", "#f97316", "#0ea5e9", "#6366f1")
 
@@ -97,6 +99,59 @@ def _cf_num(field_id: str) -> str:
 def _epic_jqls_from_initiative_metadata(_inits: list[dict], _project: str) -> list[str]:
     """fixVersion-only JQL 은 TVPLAT 전체 Epic(200+)을 끌어와 Gantt/FE 를 망가뜨림 — 사용 안 함."""
     return []
+
+
+def _normalize_issue_summary(summary: str) -> str:
+    return " ".join((summary or "").split())
+
+
+def expected_demo_epic_summaries(initiative_summary: str) -> list[str]:
+    """Initiative 제목 앞에 [Demo] — Milestone 담당 Epic summary."""
+    base = (initiative_summary or "").strip()
+    if not base:
+        return []
+    return [f"{_DEMO_EPIC_PREFIX}{base}", f"{_DEMO_EPIC_PREFIX} {base}"]
+
+
+def pick_demo_epic(linked_epic_rows: list[dict], initiative_summary: str) -> dict | None:
+    """linkedIssues Epic 중 Initiative 와 짝인 [Demo]… Epic 1건."""
+    if not linked_epic_rows:
+        return None
+    exact = {_normalize_issue_summary(s) for s in expected_demo_epic_summaries(initiative_summary)}
+    base = (initiative_summary or "").strip()
+    for raw in linked_epic_rows:
+        fields = raw.get("fields") or {}
+        if not _looks_like_epic(fields.get("issuetype")):
+            continue
+        es = _normalize_issue_summary(fields.get("summary") or "")
+        if es in exact:
+            return raw
+    for raw in linked_epic_rows:
+        fields = raw.get("fields") or {}
+        if not _looks_like_epic(fields.get("issuetype")):
+            continue
+        es = fields.get("summary") or ""
+        if es.startswith(_DEMO_EPIC_PREFIX) and base and base in es:
+            return raw
+    return None
+
+
+def linked_epic_jql_for_initiative(initiative_key: str, project: str) -> str:
+    """Initiative 1건 → linked Epic (TV Jira Server: linkedIssues 키 1개)."""
+    k = initiative_key.strip().replace('"', '\\"')
+    return (
+        f"project = {project} AND issuetype in (Epic, epic) "
+        f'AND issue in linkedIssues("{k}") ORDER BY created DESC'
+    )
+
+
+def demo_milestone_jql_for_epic(epic_key: str, project: str) -> str:
+    """Milestone — Epic Link only (fixVersion 없음, TV Gantt 수동 JQL 과 동일)."""
+    ek = epic_key.strip().replace('"', '\\"')
+    return (
+        f"project = {project} AND issuetype in (Milestone, mileStone, milestone) "
+        f'AND "Epic Link" = {ek} ORDER BY created DESC'
+    )
 
 
 def _initiative_epic_jqls(initiative_keys: list[str], project: str) -> list[str]:
@@ -561,6 +616,155 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
     }
 
 
+_MILESTONE_SEARCH_FIELDS = [
+    "summary",
+    "status",
+    "issuetype",
+    "duedate",
+    "created",
+    "parent",
+    settings.epic_link_field,
+    settings.initiative_start_date_field,
+]
+
+
+async def _fetch_demo_milestone_pipeline(
+    initiative_rows: list[dict],
+    project_key: str,
+    errors: list[str],
+) -> tuple[list[dict], list[dict], list[str], list[str], list[dict[str, Any]]]:
+    """
+    Initiative N건 → linked Epic → summary [Demo]+Initiative 제목 Epic → Epic Link Milestone.
+    Returns demo_epic_raws, milestone_raws (with _ganttEpicKey), epic_jqls, ms_jqls, inventory rows.
+    """
+    demo_epic_raws: list[dict] = []
+    milestone_raws: list[dict] = []
+    epic_jqls: list[str] = []
+    ms_jqls: list[str] = []
+    inventory: list[dict[str, Any]] = []
+    seen_ms: set[str] = set()
+
+    for init_raw in initiative_rows:
+        init_key = init_raw.get("key") or ""
+        init_fields = init_raw.get("fields") or {}
+        init_summary = init_fields.get("summary") or ""
+        row: dict[str, Any] = {
+            "initiativeKey": init_key,
+            "initiativeSummary": init_summary,
+            "expectedDemoEpicSummary": expected_demo_epic_summaries(init_summary),
+            "linkedEpicCount": 0,
+            "demoEpicKey": None,
+            "demoEpicSummary": None,
+            "milestoneJql": None,
+            "milestoneCount": 0,
+            "milestones": [],
+        }
+        if not init_key:
+            inventory.append(row)
+            continue
+
+        epic_jql = linked_epic_jql_for_initiative(init_key, project_key)
+        epic_jqls.append(epic_jql)
+        try:
+            linked = await tvjira_search_all(epic_jql, _EPIC_FIELDS)
+        except Exception as ex:
+            errors.append(f"demo pipeline epic ({init_key}): {ex}")
+            inventory.append(row)
+            continue
+
+        row["linkedEpicCount"] = len(linked)
+        demo_raw = pick_demo_epic(linked, init_summary)
+        if not demo_raw:
+            row["demoEpicMissing"] = True
+            inventory.append(row)
+            continue
+
+        demo_key = demo_raw.get("key") or ""
+        demo_fields = demo_raw.get("fields") or {}
+        row["demoEpicKey"] = demo_key
+        row["demoEpicSummary"] = demo_fields.get("summary") or ""
+        demo_epic_raws.append(demo_raw)
+
+        ms_jql = demo_milestone_jql_for_epic(demo_key, project_key)
+        row["milestoneJql"] = ms_jql
+        ms_jqls.append(ms_jql)
+        try:
+            ms_rows = await tvjira_search_all(ms_jql, _MILESTONE_SEARCH_FIELDS)
+        except Exception as ex:
+            errors.append(f"demo pipeline milestone ({demo_key}): {ex}")
+            inventory.append(row)
+            continue
+
+        ms_list: list[dict[str, Any]] = []
+        for raw in ms_rows:
+            key = raw.get("key") or ""
+            tagged = {**raw, "_ganttEpicKey": demo_key}
+            if key and key not in seen_ms:
+                seen_ms.add(key)
+                milestone_raws.append(tagged)
+            ms_list.append(
+                {
+                    "issueKey": key,
+                    "summary": (raw.get("fields") or {}).get("summary") or "",
+                    "status": _field_text((raw.get("fields") or {}).get("status")),
+                    "dueDate": (raw.get("fields") or {}).get("duedate") or "",
+                }
+            )
+        row["milestoneCount"] = len(ms_rows)
+        row["milestones"] = ms_list
+        inventory.append(row)
+
+    return demo_epic_raws, milestone_raws, epic_jqls, ms_jqls, inventory
+
+
+async def list_demo_milestone_inventory(
+    model: str | None = None,
+    label: str | None = None,
+    project_key: str = "TVPLAT",
+    all_initiatives: bool = True,
+    initiative_key: str | None = None,
+) -> dict[str, Any]:
+    """Initiative → [Demo] Epic → Milestone 전체 목록·건수 (JQL 진단용)."""
+    jira_label = resolve_initiative_label(model, label)
+    errors: list[str] = []
+    init_jql = build_initiative_jql(jira_label, project_key=project_key) if jira_label else None
+    inits: list[dict] = []
+    if init_jql:
+        inits = await tvjira_search_all(init_jql, initiative_search_field_ids())
+    initiative_keys = [i.get("key") for i in inits if i.get("key")]
+    scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, all_initiatives)
+    scope_set = set(scope_keys)
+    scoped_inits = [i for i in inits if i.get("key") in scope_set]
+    if initiative_key and initiative_key not in {i.get("key") for i in scoped_inits}:
+        scoped_inits.insert(0, {"key": initiative_key, "fields": {"summary": ""}})
+
+    demo_raws, ms_raws, epic_jqls, ms_jqls, inventory = await _fetch_demo_milestone_pipeline(
+        scoped_inits, project_key, errors
+    )
+    total = len(ms_raws)
+    demo_keys = [r.get("key") for r in demo_raws if r.get("key")]
+    missing_demo = [r["initiativeKey"] for r in inventory if r.get("demoEpicMissing")]
+
+    return {
+        "initiativeJql": init_jql,
+        "initiativeCount": len(scoped_inits),
+        "initiativeKeys": scope_keys,
+        "demoEpicCount": len(demo_raws),
+        "demoEpicKeys": demo_keys,
+        "totalMilestoneCount": total,
+        "missingDemoEpicInitiativeKeys": missing_demo,
+        "byInitiative": inventory,
+        "epicJqlSample": epic_jqls[0] if epic_jqls else None,
+        "milestoneJqlSample": ms_jqls[0] if ms_jqls else None,
+        "milestoneJqls": ms_jqls,
+        "errors": errors,
+        "discovery": {
+            "pipeline": "initiative_linkedEpic_demoSummary_milestone_epicLink",
+            "serviceBuild": RELEASE_GANTT_SERVICE_BUILD,
+        },
+    }
+
+
 def _scope_initiative_keys(
     initiative_keys: list[str],
     initiative_key: str | None,
@@ -617,14 +821,38 @@ async def get_release_gantt(
     scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, all_initiatives)
 
     if jira_label or initiative_keys:
+        scope_set = set(scope_keys)
+        scoped_inits = [i for i in inits if i.get("key") in scope_set]
+        if not scoped_inits and initiative_key:
+            scoped_inits = [{"key": initiative_key, "fields": {"summary": ""}}]
+
         raw_epics, epic_jqls = await _search_epics_for_initiatives(scope_keys, project_key, errors)
-        discovered_epic_keys: set[str] = {r.get("key") for r in raw_epics if r.get("key")}
-        discovery: dict[str, Any] = {
-            "pipeline": "initiative_linkedIssues_epic_per_key",
+        discovered_epic_keys = {r.get("key") for r in raw_epics if r.get("key")}
+        discovery = {
+            "pipeline": "initiative_demoEpic_milestone_epicLink",
             "serviceBuild": RELEASE_GANTT_SERVICE_BUILD,
             "milestoneJqlEpicField": "Epic Link",
+            "rawLinkedEpicCount": len(raw_epics),
         }
-        for i, raw in enumerate(raw_epics):
+
+        demo_raws, raw_ms, demo_epic_jqls, ms_jqls, demo_inventory = await _fetch_demo_milestone_pipeline(
+            scoped_inits, project_key, errors
+        )
+        epic_jqls = list(dict.fromkeys(epic_jqls + demo_epic_jqls))
+        discovery["demoEpicCount"] = len(demo_raws)
+        discovery["demoMilestoneInventory"] = [
+            {
+                "initiativeKey": r.get("initiativeKey"),
+                "demoEpicKey": r.get("demoEpicKey"),
+                "milestoneCount": r.get("milestoneCount"),
+            }
+            for r in demo_inventory
+        ]
+        discovery["missingDemoEpicInitiativeKeys"] = [
+            r["initiativeKey"] for r in demo_inventory if r.get("demoEpicMissing")
+        ]
+
+        for i, raw in enumerate(demo_raws):
             epics.append(_map_epic(raw, i))
 
         if not epics and jira_label:
@@ -635,9 +863,6 @@ async def get_release_gantt(
 
         raw_epic_count = len(epics)
         epic_keys = [e["issueKey"] for e in epics if e.get("issueKey")]
-        raw_ms, ms_jqls = await _search_milestones_merged(
-            epic_keys, milestone_fix_versions, project_key, errors
-        )
         raw_ms_count = len(raw_ms)
         by_epic: dict[str, list[dict]] = {k: [] for k in epic_keys}
         mapped_ms_count = 0

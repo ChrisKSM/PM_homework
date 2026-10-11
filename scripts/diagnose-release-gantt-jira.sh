@@ -14,6 +14,27 @@ curl -sf "${BASE}/health" >/dev/null && echo "  OK  ${BASE}/health" || {
 }
 
 echo ""
+echo "=== demo-milestones (Initiative → [Demo] Epic → Epic Link Milestone) ==="
+curl -sG "${BASE}/api/model-status/release/gantt/demo-milestones" \
+  --data-urlencode "model=${MODEL}" \
+  --data-urlencode "label=${LABEL}" \
+  --data-urlencode "all_initiatives=true" \
+  | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print('  initiatives', d.get('initiativeCount'), 'demoEpics', d.get('demoEpicCount'))
+print('  totalMilestoneCount', d.get('totalMilestoneCount'))
+missing = d.get('missingDemoEpicInitiativeKeys') or []
+if missing:
+    print('  missing [Demo] epic for', missing)
+for row in d.get('byInitiative') or []:
+    ik = row.get('initiativeKey')
+    dk = row.get('demoEpicKey') or '-'
+    n = row.get('milestoneCount', 0)
+    print(f'    {ik}  demo={dk}  milestones={n}')
+"
+
+echo ""
 echo "=== step counts (Jira, no full Gantt payload) ==="
 curl -sG "${BASE}/api/model-status/release/gantt/diagnose-counts" \
   --data-urlencode "model=${MODEL}" \
