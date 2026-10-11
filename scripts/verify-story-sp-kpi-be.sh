@@ -12,8 +12,11 @@ python3 <<'PY'
 import json
 d = json.load(open("/tmp/sp_kpi.json"))
 if "plannedSpTotal" in d and d["plannedSpTotal"] is not None:
+    print("kpiSchemaVersion", d.get("kpiSchemaVersion"))
     print("plannedSpTotal", d["plannedSpTotal"])
-    print("storySpConsumed", d.get("storySpConsumed"), "consumptionPct", d.get("consumptionPct"))
+    print("worklogSpConsumed", d.get("worklogSpConsumed"), "storySpConsumed", d.get("storySpConsumed"))
+    print("effectiveSpConsumed", d.get("effectiveSpConsumed"), "source", d.get("consumptionPctSource"))
+    print("consumptionPct", d.get("consumptionPct"))
     print("initiativeCount", d.get("initiativeCount"), "withPlanned", d.get("initiativesWithPlannedSp"))
     print("totalMilestoneRows", d.get("totalMilestoneRows"))
     for x in (d.get("byInitiative") or [])[:3]:

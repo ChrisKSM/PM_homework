@@ -7,6 +7,29 @@ GitHub `webpack-migration` 브랜치에서 회사 pod로 **FE·BE 각각** 가�
 
 ---
 
+## 요약 탭 — HW/SW 타임라인 + KPI-1 SP (2026-03 최신)
+
+GitHub만 쓰는 pod (내부 git remote 없음):
+
+```bash
+# FE (project-react-audio-*)
+curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/apply-model-status-summary-fe-be-patch.sh" | FE_ONLY=1 sh
+sh scripts/verify-model-status-summary-fe-deployed.sh
+
+# BE (project-be-audio-test-*)
+curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/apply-model-status-summary-fe-be-patch.sh" | BE_ONLY=1 sh
+sh scripts/verify-story-sp-kpi-be.sh
+```
+
+| Pod | 하면 안 되는 것 |
+|-----|----------------|
+| FE | `patch-be-story-sp-kpi-standalone.sh` (services/ 잔여물 생김) |
+| BE | `npm run build` |
+
+릴리즈 · Epic + 요약 한 번에: `apply-model-status-release-fe-be-patch.sh` (FE/BE 각각 `FE_ONLY=1` / `BE_ONLY=1`).
+
+---
+
 ## FE pod (react-audio)
 
 ```bash

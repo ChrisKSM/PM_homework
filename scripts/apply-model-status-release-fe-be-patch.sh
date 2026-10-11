@@ -29,6 +29,11 @@ run_fe() {
   curl -fsSL "$BASE/scripts/fe-model-status-release-gantt-patch.sh" -o scripts/fe-model-status-release-gantt-patch.sh
   chmod +x scripts/fe-model-status-release-gantt-patch.sh
   REF="$REF" ROOT="$ROOT" sh scripts/fe-model-status-release-gantt-patch.sh
+  echo ""
+  echo "=== summary timeline + SP KPI FE ==="
+  curl -fsSL "$BASE/scripts/fe-model-status-summary-kpi-patch.sh" -o /tmp/fe-summary-patch.sh
+  chmod +x /tmp/fe-summary-patch.sh
+  REF="$REF" ROOT="$ROOT" sh /tmp/fe-summary-patch.sh
 }
 
 run_be() {
@@ -50,6 +55,13 @@ run_be() {
     echo "NG  scripts/diagnose-release-gantt-jira.sh download failed"
     exit 1
   }
+
+  echo ""
+  echo "=== story-sp-kpi (KPI-1 SP 소진율 API) ==="
+  curl -fsSL -H "Cache-Control: no-cache" \
+    "$BASE/scripts/patch-be-story-sp-kpi-standalone.sh" -o /tmp/patch-sp-kpi.sh
+  chmod +x /tmp/patch-sp-kpi.sh
+  sh /tmp/patch-sp-kpi.sh || echo "  warn: story-sp-kpi standalone failed — run apply-model-status-summary-fe-be-patch.sh | BE_ONLY=1"
 
   if [ -x scripts/restart-be-route-port.sh ]; then
     sh scripts/restart-be-route-port.sh

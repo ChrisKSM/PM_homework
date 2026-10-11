@@ -3,13 +3,17 @@
 #
 # Pod git remote 가 LGE 내부면 checkout 대신 curl | sh 사용.
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/2b706bc/scripts/apply-be-story-sp-kpi.sh" | sh
+#   권장 (standalone v5+ worklog, router upgrade):
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/apply-model-status-summary-fe-be-patch.sh" | BE_ONLY=1 sh
+#
+#   구 방식 (개별 파일 fetch — router 전체 교체):
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/apply-be-story-sp-kpi.sh" | sh
 # router 로컬 수정 유지:
 #   SKIP_ROUTER=1 curl -fsSL ".../apply-be-story-sp-kpi.sh" | sh
 # 또는: .../patch-be-story-sp-kpi-service-only.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-dd2494d}"
+REF_SHA="${REF_SHA:-cursor/model-schedule-bar-label-fix-b14b}"
 SKIP_ROUTER="${SKIP_ROUTER:-0}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
