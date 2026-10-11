@@ -80,10 +80,12 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
         <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-2">
             <div>
-              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide">KPI-1 SP 캘린더 경과율</p>
+              <p className="text-xs font-bold text-blue-800 uppercase tracking-wide">SP26 캘린더 경과 (참고)</p>
               <p className="text-3xl font-bold text-gray-900 mt-1">{kpis.kpi1Pct}%</p>
               <p className="text-xs text-gray-600 mt-1">{kpis.kpi1Sub}</p>
-              <p className="text-[10px] text-gray-400 mt-2">{kpis.kpi1Detail}</p>
+              <p className="text-[10px] text-gray-400 mt-2">
+                요약 탭 KPI-1(SP 소진율)과 무관 · Initiative Description·Story worklog 기준
+              </p>
             </div>
             <TrendingUp className="text-blue-500 shrink-0" size={28} />
           </div>

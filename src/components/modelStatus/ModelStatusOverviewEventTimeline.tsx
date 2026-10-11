@@ -46,22 +46,31 @@ function EventRow({
 }
 
 export default function ModelStatusOverviewEventTimeline({ timeline }: { timeline: OverviewEventsTimeline }) {
+  const todayLeft = `calc(1rem + (100% - 2rem) * ${timeline.todayRatio})`
   return (
-    <div className="relative rounded-2xl border border-surface-border bg-white p-4 overflow-hidden space-y-3">
-      <EventRow label="HW Event (PrePV / PV1 / PV2 / MP / ATS)" bars={timeline.hwBars} tone="hw" />
-      <EventRow label="SW Event (SIT / FC / QP …)" bars={timeline.swBars} tone="sw" />
+    <div className="relative rounded-2xl border border-surface-border bg-white p-4 overflow-hidden">
+      <div className="relative space-y-3 z-10">
+        <EventRow label="HW Event (PrePV / PV1 / PV2 / MP / ATS)" bars={timeline.hwBars} tone="hw" />
+        <EventRow label="SW Event (SIT1·2·3 / FC1·2·3 / QP1·2 …)" bars={timeline.swBars} tone="sw" />
+      </div>
       <div
-        className="absolute top-10 bottom-4 w-0.5 bg-violet-600 z-20 pointer-events-none opacity-90"
-        style={{ left: `calc(16px + (100% - 32px) * ${timeline.todayRatio})` }}
-        title="오늘"
+        className="absolute top-12 bottom-14 w-0.5 bg-violet-600 z-20 pointer-events-none"
+        style={{ left: todayLeft }}
+        title={`오늘 ${fmtShortDate(timeline.today)}`}
       />
-      <p className="text-[10px] text-gray-500 pt-1 border-t border-gray-100">
-        전 모델 일정(Mongo overview) · 가로 위치=일정 기간 비율 ·{' '}
-        <span className="text-violet-700 font-medium">| 오늘</span>
+      <div
+        className="absolute top-10 z-30 pointer-events-none text-[9px] font-bold text-violet-700 -translate-x-1/2"
+        style={{ left: todayLeft }}
+      >
+        오늘
+      </div>
+      <p className="text-[10px] text-gray-500 pt-3 mt-1 border-t border-gray-100 relative z-10">
+        전 모델 일정(Mongo overview) · {fmtShortDate(timeline.rangeStart)} — {fmtShortDate(timeline.rangeEnd)} ·
+        가로=기간 비율 · <span className="text-violet-700 font-medium">보라색 선=오늘</span>
         {timeline.activeEventLabel ? (
           <>
             {' '}
-            · 현재 구간: <b>{timeline.activeEventLabel}</b>
+            · 현재: <b>{timeline.activeEventLabel}</b>
           </>
         ) : null}
       </p>

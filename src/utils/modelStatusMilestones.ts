@@ -1,7 +1,11 @@
 import type { OverviewModel } from '../types/modelScheduleOverview'
 import type { ModelRow } from './modelScheduleRows'
 import { canonicalModelName } from './modelScheduleRows'
-import { classifyEventKind, isValidOverviewEvent } from './modelScheduleOverviewRows'
+import {
+  classifyEventKind,
+  filterEventsForTimeline,
+  isValidOverviewEvent,
+} from './modelScheduleOverviewRows'
 
 export type MilestonePhase = 'FC' | 'PV' | 'MP'
 
@@ -61,7 +65,10 @@ function mergeSpan(a: { start: Date; end: Date } | null, s: Date, e: Date) {
   }
 }
 
-/** overview HW Event(PrePV/PV1/PV2/MP) → FC / PV / MP (전 모델 일정과 동일 소스) */
+/**
+ * @deprecated UI는 buildOverviewEventsTimeline(HW·SW 개별 이벤트) 사용.
+ * PrePV를 FC로 묶지 않음 — FC는 SW Event(SIT/FC/QP) 전용.
+ */
 export function buildHwEventTimeline(model: OverviewModel | null): MilestoneTimeline | null {
   if (!model?.events?.length) return null
   let fc: { start: Date; end: Date } | null = null
@@ -203,13 +210,13 @@ export type SignalTone = 'green' | 'amber' | 'red'
 export function overallSignal(
   model: OverviewModel | null,
   verificationRows: ModelRow[],
-  timeline: MilestoneTimeline,
+  eventsTimeline: OverviewEventsTimeline | null,
 ): SignalTone {
   const code = model?.model ?? ''
   const rows = verificationRows.filter((r) => canonicalModelName(r.model) === canonicalModelName(code))
   if (rows.some((r) => r.status === 'NG' || r.status === '지연')) return 'red'
   if (rows.some((r) => r.status === '진행중')) return 'amber'
-  if (timeline.activePhase === 'FC' && !rows.length) return 'amber'
+  if (!eventsTimeline?.hwBars.length && !rows.length) return 'amber'
   return 'green'
 }
 
@@ -250,11 +257,13 @@ function eventKindForBar(name: string, kind?: string): 'hw' | 'sw' | null {
   return k === 'hw' || k === 'sw' ? k : null
 }
 
-/** 전 모델 일정 overview — HW·SW 이벤트를 동일 시간축(상대 비율)에 배치 */
+/** 전 모델 일정 overview — HW·SW 이벤트를 동일 시간축(상대 비율)에 배치 (PrePV/PV1/… · SIT/FC/QP) */
 export function buildOverviewEventsTimeline(model: OverviewModel | null): OverviewEventsTimeline | null {
   if (!model?.events?.length) return null
   const parsed: { name: string; kind: 'hw' | 'sw'; start: Date; end: Date }[] = []
-  for (const ev of model.events) {
+  const hwList = filterEventsForTimeline(model.events, 'hw')
+  const swList = filterEventsForTimeline(model.events, 'sw')
+  for (const ev of [...hwList, ...swList]) {
     if (!isValidOverviewEvent(ev)) continue
     const kind = eventKindForBar(ev.name, ev.kind)
     if (!kind) continue

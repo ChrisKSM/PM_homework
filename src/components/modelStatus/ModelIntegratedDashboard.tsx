@@ -24,7 +24,6 @@ import type { ModelRow } from '../../utils/modelScheduleRows'
 import { canonicalModelName } from '../../utils/modelScheduleRows'
 import { normalizeOverviewCategory } from '../../utils/modelScheduleOverviewRows'
 import {
-  buildMilestoneTimeline,
   buildOverviewEventsTimeline,
   overallSignal,
   verificationIssueCounts,
@@ -123,13 +122,9 @@ export default function ModelIntegratedDashboard({
   const { data: storySpKpi } = useModelStatusStorySpKpi(modelCode, jiraModelLive)
 
   const eventsTimeline = useMemo(() => buildOverviewEventsTimeline(overview), [overview])
-  const timeline = useMemo(
-    () => buildMilestoneTimeline(overview, verificationRows),
-    [overview, verificationRows],
-  )
   const signal = useMemo(
-    () => overallSignal(overview, verificationRows, timeline),
-    [overview, verificationRows, timeline],
+    () => overallSignal(overview, verificationRows, eventsTimeline),
+    [overview, verificationRows, eventsTimeline],
   )
   const issues = useMemo(() => verificationIssueCounts(overview, verificationRows), [overview, verificationRows])
 
@@ -212,9 +207,16 @@ export default function ModelIntegratedDashboard({
 
       {eventsTimeline ? (
         <ModelStatusOverviewEventTimeline timeline={eventsTimeline} />
+      ) : (overview.events?.length ?? 0) > 0 ? (
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900">
+            이벤트 타임라인을 그리지 못했습니다. 아래 HW/SW 표를 확인하세요 (FC/PV/MP 축 미사용).
+          </div>
+          <ModelStatusEventsTable model={overview} />
+        </div>
       ) : (
         <div className="rounded-2xl border border-surface-border bg-white p-4 text-[11px] text-gray-500">
-          overview HW/SW Event 없음 — 전 모델 일정 seed 확인
+          overview HW/SW Event 없음 — 전 모델 일정(Mongo) seed 확인
         </div>
       )}
 
@@ -240,7 +242,13 @@ export default function ModelIntegratedDashboard({
           icon={<TrendingUp size={16} />}
           trend={
             storySpKpi
-              ? { value: 0, label: 'Description 예상 SP 대비 Story SP' }
+              ? {
+                  value: 0,
+                  label:
+                    storySpKpi.consumptionPctSource === 'worklogSp'
+                      ? 'Initiative Description 예상 SP 대비 worklog SP'
+                      : 'Initiative Description 예상 SP 대비 소진 (worklog·Story·표)',
+                }
               : undefined
           }
         />
@@ -254,7 +262,7 @@ export default function ModelIntegratedDashboard({
         <KpiCard
           label="이슈 / 리스크"
           value={`${issues.open}/${issues.total || '—'}`}
-          sub={`현재 Event(${eventsTimeline?.activeEventLabel ?? timeline.activePhase ?? '-'}) NG·지연·진행중`}
+          sub={`현재 Event(${eventsTimeline?.activeEventLabel ?? '-'}) · 검증 NG·지연·진행중`}
           tone={issues.open > 0 ? 'danger' : 'success'}
           icon={<AlertTriangle size={16} />}
         />
