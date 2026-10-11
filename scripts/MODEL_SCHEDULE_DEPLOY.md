@@ -29,6 +29,49 @@ npm run build
 git add -A && git commit -m "feat: 모델 현황 v7 — 저장/로드 수정" && git push origin master
 ```
 
+**탭/UI만 추가해도 동일:** pod에서 `npm run build`만 하면 `build/` 폴더만 바뀌고,  
+브라우저 URL이 가리키는 **Route/Deployment** 가 그 이미지를 받아야 합니다.
+
+### 공용 URL vs 본인 FE pod (4탭만 보일 때)
+
+`https://react-audio.apps.axstudio.lge.com` 은 **팀 공용 FE** 일 수 있습니다.  
+본인 workspace pod(`project-react-audio-<계정>-deployment`)에서 빌드·태그 push 해도 **공용 URL은 구번들**을 계속 줄 수 있습니다.
+
+```bash
+FE="https://react-audio.apps.axstudio.lge.com"
+echo "pod BV: $(cat build/build-version.txt)"
+curl -s "$FE/build-version.txt"
+curl -s "$FE/index.html" | grep -oE 'main\.[a-f0-9]+\.js'
+ls build/main.*.js
+```
+
+| 항목 | pod (로컬 build) | 공용 URL | 의미 |
+|------|------------------|----------|------|
+| build-version | `1791637397702` (예) | `1791617237091` (예) | **다른 배포본** |
+| main.js | `main.7b44750a....js` | `main.e59a548e....js` | 브라우저는 **Last-Modified 07:27** 구 JS |
+
+**조치:** AxStudio 워크스페이스에 표시된 **본인 react-audio Route URL** 로 `/model-schedule/status` 접속.  
+공용 URL을 꼭 써야 하면 해당 Route를 가리키는 **팀 Deployment/CI** 에 반영 요청.
+
+Worker URL(`react-audio--3000--<계정>.apps...`)은 **pod dev server**용 미리보기입니다.  
+**실제 업무 URL** `https://react-audio.apps.axstudio.lge.com` 과 **다른 배포본**일 수 있습니다.
+
+| URL | 5탭(릴리즈 · Epic) |
+|-----|-------------------|
+| `react-audio.apps.axstudio.lge.com` | **공용 Route 이미지가 갱신돼야** 함 (`main.js` / `build-version` pod와 일치) |
+| `react-audio--3000--...` | pod `npm start` (Invalid Host → `webpack.config.js` `.apps.axstudio.lge.com`) |
+
+```bash
+sh scripts/verify-shared-react-audio-deployed.sh
+```
+
+공용 URL에서 4탭만 보이면 **코드 미완성이 아니라** `curl`로 확인한 **구 `main.e59a548e...` 번들**을 쓰는 것입니다.  
+`release_*` 태그 CI + **그 Route가 바라보는 Deployment** 배포까지 필요합니다.
+
+```bash
+sh scripts/verify-model-status-release-fe-deployed.sh   # 릴리즈 · Epic 탭
+```
+
 ### FE 반영 파일
 
 | 파일 | 설명 |
@@ -45,6 +88,34 @@ git add -A && git commit -m "feat: 모델 현황 v7 — 저장/로드 수정" &&
 ---
 
 ## BE pod (be-audio-test)
+
+### Snapshot 메일 공유 포함 (권장 — 최신)
+
+```bash
+cd /workspace/project
+git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true
+git fetch github cursor/model-schedule-bar-label-fix-b14b
+
+# ⚠️ scripts/ 가 pod에 없으면 먼저 checkout (최초 1회)
+git checkout github/cursor/model-schedule-bar-label-fix-b14b -- \
+  scripts/deploy-model-schedule-share-be.sh
+
+sh scripts/deploy-model-schedule-share-be.sh
+# .env MONGO_PASSWORD 확인 후 uvicorn 재시작
+```
+
+**`.env` SMTP (Audio DL, 무인증):**
+
+```env
+SMTP_HOST=lgesmtp.lge.com
+SMTP_PORT=25
+SMTP_FROM=DL-webOS_PMO-AudioSWPO@lge.com
+SMTP_USE_TLS=true
+SMTP_VERIFY_SSL=false
+MODEL_SCHEDULE_SHARE_RECIPIENTS=seokmin.koh@lge.com
+```
+
+### Milvus load/save 만 (구버전)
 
 ```bash
 cd /workspace/project
@@ -84,10 +155,15 @@ MONGO_DB=dify_mv_audiojdmtask
 
 ### BE 반영 후 확인
 
+> **포트:** BE pod / Route 표준은 **8000**.  
+> **중요:** pod 이름이 `project-be-audio-test-<사용자>-deployment` 이면 **개인 workspace pod** 입니다.  
+> FE(`react-audio`)가 치는 `https://be-audio-test.apps.axstudio.lge.com` 은 **공용 Route** — local8000 OK + external 502 이면 **다른 Deployment** 문제입니다.
+
 ```bash
-# uvicorn 재시작 후
-curl -s http://127.0.0.1:8000/api/model-schedule/load
-curl -s -X POST http://127.0.0.1:8000/api/model-schedule/save \
+# uvicorn 재시작 후 (port 8000)
+for p in 8000; do curl -sf "http://127.0.0.1:${p}/health" && BE=$p && break; done
+curl -s "http://127.0.0.1:${BE}/api/model-schedule/load"
+curl -s -X POST "http://127.0.0.1:${BE}/api/model-schedule/save" \
   -H "Content-Type: application/json" \
   -d '{"rows":[]}'
 ```

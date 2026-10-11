@@ -1,0 +1,82 @@
+#!/bin/sh
+# BE pod — ImportError: cannot import name 'release_gantt_service' from 'services'
+# (routers/model_status.py 만 갱신되고 service 파일이 없을 때)
+#
+#   sh scripts/fix-release-gantt-missing.sh
+#   sh scripts/restart-be-route-port.sh
+set -e
+cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
+REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
+REF_SHA="${REF_SHA:-$REF}"
+BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
+
+echo "=== fix release gantt services (ref $REF_SHA) bundle v2026-03-11.2 ==="
+mkdir -p services routers scripts
+
+fetch() {
+  curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"
+  echo "  + $2"
+}
+
+fetch backend/jira_client.py jira_client.py
+fetch backend/tvjira_client.py tvjira_client.py
+fetch backend/services/release_gantt_service.py services/release_gantt_service.py
+fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
+fetch backend/routers/model_status.py routers/model_status.py
+fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
+chmod +x scripts/patch-config-release-gantt-fixversion.sh 2>/dev/null || true
+sh scripts/patch-config-release-gantt-fixversion.sh
+fetch scripts/diagnose-release-gantt-jira.sh scripts/diagnose-release-gantt-jira.sh
+fetch scripts/verify-release-gantt-be.sh scripts/verify-release-gantt-be.sh
+chmod +x scripts/diagnose-release-gantt-jira.sh scripts/verify-release-gantt-be.sh 2>/dev/null || true
+
+echo ""
+echo "=== route check ==="
+grep -q 'release/gantt' routers/model_status.py && grep -q 'release/discover' routers/model_status.py \
+  && echo "  OK  release/* routes in model_status.py" \
+  || { echo "  NG  model_status.py missing release routes"; exit 1; }
+grep -q 'release/gantt/diagnose-counts' routers/model_status.py \
+  && echo "  OK  release/gantt/diagnose-counts" \
+  || echo "  !!  diagnose-counts route missing — REF fetch 재실행"
+
+PY="uv run --frozen python"
+command -v uv >/dev/null 2>&1 || PY="python3"
+
+echo ""
+echo "=== JQL 400 fix (linkedIssues 키 1개씩, scope 1 Initiative) ==="
+if grep -q 'issue in linkedIssues({keys_clause})' services/release_gantt_service.py 2>/dev/null; then
+  echo "  NG  구버전 — linkedIssues 다키 JQL → Jira 400. REF fetch 재실행"
+  exit 1
+fi
+grep -q 'linkedIssues 는 키 1개씩' services/release_gantt_service.py && echo "  OK  per-key linkedIssues"
+grep -q '_scope_initiative_keys' services/release_gantt_service.py && echo "  OK  scope_initiative_keys"
+if grep -B1 'def _scope_initiative_keys' services/release_gantt_service.py | grep -q '@cached'; then
+  echo "  NG  @cached on sync _scope_initiative_keys → coroutine bug; REF 최신 fetch"
+  exit 1
+fi
+grep -A1 '@cached(ttl=300)' services/release_gantt_service.py | grep -q 'async def get_release_gantt' \
+  && echo "  OK  cache on async get_release_gantt" \
+  || echo "  !!  get_release_gantt cache placement — REF 확인"
+grep -q 'epics = \[e for e in epics if e.get("milestones")\]' services/release_gantt_service.py \
+  && echo "  OK  milestone-only epics filter" \
+  || echo "  !!  milestone epic filter missing — REF 최신인지 확인"
+grep -q '_milestone_jql_for_epic' services/release_gantt_service.py \
+  && grep -q '"Epic Link"' services/release_gantt_service.py \
+  && echo "  OK  milestone Epic Link + fixVersion JQL" \
+  || echo "  !!  milestone JQL pipeline missing — REF fetch"
+grep -q '"status": _field_text(fields.get("status"))' services/release_gantt_service.py \
+  && echo "  OK  milestone status in API" \
+  || echo "  !!  milestone status field missing"
+
+echo ""
+echo "=== import check ==="
+test -f services/release_gantt_service.py
+test -f services/release_sprint_calendar_2026.py
+$PY -c "import tvjira_client; from services import release_gantt_service; import main; print('  OK  main:app import')"
+$PY -c "from services.release_sprint_calendar_2026 import calendar_payload; assert calendar_payload()['sprintMax']==26; print('  OK  release calendar SP26')"
+
+echo ""
+echo "=== Done — restart ==="
+echo "  sh scripts/restart-be-route-port.sh"
+echo "  sh scripts/diagnose-release-gantt-jira.sh"
+echo "  sh scripts/verify-release-gantt-be.sh"

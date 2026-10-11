@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { jiraApi } from '../api/jiraApi'
+import { jiraFetchOrMock } from '../utils/jiraFetch'
 import type {
   ProjectSummary,
   EpicProgress,
@@ -25,16 +26,12 @@ import {
   mockSprintReport,
 } from '../mocks/mockData'
 
-import { USE_MOCK } from '../config/dataSource'
-
-// REACT_APP_USE_MOCK=false 로 설정하면 실제 백엔드 API 호출로 전환
-
 // ── 책임자 대시보드 ──────────────────────────────────────────────────────────
 
 export function useProjectSummary() {
   return useQuery<ProjectSummary>({
     queryKey: ['projectSummary'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockProjectSummary) : jiraApi.getProjectSummary,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getProjectSummary(), mockProjectSummary),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -42,7 +39,7 @@ export function useProjectSummary() {
 export function useEpicProgress() {
   return useQuery<EpicProgress[]>({
     queryKey: ['epicProgress'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockEpicProgress) : jiraApi.getEpicProgress,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getEpicProgress(), mockEpicProgress),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -50,7 +47,7 @@ export function useEpicProgress() {
 export function useIssueDistribution() {
   return useQuery<IssueDistribution[]>({
     queryKey: ['issueDistribution'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockIssueDistribution) : jiraApi.getIssueDistribution,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getIssueDistribution(), mockIssueDistribution),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -58,7 +55,7 @@ export function useIssueDistribution() {
 export function useVelocity() {
   return useQuery<SprintVelocity[]>({
     queryKey: ['velocity'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockVelocity) : jiraApi.getVelocity,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getVelocity(), mockVelocity),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -66,7 +63,7 @@ export function useVelocity() {
 export function useRiskIssues() {
   return useQuery<RiskIssue[]>({
     queryKey: ['riskIssues'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockRiskIssues) : jiraApi.getRiskIssues,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getRiskIssues(), mockRiskIssues),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -76,7 +73,7 @@ export function useRiskIssues() {
 export function useSprintSummary() {
   return useQuery<SprintSummary>({
     queryKey: ['sprintSummary'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockSprintSummary) : () => jiraApi.getSprintSummary(),
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getSprintSummary(), mockSprintSummary),
     staleTime: 2 * 60 * 1000,
   })
 }
@@ -84,7 +81,7 @@ export function useSprintSummary() {
 export function useBurndown() {
   return useQuery<BurndownData>({
     queryKey: ['burndown'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockBurndown) : () => jiraApi.getBurndown(),
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getBurndown(), mockBurndown),
     staleTime: 2 * 60 * 1000,
   })
 }
@@ -92,7 +89,7 @@ export function useBurndown() {
 export function useTeamWorkload() {
   return useQuery<MemberWorkload[]>({
     queryKey: ['teamWorkload'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockTeamWorkload) : jiraApi.getTeamWorkload,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getTeamWorkload(), mockTeamWorkload),
     staleTime: 5 * 60 * 1000,
   })
 }
@@ -100,7 +97,7 @@ export function useTeamWorkload() {
 export function useSprintIssues() {
   return useQuery<SprintIssue[]>({
     queryKey: ['sprintIssues'],
-    queryFn: USE_MOCK ? () => Promise.resolve(mockSprintIssues) : jiraApi.getCurrentSprintIssues,
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getCurrentSprintIssues(), mockSprintIssues),
     staleTime: 2 * 60 * 1000,
   })
 }
@@ -109,9 +106,7 @@ export function useSprintIssues() {
 export function useSprintReport() {
   return useQuery<SprintReport>({
     queryKey: ['sprintReport'],
-    queryFn: USE_MOCK
-      ? () => Promise.resolve(mockSprintReport)
-      : () => jiraApi.getSprintReport(true),
+    queryFn: () => jiraFetchOrMock(() => jiraApi.getSprintReport(true), mockSprintReport),
     enabled: false,
     gcTime: 30 * 60 * 1000,
     staleTime: 30 * 60 * 1000,

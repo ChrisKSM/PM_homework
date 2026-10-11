@@ -8,6 +8,7 @@ import SprintReportCard from '../components/cards/SprintReportCard'
 import BurndownChart from '../components/charts/BurndownChart'
 import VelocityChart from '../components/charts/VelocityChart'
 import WorkloadChart from '../components/charts/WorkloadChart'
+import JiraDegradedBanner from '../components/jira/JiraDegradedBanner'
 import {
   useSprintSummary,
   useBurndown,
@@ -16,6 +17,7 @@ import {
   useSprintIssues,
   useSprintReport,
 } from '../hooks/useJiraData'
+import { useJiraDegraded } from '../hooks/useJiraDegraded'
 import { useSprintPlanForecast } from '../hooks/useSprintPlanData'
 import SprintForecastPanel from '../components/devteam/SprintForecastPanel'
 import { buildSprintForecastFromDevTeamData } from '../components/devteam/sprintForecastUtils'
@@ -28,6 +30,7 @@ function LoadingSpinner() {
 }
 
 export default function DevTeamDashboard() {
+  const jiraDegraded = useJiraDegraded()
   const { data: sprint, isLoading: loadingSprint } = useSprintSummary()
   const { data: burndown, isLoading: loadingBurndown } = useBurndown()
   const { data: workload, isLoading: loadingWorkload } = useTeamWorkload()
@@ -67,6 +70,7 @@ export default function DevTeamDashboard() {
       />
 
       <div className="pt-16 p-6 space-y-6">
+        {jiraDegraded ? <JiraDegradedBanner /> : null}
         {/* 스프린트 KPI */}
         {loadingSprint ? (
           <LoadingSpinner />

@@ -4,9 +4,19 @@ Jira Dashboard Backend — FastAPI 메인 애플리케이션
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import settings
+from config import effective_cors_origins, settings
 from cache import clear_cache
-from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan, mr_quality
+from routers import (
+    manager,
+    devteam,
+    planning,
+    quality,
+    procurement,
+    risk,
+    sprint_plan,
+    mr_quality,
+    model_status,
+)
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -19,7 +29,7 @@ app = FastAPI(
 # CORS — React FE 도메인 허용 (config.CORS_ORIGINS)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
+    allow_origins=effective_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -34,10 +44,17 @@ app.include_router(procurement.router)
 app.include_router(risk.router)
 app.include_router(sprint_plan.router)
 app.include_router(mr_quality.router)
+app.include_router(model_status.router)
 
 try:
     from routers import model_schedule
     app.include_router(model_schedule.router)
+except ImportError:
+    pass
+
+try:
+    from routers import delivery_portal
+    app.include_router(delivery_portal.router)
 except ImportError:
     pass
 
