@@ -1,7 +1,10 @@
 #!/bin/sh
-# FE pod — 요약 탭: HW/SW Event 타임라인 + KPI-1 SP 소진율 (worklog) + 릴리즈 탭 SP26 라벨 구분
+# FE pod — 모델현황 요약 + 전 모델 일정 mock(H7/H5 SW) + status 페이지 안정화
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/fe-model-status-summary-kpi-patch.sh?v=1" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/fe-model-status-summary-kpi-patch.sh?v=3" | sh
+#
+# 포함: KPI-1 소수 1자리, HW/SW 타임라인, story-sp-kpi 클라이언트, modelStatusDisabled,
+#       overview mock(SIT/FC1), ErrorBoundary·build-version reload guard
 #
 set -e
 ROOT="${ROOT:-/workspace/project}"
@@ -14,7 +17,7 @@ if [ ! -f package.json ] || [ ! -d src ]; then
   exit 1
 fi
 
-mkdir -p scripts src/data src/utils src/types src/hooks src/api src/components/modelStatus src/pages
+mkdir -p scripts src/data src/utils src/types src/hooks src/api src/components/modelStatus src/pages src/components
 
 fetch() {
   if ! curl -fsSL -H "Cache-Control: no-cache" "$BASE/$1" -o "$2"; then
@@ -39,6 +42,9 @@ fetch src/utils/modelScheduleOverviewRows.ts src/utils/modelScheduleOverviewRows
 fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
 fetch src/utils/modelStatusDisabled.ts src/utils/modelStatusDisabled.ts
 fetch src/pages/ModelScheduleStatusPage.tsx src/pages/ModelScheduleStatusPage.tsx
+fetch src/data/modelScheduleOverviewMock.ts src/data/modelScheduleOverviewMock.ts
+fetch src/main.tsx src/main.tsx
+fetch src/components/ErrorBoundary.tsx src/components/ErrorBoundary.tsx
 
 fetch scripts/verify-model-status-summary-fe-deployed.sh scripts/verify-model-status-summary-fe-deployed.sh
 chmod +x scripts/verify-model-status-summary-fe-deployed.sh
@@ -49,6 +55,8 @@ grep -q getStorySpKpi src/api/modelStatusApi.ts && echo "OK  story-sp-kpi API cl
 grep -q SP26 src/components/modelStatus/ModelStatusReleaseEpicGantt.tsx && echo "OK  release tab SP26 label (not summary KPI-1)"
 grep -q isModelStatusModelDisabled src/utils/modelStatusDisabled.ts && echo "OK  modelStatusDisabled util"
 grep -q modelStatusDisabled src/pages/ModelScheduleStatusPage.tsx && echo "OK  status page imports util"
+grep -q '2026-08-13' src/data/modelScheduleOverviewMock.ts && echo "OK  H7/H5 SIT1 mock dates"
+grep -q 'toFixed(1)' src/components/modelStatus/ModelIntegratedDashboard.tsx && echo "OK  KPI-1 one decimal"
 
 npm run build 2>&1 | tee /tmp/fe-summary-build.log
 if grep -q "isModelStatusModelDisabled" /tmp/fe-summary-build.log; then
