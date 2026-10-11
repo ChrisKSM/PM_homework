@@ -135,6 +135,29 @@ async def release_calendar():
     return calendar_payload()
 
 
+@router.get("/release/gantt/diagnose-counts")
+async def release_gantt_diagnose_counts(
+    model: str | None = Query(None),
+    label: str | None = Query(None),
+    project: str = Query("TVPLAT"),
+    fix_version: str | None = Query(None, description="Milestone fixVersion override e.g. Audio_2025"),
+):
+    """Initiative/Epic/Milestone 단계별 Jira 건수 — pod curl 진단용."""
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+    try:
+        return await _release_gantt_service().diagnose_gantt_pipeline_counts(
+            model=model,
+            label=label,
+            project_key=project,
+            milestone_fix_version=fix_version,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
 @router.get("/release/gantt/ping")
 async def release_gantt_ping():
     """배포 확인 — TV Jira 호출 없음. 응답에 meta 가 있으면 release_gantt BE 파일·라우트 정상."""

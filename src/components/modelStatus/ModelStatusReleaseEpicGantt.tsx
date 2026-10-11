@@ -37,11 +37,9 @@ function milestonesForSprint(milestones: ReleaseMilestone[], sp: number) {
 
 export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props) {
   const { data: initData } = useModelStatusInitiatives(modelCode, active)
-  const primaryInitiativeKey = initData?.issues?.[0]?.key
   const { data: releaseData, isLoading, isFetching } = useModelStatusReleaseGantt(
     modelCode,
     active,
-    primaryInitiativeKey,
   )
 
   const rawGantt: ModelReleaseGanttData = releaseData?.gantt ?? {

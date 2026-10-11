@@ -35,16 +35,26 @@ export const modelStatusApi = {
   initiativesPing: () =>
     client.get<{ ok: boolean; models: string[] }>('/model-status/initiatives/ping').then((r) => r.data),
 
-  getReleaseGantt: (model: string, initiativeKey?: string, refresh = false) => {
+  getReleaseGantt: (
+    model: string,
+    initiativeKey?: string,
+    refresh = false,
+    allInitiatives = true,
+  ) => {
     const label =
       initiativeJiraLabelForModel(model) ??
       (model === 'H7_VI' ? MODEL_STATUS_INITIATIVE_JIRA_LABEL.H7_VI : undefined)
-    const params: { model: string; label?: string; initiative_key?: string; refresh?: boolean } = {
-      model,
-    }
+    const params: {
+      model: string
+      label?: string
+      initiative_key?: string
+      refresh?: boolean
+      all_initiatives?: boolean
+    } = { model }
     if (label) params.label = label
     if (initiativeKey) params.initiative_key = initiativeKey
     if (refresh) params.refresh = true
+    if (allInitiatives) params.all_initiatives = true
     return client
       .get<ModelReleaseGanttResponse>('/model-status/release/gantt', { params })
       .then((r) => r.data)

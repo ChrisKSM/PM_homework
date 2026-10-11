@@ -36,6 +36,7 @@ def test_scope_initiative_keys_returns_list_not_coroutine():
     assert keys == ["TVPLAT-1", "TVPLAT-2"]
     assert not asyncio.iscoroutine(keys)
     assert _scope_initiative_keys(["A", "B"], "A", False) == ["A"]
+    assert _scope_initiative_keys(["A", "B"], "A", True) == ["A", "B"]
 
 
 def test_milestone_jql_epic_link_and_fix_version():

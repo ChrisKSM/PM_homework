@@ -43,7 +43,13 @@ export function useModelStatusReleaseGantt(
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const res = await jiraFetchOrMock(
-        () => modelStatusApi.getReleaseGantt(norm, initKey, false),
+        () =>
+          modelStatusApi.getReleaseGantt(
+            norm,
+            initKey,
+            false,
+            !initKey,
+          ),
         null,
       )
       return {
