@@ -23,6 +23,8 @@ echo "=== 릴리즈 · Epic FE 배포 검증 ==="
 
 check "modelStatusCatalog release tab" "grep -q \"릴리즈 · Epic\" src/data/modelStatusCatalog.ts"
 check "getReleaseGantt in API" "grep -q getReleaseGantt src/api/modelStatusApi.ts"
+check "all_initiatives in API" "grep -q all_initiatives src/api/modelStatusApi.ts"
+check "syncEpicMilestonesFromGlobal" "grep -q syncEpicMilestonesFromGlobal src/utils/releaseGanttKpi.ts"
 check "release/gantt path" "grep -q 'release/gantt' src/api/modelStatusApi.ts"
 check "dashboard renders release gantt" "grep -q ModelStatusReleaseEpicGantt src/components/modelStatus/ModelIntegratedDashboard.tsx"
 
