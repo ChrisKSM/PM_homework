@@ -1,6 +1,7 @@
 import socket
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from config import settings
 from services import model_status_initiative_service
@@ -28,6 +29,55 @@ def _release_gantt_service():
 
 def _pod_identity() -> dict[str, str]:
     return {"hostname": socket.gethostname()}
+
+
+def _gantt_http_detail_message(detail: object) -> str:
+    if isinstance(detail, str):
+        return detail
+    if isinstance(detail, dict):
+        msg = detail.get("message") or detail.get("detail")
+        hint = detail.get("hint")
+        parts = [str(msg)] if msg else [str(detail)]
+        if hint:
+            parts.append(str(hint))
+        return " — ".join(parts)
+    return str(detail)
+
+
+def _gantt_failure_response(
+    status_code: int,
+    detail: object,
+    *,
+    model: str | None = None,
+    label: str | None = None,
+) -> JSONResponse:
+    try:
+        from services.release_gantt_service import release_gantt_error_envelope
+    except ImportError as imp:
+        body = {
+            "meta": {
+                "errors": [
+                    _gantt_http_detail_message(detail),
+                    f"release_gantt_service import failed: {imp}",
+                ],
+                "epicCount": 0,
+                "milestoneCount": 0,
+                "discovery": {"failed": True},
+            },
+            "calendar": {"sprintMin": 1, "sprintMax": 26, "sprints": [], "irBands": []},
+            "initiative": None,
+            "epics": [],
+            "milestones": [],
+        }
+        return JSONResponse(status_code=status_code, content=body)
+    body = release_gantt_error_envelope(
+        _gantt_http_detail_message(detail),
+        model=model,
+        label=label,
+    )
+    body["meta"]["discovery"]["httpStatus"] = status_code
+    body["meta"]["pod"] = _pod_identity()
+    return JSONResponse(status_code=status_code, content=body)
 
 router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 
@@ -163,6 +213,7 @@ async def release_gantt_ping():
     """배포 확인 — TV Jira 호출 없음. 응답에 meta 가 있으면 release_gantt BE 파일·라우트 정상."""
     svc = _release_gantt_service()
     cal = svc.get_release_calendar()
+    build = getattr(svc, "RELEASE_GANTT_SERVICE_BUILD", "unknown")
     return {
         "ok": True,
         "meta": {
@@ -171,6 +222,7 @@ async def release_gantt_ping():
             "epicCount": 0,
             "milestoneCount": 0,
             "sprintMax": cal.get("sprintMax"),
+            "discovery": {"serviceBuild": build},
         },
         "calendar": cal,
         "epics": [],
@@ -236,10 +288,19 @@ async def release_gantt(
             project_key=project,
             all_initiatives=all_initiatives,
         )
+    except HTTPException as e:
+        return _gantt_failure_response(
+            e.status_code,
+            e.detail,
+            model=model,
+            label=label,
+        )
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        return _gantt_failure_response(400, str(e), model=model, label=label)
     except Exception as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"TV Jira release gantt 오류: {e}",
-        ) from e
+        return _gantt_failure_response(
+            502,
+            f"TV Jira release gantt 오류: {e}",
+            model=model,
+            label=label,
+        )

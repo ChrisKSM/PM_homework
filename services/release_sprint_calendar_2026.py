@@ -105,6 +105,30 @@ def sprint_for_day(d: date | None) -> int | None:
     return None
 
 
+def nearest_sprint_for_day(d: date | None) -> int | None:
+    """2026 SP grid 밖 due date(2025 등) → 가장 가까운 SP."""
+    if not d:
+        return None
+    hit = sprint_for_day(d)
+    if hit is not None:
+        return hit
+    best_sp: int | None = None
+    best_dist = 10**9
+    for s in SPRINTS:
+        s0 = date.fromisoformat(s["startDate"])
+        s1 = date.fromisoformat(s["endDate"])
+        if d < s0:
+            dist = (s0 - d).days
+        elif d > s1:
+            dist = (d - s1).days
+        else:
+            return s["sp"]
+        if dist < best_dist:
+            best_dist = dist
+            best_sp = s["sp"]
+    return best_sp
+
+
 def calendar_payload() -> dict[str, Any]:
     return {
         "sprintMin": SP_MIN,
