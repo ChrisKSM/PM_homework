@@ -7,7 +7,7 @@
 #   REF_SHA=efe837f sh scripts/apply-be-release-gantt-v3.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-f555f45}"
+REF_SHA="${REF_SHA:-ec5ee95}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
