@@ -437,7 +437,6 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
     }
 
 
-@cached(ttl=300)
 def _scope_initiative_keys(
     initiative_keys: list[str],
     initiative_key: str | None,
@@ -449,6 +448,7 @@ def _scope_initiative_keys(
     return [primary]
 
 
+@cached(ttl=300)
 async def get_release_gantt(
     model: str | None = None,
     label: str | None = None,

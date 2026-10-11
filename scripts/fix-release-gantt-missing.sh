@@ -40,6 +40,13 @@ if grep -q 'issue in linkedIssues({keys_clause})' services/release_gantt_service
 fi
 grep -q 'linkedIssues 는 키 1개씩' services/release_gantt_service.py && echo "  OK  per-key linkedIssues"
 grep -q '_scope_initiative_keys' services/release_gantt_service.py && echo "  OK  scope_initiative_keys"
+if grep -B1 'def _scope_initiative_keys' services/release_gantt_service.py | grep -q '@cached'; then
+  echo "  NG  @cached on sync _scope_initiative_keys → coroutine bug; REF 최신 fetch"
+  exit 1
+fi
+grep -A1 '@cached(ttl=300)' services/release_gantt_service.py | grep -q 'async def get_release_gantt' \
+  && echo "  OK  cache on async get_release_gantt" \
+  || echo "  !!  get_release_gantt cache placement — REF 확인"
 grep -q 'epics = \[e for e in epics if e.get("milestones")\]' services/release_gantt_service.py \
   && echo "  OK  milestone-only epics filter" \
   || echo "  !!  milestone epic filter missing — REF 최신인지 확인"
