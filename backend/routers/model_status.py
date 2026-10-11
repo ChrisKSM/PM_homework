@@ -108,7 +108,7 @@ async def initiatives_story_sp_kpi(
     project: str = Query("TVPLAT"),
 ):
     """
-    KPI-1 작업 완료율(Story SP) — Initiative Description 계획 SP vs Epic 하위 Story SP.
+    KPI-1 SP 소진율 — 라벨 Initiative(9건) Description 표 '예상 SP' 합 vs Story SP 합.
     릴리즈 Gantt SP 캘린더 경과율과 별개.
     """
     if not (label and label.strip()) and model:

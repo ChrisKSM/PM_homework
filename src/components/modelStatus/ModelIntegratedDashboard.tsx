@@ -16,6 +16,7 @@ import {
   type ModelStatusTabId,
 } from '../../data/modelStatusCatalog'
 import { useModelStatusReleaseGantt } from '../../hooks/useModelStatusReleaseGantt'
+import { useModelStatusStorySpKpi } from '../../hooks/useModelStatusStorySpKpi'
 import { computeReleaseGanttKpis } from '../../utils/releaseGanttKpi'
 import { MODEL_INITIATIVE_JIRA_MODELS } from '../../api/modelStatusApi'
 import type { OverviewModel } from '../../types/modelScheduleOverview'
@@ -117,10 +118,9 @@ export default function ModelIntegratedDashboard({
     [overviewModels, productGroupId, modelCode],
   )
 
-  const { data: releaseGanttData } = useModelStatusReleaseGantt(
-    modelCode,
-    MODEL_INITIATIVE_JIRA_MODELS.has(canonicalModelName(modelCode)),
-  )
+  const jiraModelLive = MODEL_INITIATIVE_JIRA_MODELS.has(canonicalModelName(modelCode))
+  const { data: releaseGanttData } = useModelStatusReleaseGantt(modelCode, jiraModelLive)
+  const { data: storySpKpi } = useModelStatusStorySpKpi(modelCode, jiraModelLive)
 
   const eventsTimeline = useMemo(() => buildOverviewEventsTimeline(overview), [overview])
   const timeline = useMemo(
@@ -141,11 +141,13 @@ export default function ModelIntegratedDashboard({
   const schedulePct = releaseKpi?.kpi2Pct ?? 0
   const scheduleSub =
     releaseKpi?.kpi2Sub ?? '릴리즈 · Epic 탭 Jira Milestone (모델 미연동)'
-  const calendarSpPct = releaseKpi?.kpi1Pct
-  const spPct = calendarSpPct ?? 0
-  const spSub = releaseKpi
-    ? `Story SP KPI 연동 예정 · (참고) 릴리즈 SP 캘린더 경과 ${calendarSpPct}% = ${releaseKpi.kpi1Sub}`
-    : 'Initiative Description 예상 SP 합 vs Epic·Story SP — BE /initiatives/story-sp-kpi'
+  const consumptionPct = storySpKpi?.consumptionPct
+  const spPct = consumptionPct ?? 0
+  const spSub = storySpKpi?.plannedSpTotal
+    ? `계획 ${storySpKpi.plannedSpTotal} SP · 소진 ${storySpKpi.storySpConsumed ?? storySpKpi.storySpTotal} SP · Initiative ${storySpKpi.initiativeCount ?? storySpKpi.byInitiative?.length ?? 0}건 (Description 예상 SP vs Story SP)`
+    : jiraModelLive
+      ? 'Initiative Description 예상 SP · Story SP — Jira 동기화 중'
+      : 'Jira Initiative 라벨 미연동 모델'
 
   const showJiraManager = modelCode === 'S80C'
 
@@ -223,14 +225,14 @@ export default function ModelIntegratedDashboard({
           trend={releaseKpi ? { value: 0, label: '릴리즈 · Epic Milestone' } : undefined}
         />
         <KpiCard
-          label="KPI-1 작업 완료율"
-          value={`${spPct}%`}
+          label="KPI-1 SP 소진율"
+          value={consumptionPct != null ? `${spPct}%` : '—'}
           sub={spSub}
-          tone={spPct >= 95 ? 'success' : 'info'}
+          tone={consumptionPct != null && spPct >= 95 ? 'success' : 'info'}
           icon={<TrendingUp size={16} />}
           trend={
-            releaseKpi
-              ? { value: 0, label: 'SP 경과=2026 릴리즈 캘린더 종료 SP 비율' }
+            storySpKpi
+              ? { value: 0, label: 'Description 예상 SP 대비 Story SP' }
               : undefined
           }
         />

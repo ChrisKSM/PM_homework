@@ -43,3 +43,20 @@ def test_parse_jira_wiki_table():
     total, rows = parse_milestone_table_from_description(text)
     assert total == 55.0
     assert rows[0]["plannedSp"] == 25
+
+
+KOREAN_HEADER_TABLE = """
+마일스톤	산출물	DoD	DoD 승인자	이해관계자	스프린트	예상 SP	소모 SP	완료여부	기타
+M1	라이브러리 수령	확인	owner	Task	2026_IR3SP14	25	10	진행중	
+M2	audio_server 포팅	regression	owner	BSP	2026_IR3SP15	30	30	완료	
+M3	DNN 적용	CPU OK	owner	BSP	2026_IR4SP16	40	5	시작전	
+"""
+
+
+def test_parse_korean_milestone_table():
+    total, rows = parse_milestone_table_from_description(KOREAN_HEADER_TABLE)
+    assert total == 95.0
+    assert len(rows) == 3
+    assert rows[0]["plannedSp"] == 25
+    assert rows[0]["consumedSpInTable"] == 10.0
+    assert rows[1]["targetSprint"] == "2026_IR3SP15"

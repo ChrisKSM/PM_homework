@@ -1,7 +1,9 @@
 """
-KPI-1 작업 완료율 (Story Point) — Initiative Description Milestones 표.
+KPI-1 SP 소진율 — 모델 라벨 Initiative 9건 Description 표 + Story SP.
 
-표 컬럼: Milestone | … | Target Sprint | Due date | 예상 SP | 완료 여부 | …
+표 헤더(정규): 마일스톤 | 산출물 | DoD | DoD 승인자 | 이해관계자 | 스프린트 | 예상 SP | 소모 SP | 완료여부 | 기타
+- 계획 SP = Σ 예상 SP
+- 소진 SP = Initiative 하위 Story(customfield_10808) 합
 """
 from __future__ import annotations
 
@@ -107,7 +109,7 @@ def normalize_jira_description(value: Any) -> tuple[str, str]:
     text = _description_text(value)
     if not text:
         return "", "empty"
-    if "||" in text and ("예상" in text or "Milestone" in text):
+    if "||" in text and ("예상" in text or "Milestone" in text or "마일스톤" in text):
         return _wiki_table_lines(text), "wiki"
     if "<table" in text.lower():
         return text, "html"
@@ -158,23 +160,38 @@ def _header_index(headers: list[str]) -> dict[str, int | None]:
         "targetSprint": None,
         "dueDate": None,
         "plannedSp": None,
+        "consumedSp": None,
         "completion": None,
     }
     for j, h in enumerate(headers):
         hl = h.lower().replace(" ", "")
-        if h == "Milestone" or hl == "milestone":
+        if h == "Milestone" or hl == "milestone" or "마일스톤" in h:
             idx["milestone"] = j
-        if "내용" in h:
+        if "내용" in h or "산출물" in h:
             idx["summary"] = j
-        if "target" in hl and "sprint" in hl:
+        if ("target" in hl and "sprint" in hl) or h == "스프린트" or "스프린트" in h:
             idx["targetSprint"] = j
         if "due" in hl and "date" in hl:
             idx["dueDate"] = j
         if "예상" in h and "sp" in hl:
             idx["plannedSp"] = j
+        if "소모" in h and "sp" in hl:
+            idx["consumedSp"] = j
         if "완료" in h:
             idx["completion"] = j
     return idx
+
+
+def _is_milestone_table_header(cells: list[str]) -> bool:
+    if not cells:
+        return False
+    joined = "\t".join(cells)
+    has_planned = any("예상" in c and re.search(r"SP", c, re.I) for c in cells)
+    if not has_planned:
+        return False
+    return any(
+        token in joined for token in ("마일스톤", "Milestone", "산출물", "Due date")
+    )
 
 
 def _parse_milestone_row_fallback(line: str) -> dict[str, Any] | None:
@@ -227,8 +244,9 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
     rows: list[dict[str, Any]] = []
 
     for line in lines:
-        if "예상" in line and "SP" in line and ("Milestone" in line or "Due date" in line):
-            col = _header_index(_split_cells(line))
+        cells_hdr = _split_cells(line)
+        if _is_milestone_table_header(cells_hdr):
+            col = _header_index(cells_hdr)
             continue
         if col is None:
             fb = _parse_milestone_row_fallback(line)
@@ -260,6 +278,12 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
         ts_i = col.get("targetSprint")
         due_i = col.get("dueDate")
         comp_i = col.get("completion")
+        cons_i = col.get("consumedSp")
+        consumed_table: float | None = None
+        if cons_i is not None and cons_i < len(cells):
+            cr = cells[cons_i].strip()
+            if re.match(r"^\d+(?:\.\d+)?$", cr):
+                consumed_table = float(cr)
         rows.append(
             {
                 "milestone": ms.upper(),
@@ -267,6 +291,7 @@ def parse_milestone_table_from_description(description: Any) -> tuple[float, lis
                 "targetSprint": cells[ts_i].strip() if ts_i is not None and ts_i < len(cells) else "",
                 "dueDate": cells[due_i].strip() if due_i is not None and due_i < len(cells) else "",
                 "plannedSp": sp,
+                "consumedSpInTable": consumed_table,
                 "completionStatus": cells[comp_i].strip() if comp_i is not None and comp_i < len(cells) else "",
             }
         )
@@ -302,6 +327,56 @@ def _story_sp(fields: dict[str, Any]) -> float:
 def _is_story_done(status: Any) -> bool:
     name = _field_text(status).lower()
     return any(x in name for x in ("done", "closed", "resolved", "complete", "완료"))
+
+
+async def _collect_initiative_story_sp(
+    project_key: str,
+    initiative_key: str,
+    story_fields: list[str],
+) -> tuple[float, float, int]:
+    """Initiative 연결 Story SP 합 (linkedIssues + Epic Link, 중복 제거)."""
+    seen: set[str] = set()
+    total = 0.0
+    done = 0.0
+    count = 0
+
+    async def ingest(jql: str) -> None:
+        nonlocal total, done, count
+        issues = await tvjira_search_all(jql, story_fields)
+        for st in issues:
+            key = st.get("key")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            sf = st.get("fields") or {}
+            sp = _story_sp(sf)
+            if sp <= 0:
+                continue
+            count += 1
+            total += sp
+            if _is_story_done(sf.get("status")):
+                done += sp
+
+    await ingest(
+        f'project = {project_key} AND issuetype in (Story, story) '
+        f'AND issue in linkedIssues("{initiative_key}")'
+    )
+
+    epic_jql = (
+        f'project = {project_key} AND issuetype in (Epic, epic) '
+        f'AND issue in linkedIssues("{initiative_key}")'
+    )
+    epics = await tvjira_search_all(epic_jql, ["summary"])
+    for raw_epic in epics:
+        ek = raw_epic.get("key")
+        if not ek:
+            continue
+        await ingest(
+            f'project = {project_key} AND issuetype in (Story, story) '
+            f'AND "Epic Link" = {ek}'
+        )
+
+    return total, done, count
 
 
 async def preview_story_sp_kpi(
@@ -344,27 +419,9 @@ async def preview_story_sp_kpi(
         done = 0.0
         story_count = 0
         try:
-            epic_jql = (
-                f'project = {project_key} AND issuetype in (Epic, epic) '
-                f'AND issue in linkedIssues("{key}")'
+            actual, done, story_count = await _collect_initiative_story_sp(
+                project_key, key, story_fields
             )
-            epics = await tvjira_search_all(epic_jql, ["summary"])
-            epic_keys = [e.get("key") for e in epics if e.get("key")]
-            for ek in epic_keys[:15]:
-                st_jql = (
-                    f'project = {project_key} AND issuetype in (Story, story) '
-                    f'AND "Epic Link" = {ek}'
-                )
-                stories = await tvjira_search_all(st_jql, story_fields)
-                for st in stories:
-                    sf = st.get("fields") or {}
-                    sp = _story_sp(sf)
-                    if sp <= 0:
-                        continue
-                    story_count += 1
-                    actual += sp
-                    if _is_story_done(sf.get("status")):
-                        done += sp
         except Exception as ex:
             errors.append(f"{key}: {ex}")
 
@@ -379,33 +436,40 @@ async def preview_story_sp_kpi(
                 "descriptionPreview": (desc_text or "")[:240].replace("\n", " "),
                 "plannedSpFromDescription": planned,
                 "milestones": milestone_rows,
+                "storySpConsumed": actual,
                 "storySpTotal": actual,
                 "storySpDone": done,
                 "storyCount": story_count,
+                "consumptionPctInitiative": round((actual / planned) * 1000, 10) / 10 if planned > 0 else None,
                 "completionPctInitiative": round((done / planned) * 1000, 10) / 10 if planned > 0 else None,
             }
         )
 
-    pct = round((story_sp_done / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
-    pct_actual_vs_plan = (
+    consumption_pct = (
         round((story_sp_total / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
+    )
+    completion_pct = (
+        round((story_sp_done / planned_total) * 1000, 10) / 10 if planned_total > 0 else None
     )
 
     return {
         "model": model,
         "label": jira_label,
+        "initiativeCount": len(per_init),
         "definition": {
-            "plannedSp": "Sum of Milestones table column '예상 SP' per Initiative description",
-            "storySpDone": "Sum SP on done/closed Stories under linked Epics",
-            "completionPct": "storySpDone / plannedSpTotal",
-            "burnPctVsPlan": "storySpTotal / plannedSpTotal (optional)",
-            "notCalendarSp26": "Release Gantt KPI-1 (20/26 week elapsed) is unrelated",
+            "plannedSp": "9 Initiatives · Description 표 컬럼 '예상 SP' 합",
+            "storySpConsumed": "Initiative linked Story(customfield_10808) SP 합 — 소진 SP",
+            "consumptionPct": "storySpConsumed / plannedSpTotal (소진율, KPI-1)",
+            "completionPct": "완료 Story SP / plannedSpTotal (참고)",
+            "notCalendarSp26": "릴리즈 Gantt SP 캘린더 경과율과 무관",
         },
         "plannedSpTotal": planned_total,
+        "storySpConsumed": story_sp_total,
         "storySpTotal": story_sp_total,
         "storySpDone": story_sp_done,
-        "completionPct": pct,
-        "burnPctVsPlan": pct_actual_vs_plan,
+        "consumptionPct": consumption_pct,
+        "burnPctVsPlan": consumption_pct,
+        "completionPct": completion_pct,
         "byInitiative": per_init,
         "errors": errors,
     }

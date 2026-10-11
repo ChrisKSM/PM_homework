@@ -1,6 +1,7 @@
 import client from './client'
 import type { ModelStatusInitiativeIssue } from '../types/modelStatusInitiative'
 import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt'
+import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
 import {
   initiativeJiraLabelForModel,
   MODEL_STATUS_INITIATIVE_JIRA_LABEL,
@@ -62,6 +63,17 @@ export const modelStatusApi = {
 
   getReleaseCalendar: () =>
     client.get<ModelReleaseGanttResponse['calendar']>('/model-status/release/calendar').then((r) => r.data),
+
+  getStorySpKpi: (model: string) => {
+    const label =
+      initiativeJiraLabelForModel(model) ??
+      (model === 'H7_VI' ? MODEL_STATUS_INITIATIVE_JIRA_LABEL.H7_VI : undefined)
+    const params: { model: string; label?: string } = { model }
+    if (label) params.label = label
+    return client
+      .get<ModelStatusStorySpKpiResponse>('/model-status/initiatives/story-sp-kpi', { params })
+      .then((r) => r.data)
+  },
 }
 
 /** BE Jira label 매핑 (없으면 mock 유지) */
