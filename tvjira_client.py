@@ -99,12 +99,19 @@ class TvJiraClient:
     def __init__(self) -> None:
         self.base_url = settings.tvjira_base_url.rstrip("/")
 
-    async def get_issue(self, issue_key: str, fields: list[str] | None = None) -> dict:
+    async def get_issue(
+        self,
+        issue_key: str,
+        fields: list[str] | None = None,
+        expand: str | None = None,
+    ) -> dict:
         key = issue_key.strip()
         url = f"{self.base_url}/rest/api/2/issue/{key}"
         params: dict[str, Any] = {}
         if fields:
             params["fields"] = ",".join(fields)
+        if expand:
+            params["expand"] = expand
         token = resolve_tvjira_token()
         async with _make_authed_client(token, settings.tvjira_verify_ssl) as client:
             resp = await client.get(url, params=params)
@@ -132,8 +139,38 @@ class TvJiraClient:
             return resp.json()
 
 
-async def tvjira_get_issue(issue_key: str, fields: list[str]) -> dict:
-    return await TvJiraClient().get_issue(issue_key, fields)
+async def tvjira_get_issue(
+    issue_key: str,
+    fields: list[str],
+    expand: str | None = None,
+) -> dict:
+    return await TvJiraClient().get_issue(issue_key, fields, expand=expand)
+
+
+async def tvjira_issue_worklog_total_seconds(issue_key: str) -> int:
+    """이슈 worklog timeSpentSeconds 합 (paginated — search fields.worklog 은 20건 제한)."""
+    key = issue_key.strip()
+    if not key:
+        return 0
+    url = f"{TvJiraClient().base_url}/rest/api/2/issue/{key}/worklog"
+    token = resolve_tvjira_token()
+    total_sec = 0
+    start_at = 0
+    page = 100
+    async with _make_authed_client(token, settings.tvjira_verify_ssl) as client:
+        while True:
+            resp = await client.get(url, params={"startAt": start_at, "maxResults": page})
+            resp.raise_for_status()
+            data = resp.json()
+            for wl in data.get("worklogs") or []:
+                if isinstance(wl, dict):
+                    total_sec += int(wl.get("timeSpentSeconds") or 0)
+            fetched = len(data.get("worklogs") or [])
+            reported = int(data.get("total") or 0)
+            start_at += fetched
+            if fetched == 0 or start_at >= reported:
+                break
+    return total_sec
 
 
 async def tvjira_search_all(jql: str, fields: list[str]) -> list[dict]:

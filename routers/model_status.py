@@ -101,6 +101,72 @@ async def initiatives_ping():
     }
 
 
+@router.get("/initiatives/story-sp-kpi")
+async def initiatives_story_sp_kpi(
+    model: str | None = Query(None),
+    label: str | None = Query(None),
+    project: str = Query("TVPLAT"),
+    debug_initiative_key: str | None = Query(
+        None, description="예: TVPLAT-943406 — Description·Story SP 진단"
+    ),
+):
+    """
+    KPI-1 SP 소진율 — 라벨 Initiative Description '예상 SP' 합 vs Story SP 합.
+    """
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+    try:
+        from services.initiative_sp_kpi_service import preview_story_sp_kpi
+
+        return await preview_story_sp_kpi(
+            model=model,
+            label=label,
+            project_key=project,
+            debug_initiative_key=debug_initiative_key,
+        )
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "message": f"initiative_sp_kpi_service missing: {e}",
+                "hint": "sh scripts/patch-be-story-sp-kpi-standalone.sh",
+                "plannedSpTotal": None,
+            },
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail={
+                "message": str(e),
+                "plannedSpTotal": None,
+                "hint": "TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
+            },
+        ) from e
+
+
+async def initiatives_story_sp_kpi(
+    model: str | None = Query(None),
+    label: str | None = Query(None),
+    project: str = Query("TVPLAT"),
+):
+    """
+    KPI-1 작업 완료율(Story SP) — Initiative Description 계획 SP vs Epic 하위 Story SP.
+    릴리즈 Gantt SP 캘린더 경과율과 별개.
+    """
+    if not (label and label.strip()) and model:
+        auto = model_status_initiative_service.resolve_initiative_label(model, None)
+        if auto:
+            label = auto
+    try:
+        from services.initiative_sp_kpi_service import preview_story_sp_kpi
+
+        return await preview_story_sp_kpi(model=model, label=label, project_key=project)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e)) from e
+
+
 @router.get("/initiatives")
 async def list_initiatives(
     model: str | None = Query(None, description="UI model code e.g. H7_VI"),
