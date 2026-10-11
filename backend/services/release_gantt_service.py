@@ -9,6 +9,7 @@ from cache import cached
 from config import settings
 from services.release_sprint_calendar_2026 import (
     calendar_payload,
+    nearest_sprint_for_day,
     parse_day,
     sprint_for_day,
     sprint_span_for_range,
@@ -452,7 +453,7 @@ async def _search_milestones_merged(
                 for raw in rows:
                     key = raw.get("key") or ""
                     if key and key not in seen:
-                        seen[key] = raw
+                        seen[key] = {**raw, "_ganttEpicKey": ek}
                         epic_ms += 1
                 if epic_ms:
                     break
@@ -504,6 +505,15 @@ def _map_epic(raw: dict, idx: int, *, issue_url_fn=None) -> dict[str, Any]:
     }
 
 
+def _sprint_from_milestone_summary(summary: str) -> int | None:
+    m = re.search(r"\bM([1-9]\d*)\b", summary, re.I)
+    if not m:
+        return None
+    n = int(m.group(1))
+    preset = {1: 3, 2: 6, 3: 8, 4: 12, 5: 15, 6: 18, 7: 21, 8: 24}
+    return preset.get(n, min(26, max(1, n * 3)))
+
+
 def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
     fields = raw.get("fields") or {}
     itype = _field_text(fields.get("issuetype"))
@@ -519,6 +529,10 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
         created = fields.get("created")
         sp = sprint_for_day(parse_day(str(created)[:10] if created else None))
     if sp is None:
+        sp = _sprint_from_milestone_summary(summary)
+    if sp is None:
+        sp = nearest_sprint_for_day(end or start or parse_day(str(fields.get("created", ""))[:10]))
+    if sp is None:
         return None
     label = summary
     m = re.search(r"\bM[1-9]\d*\b", summary, re.I)
@@ -526,7 +540,8 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
         label = m.group(0).upper()
     key = raw.get("key") or ""
     parent = (
-        _issue_key_from_ref(fields.get(settings.epic_link_field))
+        raw.get("_ganttEpicKey")
+        or _issue_key_from_ref(fields.get(settings.epic_link_field))
         or _parent_key(fields)
         or epic_key
     )
@@ -618,23 +633,62 @@ async def get_release_gantt(
         )
         raw_ms_count = len(raw_ms)
         by_epic: dict[str, list[dict]] = {k: [] for k in epic_keys}
+        mapped_ms_count = 0
+        skipped_ms_count = 0
         for raw in raw_ms:
             f = raw.get("fields") or {}
-            epic_hint = _issue_key_from_ref(f.get(settings.epic_link_field)) or _parent_key(f)
+            epic_hint = (
+                raw.get("_ganttEpicKey")
+                or _issue_key_from_ref(f.get(settings.epic_link_field))
+                or _parent_key(f)
+            )
             ms = _map_milestone(raw, epic_hint)
             if not ms:
+                skipped_ms_count += 1
                 continue
+            mapped_ms_count += 1
             milestones_global.append(ms)
             ek = (ms.get("epicKey") or epic_hint or "").strip()
             if ek:
                 by_epic.setdefault(ek, []).append(ms)
         epics = [_finalize_epic_span({**e, "milestones": by_epic.get(e["issueKey"], [])}) for e in epics]
         epics_with_ms = [e for e in epics if e.get("milestones")]
-        epics = epics_with_ms
-        milestones_global = [m for e in epics for m in e.get("milestones") or []]
+        known_epic_keys = {e["issueKey"] for e in epics if e.get("issueKey")}
+        orphan_idx = len(epics)
+        for ok, ms_list in by_epic.items():
+            if not ms_list or ok in known_epic_keys:
+                continue
+            sprints = [m["sprint"] for m in ms_list if m.get("sprint")]
+            start_sp = min(sprints) if sprints else 1
+            end_sp = max(sprints) if sprints else start_sp
+            epics.append(
+                _finalize_epic_span(
+                    {
+                        "issueKey": ok,
+                        "summary": f"(Milestone-only Epic {ok})",
+                        "status": "",
+                        "startDate": "",
+                        "endDate": "",
+                        "startSp": start_sp,
+                        "endSp": end_sp,
+                        "color": _EPIC_COLORS[orphan_idx % len(_EPIC_COLORS)],
+                        "issueUrl": tvjira_issue_browse_url(ok),
+                        "milestones": ms_list,
+                        "source": "tvjira",
+                    }
+                )
+            )
+            orphan_idx += 1
+            known_epic_keys.add(ok)
+        milestones_global = [m for ms_list in by_epic.values() for m in ms_list]
         discovery["rawEpicCount"] = raw_epic_count
         discovery["milestoneRowsFetched"] = raw_ms_count
+        discovery["milestoneMappedCount"] = mapped_ms_count
+        discovery["milestoneMapSkipped"] = skipped_ms_count
         discovery["epicsWithMilestones"] = len(epics_with_ms)
+        orphan_ms_keys = [k for k, v in by_epic.items() if v and k not in epic_keys][:15]
+        if orphan_ms_keys:
+            discovery["orphanMilestoneEpicKeys"] = orphan_ms_keys
 
     cal = calendar_payload()
     return {

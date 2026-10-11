@@ -1,6 +1,11 @@
 import asyncio
 
+from datetime import date
+
+from services.release_sprint_calendar_2026 import nearest_sprint_for_day
 from services.release_gantt_service import (
+    _map_milestone,
+    _sprint_from_milestone_summary,
     _epic_key_from_work_fields,
     _looks_like_epic,
     _looks_like_milestone,
@@ -58,3 +63,27 @@ def test_resolve_milestone_fix_version_from_initiative():
     )
     assert vers[0] == "Audio_2026"
     assert "Audio_2025" in vers
+
+
+def test_nearest_sprint_for_2025_due_date():
+    assert nearest_sprint_for_day(date(2025, 6, 15)) == 1
+
+
+def test_sprint_from_milestone_summary():
+    assert _sprint_from_milestone_summary("IR1 M3 Gate") == 8
+
+
+def test_map_milestone_uses_summary_when_due_outside_2026():
+    raw = {
+        "key": "TVPLAT-MS-1",
+        "fields": {
+            "summary": "M2 deliverable",
+            "issuetype": {"name": "Milestone"},
+            "duedate": "2025-11-01",
+        },
+        "_ganttEpicKey": "TVPLAT-922544",
+    }
+    ms = _map_milestone(raw, "TVPLAT-922544")
+    assert ms is not None
+    assert ms["sprint"] == 6
+    assert ms["epicKey"] == "TVPLAT-922544"
