@@ -11,7 +11,9 @@
     "HW Event": "PrePV",
     "Start Date": "2026-09-04",
     "End Date": "2026-10-20",
-    "SW Event": "S I T1"
+    "SW Event": "S I T1",
+    "SW Start": "2026-08-13",
+    "SW End": "2026-08-21"
   },
   {
     "제품군": "Sound Suite",
@@ -25,7 +27,9 @@
     "HW Event": "PV1",
     "Start Date": "2026-10-21",
     "End Date": "2026-11-04",
-    "SW Event": "S I T2"
+    "SW Event": "S I T2",
+    "SW Start": "2026-09-11",
+    "SW End": "2026-09-18"
   },
   {
     "제품군": "Sound Suite",
@@ -39,7 +43,9 @@
     "HW Event": "PV2",
     "Start Date": "2026-11-05",
     "End Date": "2026-11-30",
-    "SW Event": "S I T3"
+    "SW Event": "S I T3",
+    "SW Start": "2026-10-01",
+    "SW End": "2026-10-08"
   },
   {
     "제품군": "Sound Suite",
@@ -53,7 +59,9 @@
     "HW Event": "MP",
     "Start Date": "2026-12-14",
     "End Date": "2026-12-14",
-    "SW Event": "FC 1"
+    "SW Event": "FC 1",
+    "SW Start": "2026-10-21",
+    "SW End": "2026-10-27"
   },
   {
     "제품군": "Sound Suite",
@@ -121,9 +129,59 @@
     "PV": "2026/12/30",
     "MP": "2027/1/11",
     "HW Event": "-",
+    "Start Date": "2026-08-13",
+    "End Date": "2026-08-21",
+    "SW Event": "SIT 1",
+    "SW Start": "2026-08-13",
+    "SW End": "2026-08-21"
+  },
+  {
+    "제품군": "Sound Suite",
+    "모델명": "H5",
+    "개발등급": null,
+    "SoC": null,
+    "SW": null,
+    "스펙": null,
+    "PV": null,
+    "MP": null,
+    "HW Event": "-",
+    "Start Date": "2026-09-11",
+    "End Date": "2026-09-18",
+    "SW Event": "SIT 2",
+    "SW Start": "2026-09-11",
+    "SW End": "2026-09-18"
+  },
+  {
+    "제품군": "Sound Suite",
+    "모델명": "H5",
+    "개발등급": null,
+    "SoC": null,
+    "SW": null,
+    "스펙": null,
+    "PV": null,
+    "MP": null,
+    "HW Event": "-",
+    "Start Date": "2026-10-01",
+    "End Date": "2026-10-08",
+    "SW Event": "SIT 3",
+    "SW Start": "2026-10-01",
+    "SW End": "2026-10-08"
+  },
+  {
+    "제품군": "Sound Suite",
+    "모델명": "H5",
+    "개발등급": null,
+    "SoC": null,
+    "SW": null,
+    "스펙": null,
+    "PV": null,
+    "MP": null,
+    "HW Event": "-",
     "Start Date": "2026-10-21",
     "End Date": "2026-11-25",
-    "SW Event": "FC 1"
+    "SW Event": "FC 1",
+    "SW Start": "2026-10-21",
+    "SW End": "2026-10-27"
   },
   {
     "제품군": "Sound Suite",

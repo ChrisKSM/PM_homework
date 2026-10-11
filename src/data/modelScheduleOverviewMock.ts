@@ -25,8 +25,8 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
       },
       {
         "name": "S I T1",
-        "start": "2026-09-04",
-        "end": "2026-10-20",
+        "start": "2026-08-13",
+        "end": "2026-08-21",
         "kind": "sw"
       },
       {
@@ -37,8 +37,8 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
       },
       {
         "name": "S I T2",
-        "start": "2026-10-21",
-        "end": "2026-11-04",
+        "start": "2026-09-11",
+        "end": "2026-09-18",
         "kind": "sw"
       },
       {
@@ -49,8 +49,8 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
       },
       {
         "name": "S I T3",
-        "start": "2026-11-05",
-        "end": "2026-11-30",
+        "start": "2026-10-01",
+        "end": "2026-10-08",
         "kind": "sw"
       },
       {
@@ -61,8 +61,8 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
       },
       {
         "name": "FC 1",
-        "start": "2026-12-14",
-        "end": "2026-12-14",
+        "start": "2026-10-21",
+        "end": "2026-10-27",
         "kind": "sw"
       },
       {
@@ -113,9 +113,27 @@ export const OVERVIEW_MOCK_MODELS: OverviewModel[] = [
     "ats": "",
     "events": [
       {
+        "name": "SIT 1",
+        "start": "2026-08-13",
+        "end": "2026-08-21",
+        "kind": "sw"
+      },
+      {
+        "name": "SIT 2",
+        "start": "2026-09-11",
+        "end": "2026-09-18",
+        "kind": "sw"
+      },
+      {
+        "name": "SIT 3",
+        "start": "2026-10-01",
+        "end": "2026-10-08",
+        "kind": "sw"
+      },
+      {
         "name": "FC 1",
         "start": "2026-10-21",
-        "end": "2026-11-25",
+        "end": "2026-10-27",
         "kind": "sw"
       },
       {

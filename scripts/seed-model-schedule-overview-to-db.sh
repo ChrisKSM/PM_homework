@@ -32,12 +32,14 @@ print('count:', d.get('count', len(d.get('models', []))))
 models = [m.get('model','') for m in d.get('models', [])]
 print('models:', ', '.join(models[:10]), '...' if len(models)>10 else '')
 for m in d.get('models', []):
-    if m.get('model') == 'H7_VI':
+    if m.get('model') in ('H7_VI', 'H5'):
+        print(m.get('model'), 'SW:')
         for e in m.get('events') or []:
-            if e.get('kind')=='hw' and e.get('name')=='PrePV':
-                print('H7_VI PrePV:', e.get('start'), e.get('end'))
-                break
-        break
+            if e.get('kind') != 'sw':
+                continue
+            n = (e.get('name') or '').replace(' ', '').upper()
+            if 'SIT' in n or n.startswith('FC1') or e.get('name', '').strip().startswith('FC 1'):
+                print(' ', e.get('name'), e.get('start'), e.get('end'))
 "
 
 echo "=== Done ==="
