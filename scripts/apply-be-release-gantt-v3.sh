@@ -1,13 +1,13 @@
 #!/bin/sh
 # BE pod — 릴리즈 Gantt 패치 (CDN 구버전 apply/fix 스크립트 우회)
 # 커밋 핀 URL — raw cache miss:
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/23a896e/scripts/apply-be-release-gantt-v3.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/efe837f/scripts/apply-be-release-gantt-v3.sh" | sh
 #
 # 또는 pod:
-#   REF_SHA=23a896e sh scripts/apply-be-release-gantt-v3.sh
+#   REF_SHA=efe837f sh scripts/apply-be-release-gantt-v3.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-REF_SHA="${REF_SHA:-efe837f}"
+REF_SHA="${REF_SHA:-1b0828e}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 ROOT="${ROOT:-/workspace/project}"
 cd "$ROOT"
@@ -32,6 +32,12 @@ grep -q '"Epic Link"' services/release_gantt_service.py \
   && echo "  OK  Milestone JQL uses Epic Link (not cf[10801])" \
   || { echo "  NG  Epic Link milestone JQL missing — wrong REF_SHA?"; exit 1; }
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
+grep -q 'def nearest_sprint_for_day' services/release_sprint_calendar_2026.py \
+  && echo "  OK  release_sprint_calendar_2026 (nearest_sprint_for_day)" \
+  || {
+    echo "  NG  calendar 파일 구버전 — release_gantt_service 와 쌍으로 배포 필요"
+    exit 1
+  }
 fetch backend/routers/model_status.py routers/model_status.py
 fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
 chmod +x scripts/patch-config-release-gantt-fixversion.sh 2>/dev/null || true

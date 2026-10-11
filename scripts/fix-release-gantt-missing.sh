@@ -7,7 +7,7 @@
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
-REF_SHA="${REF_SHA:-ed22ded}"
+REF_SHA="${REF_SHA:-1b0828e}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
 
 echo "=== fix release gantt services (ref $REF_SHA) bundle v2026-03-11.2 ==="
@@ -22,6 +22,8 @@ fetch backend/jira_client.py jira_client.py
 fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/services/release_gantt_service.py services/release_gantt_service.py
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
+grep -q 'def nearest_sprint_for_day' services/release_sprint_calendar_2026.py \
+  || { echo "  NG  calendar missing nearest_sprint_for_day"; exit 1; }
 fetch backend/routers/model_status.py routers/model_status.py
 fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
 chmod +x scripts/patch-config-release-gantt-fixversion.sh 2>/dev/null || true
