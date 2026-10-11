@@ -25,6 +25,9 @@ fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/services/release_gantt_service.py services/release_gantt_service.py
 fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
 fetch backend/routers/model_status.py routers/model_status.py
+fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
+chmod +x scripts/patch-config-release-gantt-fixversion.sh 2>/dev/null || true
+sh scripts/patch-config-release-gantt-fixversion.sh
 fetch scripts/diagnose-release-gantt-jira.sh scripts/diagnose-release-gantt-jira.sh
 fetch scripts/verify-release-gantt-be.sh scripts/verify-release-gantt-be.sh
 chmod +x scripts/diagnose-release-gantt-jira.sh scripts/verify-release-gantt-be.sh

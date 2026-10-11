@@ -115,7 +115,9 @@ def _initiative_epic_jqls(initiative_keys: list[str], project: str) -> list[str]
 
 def _resolve_milestone_fix_version(inits: list[dict]) -> str:
     """Initiative fixVersions 우선, 없으면 settings.release_gantt_milestone_fix_version."""
-    fallback = settings.release_gantt_milestone_fix_version.strip() or "Audio_2025"
+    fallback = (
+        getattr(settings, "release_gantt_milestone_fix_version", None) or "Audio_2025"
+    ).strip() or "Audio_2025"
     names: list[str] = []
     for raw in inits:
         for fv in (raw.get("fields") or {}).get("fixVersions") or []:
