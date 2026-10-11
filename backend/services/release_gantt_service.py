@@ -431,6 +431,9 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
         "summary": summary,
         "epicKey": parent,
         "issueUrl": tvjira_issue_browse_url(key),
+        "status": _field_text(fields.get("status")),
+        "dueDate": fields.get("duedate") or "",
+        "issuetype": itype,
     }
 
 
@@ -523,6 +526,8 @@ async def get_release_gantt(
             if ek in by_epic:
                 by_epic[ek].append(ms)
         epics = [_finalize_epic_span({**e, "milestones": by_epic.get(e["issueKey"], [])}) for e in epics]
+        epics = [e for e in epics if e.get("milestones")]
+        milestones_global = [m for e in epics for m in e.get("milestones") or []]
 
     cal = calendar_payload()
     return {

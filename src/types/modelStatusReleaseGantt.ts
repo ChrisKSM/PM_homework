@@ -24,6 +24,9 @@ export interface ReleaseMilestone {
   summary?: string
   epicKey?: string
   issueUrl?: string
+  status?: string
+  dueDate?: string
+  issuetype?: string
 }
 
 export interface ReleaseEpicRow {

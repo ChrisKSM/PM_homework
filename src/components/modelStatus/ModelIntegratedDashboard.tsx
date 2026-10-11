@@ -275,16 +275,7 @@ export default function ModelIntegratedDashboard({
       )}
 
       {tab === 'release' && (
-        <ModelStatusReleaseEpicGantt
-          modelCode={modelCode}
-          active={tab === 'release'}
-          kpi1Value={`${spPct}% ▲`}
-          kpi1Sub={`${spDone}/${spTotal} SP`}
-          kpi1Trend={8}
-          kpi2Value={`${schedulePct}% ▶`}
-          kpi2Sub={`마일스톤 ${milestoneDone}/${milestoneTotal} 정시`}
-          kpi2Trend={5}
-        />
+        <ModelStatusReleaseEpicGantt modelCode={modelCode} active={tab === 'release'} />
       )}
 
       {tab === 'initiative' && (
