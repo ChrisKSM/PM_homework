@@ -135,13 +135,35 @@ def _resolve_milestone_fix_version(inits: list[dict]) -> str:
 
 def _milestone_jql_for_epic(epic_key: str, fix_version: str, project: str) -> str:
     """Epic Link + fixVersion 으로 Milestone 이슈 조회 (TV Jira Gantt 기준)."""
-    fv = fix_version.replace('"', '\\"')
+    return _milestone_jql_variants(epic_key, fix_version, project)[0]
+
+
+def _milestone_jql_variants(epic_key: str, fix_version: str, project: str) -> list[str]:
+    """Jira Server 필드명 차이 대비 — Epic별 순차 시도."""
+    fv = (fix_version or "").strip().replace('"', '\\"')
     ek = epic_key.strip().replace('"', '\\"')
-    return (
-        f'project = {project} AND fixVersion = "{fv}" '
-        f'AND issuetype in (Milestone, mileStone, milestone) '
-        f'AND "Epic Link" = {ek} ORDER BY created DESC'
-    )
+    if not ek:
+        return []
+    types = "issuetype in (Milestone, mileStone, milestone)"
+    out: list[str] = []
+    if fv:
+        out.append(
+            f'project = {project} AND fixVersion = "{fv}" AND {types} '
+            f'AND "Epic Link" = {ek} ORDER BY created DESC'
+        )
+        out.append(
+            f'project = {project} AND fixVersion = "{fv}" AND {types} '
+            f"AND cf[10801] = {ek} ORDER BY created DESC"
+        )
+    out.append(f'project = {project} AND {types} AND "Epic Link" = {ek} ORDER BY created DESC')
+    out.append(f'project = {project} AND {types} AND cf[10801] = {ek} ORDER BY created DESC')
+    seen: set[str] = set()
+    unique: list[str] = []
+    for j in out:
+        if j not in seen:
+            seen.add(j)
+            unique.append(j)
+    return unique
 
 
 def _chunked_key_in_jql(keys: list[str], project: str, chunk: int = 30) -> list[str]:
@@ -406,20 +428,26 @@ async def _search_milestones_merged(
         "status",
         "issuetype",
         "duedate",
+        "created",
         "parent",
         settings.epic_link_field,
         settings.initiative_start_date_field,
     ]
-    for jql in milestone_jql_candidates(epic_keys, fix_version, project_key):
-        try:
-            rows = await tvjira_search_all(jql, ms_fields)
-            jql_used.append(jql)
-            for raw in rows:
-                key = raw.get("key") or ""
-                if key and key not in seen:
-                    seen[key] = raw
-        except Exception as ex:
-            errors.append(f"milestone JQL failed ({jql}): {ex}")
+    for ek in epic_keys[:120]:
+        epic_ms = 0
+        for jql in _milestone_jql_variants(ek, fix_version, project_key):
+            try:
+                rows = await tvjira_search_all(jql, ms_fields)
+                jql_used.append(jql)
+                for raw in rows:
+                    key = raw.get("key") or ""
+                    if key and key not in seen:
+                        seen[key] = raw
+                        epic_ms += 1
+                if epic_ms:
+                    break
+            except Exception as ex:
+                errors.append(f"milestone JQL failed ({jql}): {ex}")
     if not seen and epic_keys:
         for raw in await _discover_milestones_from_epic_graph(epic_keys[:40], errors):
             key = raw.get("key") or ""
@@ -476,6 +504,9 @@ def _map_milestone(raw: dict, epic_key: str | None) -> dict[str, Any] | None:
         start_sp, end_sp = sprint_span_for_range(start, end)
         sp = start_sp
     if sp is None:
+        created = fields.get("created")
+        sp = sprint_for_day(parse_day(str(created)[:10] if created else None))
+    if sp is None:
         return None
     label = summary
     m = re.search(r"\bM[1-9]\d*\b", summary, re.I)
@@ -505,8 +536,10 @@ def _scope_initiative_keys(
     initiative_key: str | None,
     all_initiatives: bool,
 ) -> list[str]:
-    """Initiative 탭에서 1건 선택 시 해당 키만, 아니면 label Initiative 전체(~9건)."""
-    if initiative_key and not all_initiatives:
+    """all_initiatives=true 또는 initiative_key 없음 → label Initiative 전체(~9건)."""
+    if all_initiatives:
+        return initiative_keys
+    if initiative_key:
         k = initiative_key.strip()
         if k:
             return [k]
@@ -614,6 +647,120 @@ async def get_release_gantt(
 
 def get_release_calendar() -> dict[str, Any]:
     return calendar_payload()
+
+
+async def diagnose_gantt_pipeline_counts(
+    model: str | None = None,
+    label: str | None = None,
+    project_key: str = "TVPLAT",
+    milestone_fix_version: str | None = None,
+    max_initiatives: int = 40,
+    max_epics: int = 30,
+) -> dict[str, Any]:
+    """
+    Initiative → Epic → Milestone 단계별 Jira 건수 (curl/스크립트용).
+    initiative_key 는 무시하고 label Initiative 전체를 스캔합니다.
+    """
+    jira_label = resolve_initiative_label(model, label)
+    errors: list[str] = []
+    init_jql = build_initiative_jql(jira_label, project_key=project_key) if jira_label else None
+    inits: list[dict] = []
+    if init_jql:
+        inits = await tvjira_search_all(init_jql, initiative_search_field_ids())
+    initiative_keys = [i.get("key") for i in inits if i.get("key")][:max_initiatives]
+    fix_ver = milestone_fix_version or _resolve_milestone_fix_version(inits)
+
+    epics_by_init: dict[str, int] = {}
+    epic_keys_ordered: list[str] = []
+    epic_jql_samples: list[str] = []
+    for ik in initiative_keys:
+        jql = (
+            f'project = {project_key} AND issuetype in (Epic, epic) '
+            f'AND issue in linkedIssues("{ik}") ORDER BY created DESC'
+        )
+        epic_jql_samples.append(jql)
+        try:
+            rows = await tvjira_search_all(jql, ["summary", "issuetype"])
+            epics_by_init[ik] = len(rows)
+            for raw in rows:
+                k = raw.get("key")
+                if k and k not in epic_keys_ordered:
+                    epic_keys_ordered.append(k)
+        except Exception as ex:
+            errors.append(f"epic count {ik}: {ex}")
+            epics_by_init[ik] = -1
+
+    ms_by_epic: dict[str, dict[str, Any]] = {}
+    ms_jql_samples: list[str] = []
+    raw_ms_total = 0
+    mapped_total = 0
+    ms_fields = [
+        "summary",
+        "status",
+        "issuetype",
+        "duedate",
+        "created",
+        "parent",
+        settings.epic_link_field,
+        settings.initiative_start_date_field,
+    ]
+    for ek in epic_keys_ordered[:max_epics]:
+        hit_jql: str | None = None
+        count = 0
+        mapped = 0
+        for jql in _milestone_jql_variants(ek, fix_ver, project_key):
+            try:
+                rows = await tvjira_search_all(jql, ms_fields)
+                if rows:
+                    hit_jql = jql
+                    count = len(rows)
+                    for raw in rows:
+                        epic_hint = _issue_key_from_ref((raw.get("fields") or {}).get(settings.epic_link_field))
+                        if _map_milestone(raw, epic_hint or ek):
+                            mapped += 1
+                    break
+            except Exception as ex:
+                errors.append(f"milestone count {ek}: {ex}")
+        if hit_jql:
+            ms_jql_samples.append(hit_jql)
+        ms_by_epic[ek] = {"raw": count, "mapped": mapped, "jql": hit_jql}
+        raw_ms_total += count
+        mapped_total += mapped
+
+    gantt_preview = await get_release_gantt(
+        model=model,
+        label=label,
+        initiative_key=None,
+        project_key=project_key,
+        all_initiatives=True,
+    )
+    gmeta = gantt_preview.get("meta") or {}
+
+    return {
+        "label": jira_label,
+        "initiativeJql": init_jql,
+        "milestoneFixVersion": fix_ver,
+        "step1_initiatives": {"count": len(initiative_keys), "keys": initiative_keys},
+        "step2_epics": {
+            "totalUnique": len(epic_keys_ordered),
+            "byInitiativeLinkedIssues": epics_by_init,
+            "sampleJql": epic_jql_samples[0] if epic_jql_samples else None,
+        },
+        "step3_milestones": {
+            "epicsSampled": min(len(epic_keys_ordered), max_epics),
+            "rawTotal": raw_ms_total,
+            "mappedTotal": mapped_total,
+            "byEpic": ms_by_epic,
+            "sampleJql": ms_jql_samples[0] if ms_jql_samples else None,
+        },
+        "ganttApi": {
+            "epicCount": gmeta.get("epicCount"),
+            "milestoneCount": gmeta.get("milestoneCount"),
+            "scopeInitiativeKeys": len(gmeta.get("scopeInitiativeKeys") or []),
+            "errors": gmeta.get("errors"),
+        },
+        "errors": errors,
+    }
 
 
 async def diagnose_release_links(
