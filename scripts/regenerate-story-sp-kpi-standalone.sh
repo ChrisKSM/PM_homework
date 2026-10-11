@@ -21,15 +21,6 @@ with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         tar.add(root / disk, arcname=arc)
 b64 = base64.b64encode(buf.getvalue()).decode()
 
-verify_py = r"""
-from services.initiative_sp_kpi_service import parse_milestone_table_from_description
-sample = '마일스톤\t산출물\t예상 SP\nM1\tdeliver\t25'
-total, rows = parse_milestone_table_from_description(sample)
-assert total == 25.0, total
-import main
-print('OK import')
-"""
-
 script = f'''#!/bin/sh
 set -e
 ROOT="${{ROOT:-/workspace/project}}"
@@ -52,7 +43,14 @@ if ! grep -q story-sp-kpi routers/model_status.py 2>/dev/null; then
   python3 scripts/patch-be-story-sp-kpi-router-snippet.py "$ROOT"
 fi
 export PYTHONPATH="$ROOT${{PYTHONPATH:+:$PYTHONPATH}}"
-python3 -c {repr(verify_py.strip())}
+python3 << 'PYVERIFY'
+from services.initiative_sp_kpi_service import parse_milestone_table_from_description
+sample = "마일스톤\t산출물\t예상 SP\nM1\tdeliver\t25"
+total, _ = parse_milestone_table_from_description(sample)
+assert total == 25.0, total
+import main
+print("OK import")
+PYVERIFY
 if [ -x scripts/restart-be-route-port.sh ]; then sh scripts/restart-be-route-port.sh; fi
 echo "Done. curl :8000/api/model-status/initiatives/story-sp-kpi ..."
 '''
