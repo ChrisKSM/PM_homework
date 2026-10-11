@@ -113,8 +113,8 @@ def _initiative_epic_jqls(initiative_keys: list[str], project: str) -> list[str]
     return jqls
 
 
-def _resolve_milestone_fix_version(inits: list[dict]) -> str:
-    """Initiative fixVersions 우선, 없으면 settings.release_gantt_milestone_fix_version."""
+def _collect_milestone_fix_versions(inits: list[dict]) -> list[str]:
+    """Milestone JQL — Initiative fixVersion 여러 개 + Audio_2025 fallback (TV Jira)."""
     fallback = (
         getattr(settings, "release_gantt_milestone_fix_version", None) or "Audio_2025"
     ).strip() or "Audio_2025"
@@ -122,43 +122,48 @@ def _resolve_milestone_fix_version(inits: list[dict]) -> str:
     for raw in inits:
         for fv in (raw.get("fields") or {}).get("fixVersions") or []:
             n = (fv.get("name") or "").strip()
-            if n:
+            if n and n not in names:
                 names.append(n)
-    if fallback in names:
-        return fallback
-    for n in names:
-        if n.lower() == fallback.lower():
-            return n
-    for n in names:
-        if "audio" in n.lower():
-            return n
-    return fallback
+    audio = sorted([n for n in names if "audio" in n.lower()], reverse=True)
+    rest = [n for n in names if n not in audio]
+    ordered = audio + rest
+    for extra in (fallback, "Audio_2025", "Audio_2026"):
+        if extra and extra not in ordered:
+            ordered.append(extra)
+    out: list[str] = []
+    for n in ordered:
+        if n not in out:
+            out.append(n)
+    return out[:8]
 
 
-def _milestone_jql_for_epic(epic_key: str, fix_version: str, project: str) -> str:
+def _resolve_milestone_fix_version(inits: list[dict]) -> str:
+    versions = _collect_milestone_fix_versions(inits)
+    return versions[0] if versions else "Audio_2025"
+
+
+def _milestone_jql_for_epic(epic_key: str, fix_versions: list[str], project: str) -> str:
     """Epic Link + fixVersion 으로 Milestone 이슈 조회 (TV Jira Gantt 기준)."""
-    return _milestone_jql_variants(epic_key, fix_version, project)[0]
+    variants = _milestone_jql_variants(epic_key, fix_versions, project)
+    return variants[0] if variants else ""
 
 
-def _milestone_jql_variants(epic_key: str, fix_version: str, project: str) -> list[str]:
-    """Jira Server 필드명 차이 대비 — Epic별 순차 시도."""
-    fv = (fix_version or "").strip().replace('"', '\\"')
+def _milestone_jql_variants(epic_key: str, fix_versions: list[str], project: str) -> list[str]:
+    """Epic Link JQL only — cf[10801] 은 TV Jira Server 에서 400."""
     ek = epic_key.strip().replace('"', '\\"')
     if not ek:
         return []
     types = "issuetype in (Milestone, mileStone, milestone)"
     out: list[str] = []
-    if fv:
+    for fv in fix_versions or []:
+        fvx = (fv or "").strip().replace('"', '\\"')
+        if not fvx:
+            continue
         out.append(
-            f'project = {project} AND fixVersion = "{fv}" AND {types} '
+            f'project = {project} AND fixVersion = "{fvx}" AND {types} '
             f'AND "Epic Link" = {ek} ORDER BY created DESC'
         )
-        out.append(
-            f'project = {project} AND fixVersion = "{fv}" AND {types} '
-            f"AND cf[10801] = {ek} ORDER BY created DESC"
-        )
     out.append(f'project = {project} AND {types} AND "Epic Link" = {ek} ORDER BY created DESC')
-    out.append(f'project = {project} AND {types} AND cf[10801] = {ek} ORDER BY created DESC')
     seen: set[str] = set()
     unique: list[str] = []
     for j in out:
@@ -271,15 +276,17 @@ async def _discover_epic_keys_from_linked_work_items(
 
 def milestone_jql_candidates(
     epic_keys: list[str],
-    fix_version: str,
+    fix_versions: list[str],
     project: str = "TVPLAT",
 ) -> list[str]:
-    """Epic 1건당 fixVersion + Epic Link Milestone JQL."""
+    """Epic 1건당 대표 Milestone JQL (첫 fixVersion + Epic Link)."""
     out: list[str] = []
     for ek in epic_keys[:120]:
         k = (ek or "").strip()
         if k:
-            out.append(_milestone_jql_for_epic(k, fix_version, project))
+            jql = _milestone_jql_for_epic(k, fix_versions, project)
+            if jql:
+                out.append(jql)
     return out
 
 
@@ -418,11 +425,11 @@ async def _discover_milestones_from_epic_graph(
 
 async def _search_milestones_merged(
     epic_keys: list[str],
-    fix_version: str,
+    fix_versions: list[str],
     project_key: str,
     errors: list[str],
 ) -> tuple[list[dict], list[str]]:
-    """Epic별 fixVersion + Epic Link Milestone JQL."""
+    """Epic별 fixVersion(s) + Epic Link Milestone JQL."""
     seen: dict[str, dict] = {}
     jql_used: list[str] = []
     ms_fields = [
@@ -437,7 +444,9 @@ async def _search_milestones_merged(
     ]
     for ek in epic_keys[:120]:
         epic_ms = 0
-        for jql in _milestone_jql_variants(ek, fix_version, project_key):
+        variants = _milestone_jql_variants(ek, fix_versions, project_key)
+        last_jql_err: str | None = None
+        for jql in variants:
             try:
                 rows = await tvjira_search_all(jql, ms_fields)
                 jql_used.append(jql)
@@ -449,7 +458,9 @@ async def _search_milestones_merged(
                 if epic_ms:
                     break
             except Exception as ex:
-                errors.append(f"milestone JQL failed ({jql}): {ex}")
+                last_jql_err = f"milestone JQL failed ({jql}): {ex}"
+        if not epic_ms and last_jql_err:
+            errors.append(last_jql_err)
     if not seen and epic_keys:
         for raw in await _discover_milestones_from_epic_graph(epic_keys[:40], errors):
             key = raw.get("key") or ""
@@ -583,7 +594,8 @@ async def get_release_gantt(
     ms_jqls: list[str] = []
     discovered_epic_keys: set[str] = set()
     discovery: dict[str, Any] = {}
-    milestone_fix_version = _resolve_milestone_fix_version(inits)
+    milestone_fix_versions = _collect_milestone_fix_versions(inits)
+    milestone_fix_version = milestone_fix_versions[0] if milestone_fix_versions else "Audio_2025"
 
     scope_keys = _scope_initiative_keys(initiative_keys, initiative_key, all_initiatives)
 
@@ -602,7 +614,7 @@ async def get_release_gantt(
 
         epic_keys = [e["issueKey"] for e in epics if e.get("issueKey")]
         raw_ms, ms_jqls = await _search_milestones_merged(
-            epic_keys, milestone_fix_version, project_key, errors
+            epic_keys, milestone_fix_versions, project_key, errors
         )
         by_epic: dict[str, list[dict]] = {k: [] for k in epic_keys}
         for raw in raw_ms:
@@ -625,6 +637,7 @@ async def get_release_gantt(
             "asOf": datetime.now(timezone.utc).isoformat(),
             "initiativeJql": init_jql,
             "milestoneFixVersion": milestone_fix_version,
+            "milestoneFixVersions": milestone_fix_versions,
             "epicJqls": epic_jqls,
             "milestoneJqls": ms_jqls if (jira_label or initiative_keys) else [],
             "initiativeKey": initiative_row.get("key") if initiative_row else (initiative_keys[0] if initiative_keys else initiative_key),
@@ -670,7 +683,10 @@ async def diagnose_gantt_pipeline_counts(
     if init_jql:
         inits = await tvjira_search_all(init_jql, initiative_search_field_ids())
     initiative_keys = [i.get("key") for i in inits if i.get("key")][:max_initiatives]
-    fix_ver = milestone_fix_version or _resolve_milestone_fix_version(inits)
+    fix_versions = _collect_milestone_fix_versions(inits)
+    if milestone_fix_version and milestone_fix_version not in fix_versions:
+        fix_versions.insert(0, milestone_fix_version)
+    fix_ver = fix_versions[0] if fix_versions else "Audio_2025"
 
     epics_by_init: dict[str, int] = {}
     epic_keys_ordered: list[str] = []
@@ -710,7 +726,7 @@ async def diagnose_gantt_pipeline_counts(
         hit_jql: str | None = None
         count = 0
         mapped = 0
-        for jql in _milestone_jql_variants(ek, fix_ver, project_key):
+        for jql in _milestone_jql_variants(ek, fix_versions, project_key):
             try:
                 rows = await tvjira_search_all(jql, ms_fields)
                 if rows:
@@ -729,6 +745,9 @@ async def diagnose_gantt_pipeline_counts(
         raw_ms_total += count
         mapped_total += mapped
 
+    from cache import clear_cache
+
+    await clear_cache()
     gantt_preview = await get_release_gantt(
         model=model,
         label=label,
@@ -742,6 +761,7 @@ async def diagnose_gantt_pipeline_counts(
         "label": jira_label,
         "initiativeJql": init_jql,
         "milestoneFixVersion": fix_ver,
+        "milestoneFixVersions": fix_versions,
         "step1_initiatives": {"count": len(initiative_keys), "keys": initiative_keys},
         "step2_epics": {
             "totalUnique": len(epic_keys_ordered),
