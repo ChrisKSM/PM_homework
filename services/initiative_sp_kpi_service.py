@@ -834,6 +834,7 @@ async def preview_story_sp_kpi(
             "consumptionPctSource": "worklogSp | jiraStorySp | descriptionConsumedSp",
             "completionPct": "완료 이슈 worklog SP(또는 Story SP) / plannedSpTotal (참고)",
             "notCalendarSp26": "릴리즈 Gantt SP 캘린더 경과율과 무관",
+            "worklogScope": "전 기간 worklog 누적 (스프린트별 velocity·SP는 추후 분석 탭)",
         },
         "plannedSpTotal": planned_total,
         "worklogSpConsumed": worklog_sp_total,
