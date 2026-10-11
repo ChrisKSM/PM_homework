@@ -50,6 +50,10 @@ POD_BV=$(cat build/build-version.txt 2>/dev/null || echo '?')
 POD_MAIN=$(ls build/main.*.js 2>/dev/null | sed 's|.*/||' | head -1 || echo '?')
 if [ "$POD_BV" != "?" ] && [ "$REM_BV" = "$POD_BV" ]; then ok "build-version pod = shared"; else ng "build-version 불일치 — CI/Route에 pod build 미배포"; fi
 if [ -n "$POD_MAIN" ] && [ "$REM_MAIN" = "$POD_MAIN" ]; then ok "main.js pod = shared"; else ng "main.js 불일치 — 브라우저는 구 번들"; fi
+if [ "$REM_BV" != "$POD_BV" ] 2>/dev/null; then
+  echo "  → 조치: sh scripts/find-fe-deploy-url-candidates.sh 로 MATCH URL 접속"
+  echo "     또는 GitLab CI 배포로 공용 URL 갱신 (pod npm run build 만으로는 공용 URL 안 바뀜)"
+fi
 
 echo ""
 echo "=== 4) Mongo overview (loadOverview가 mock 대신 쓰는 데이터) ==="
@@ -59,7 +63,8 @@ if [ -z "$LOAD" ]; then
 else
   echo "$LOAD" | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
+# BE spec 필드 등에 raw newline 이 있으면 strict JSON 파서가 실패 — 브라우저/axios 는 허용되는 경우 있음
+d = json.load(sys.stdin, strict=False)
 for model in ('H7_VI', 'H5'):
     m = next((x for x in d.get('models', []) if x.get('model') == model), None)
     if not m:

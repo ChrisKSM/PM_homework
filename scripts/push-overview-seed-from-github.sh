@@ -26,7 +26,7 @@ echo ""
 echo "=== Verify overview/load (H7_VI / H5 SW) ==="
 curl -sf "$API_BASE/model-schedule/overview/load" | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
+d = json.load(sys.stdin, strict=False)
 for model in ('H7_VI', 'H5'):
     m = next((x for x in d.get('models', []) if x.get('model') == model), None)
     if not m:
