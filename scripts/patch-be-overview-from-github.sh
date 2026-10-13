@@ -25,6 +25,7 @@ fetch backend/services/mongo_helper.py services/mongo_helper.py
 fetch backend/services/overview_snapshot_email.py services/overview_snapshot_email.py
 fetch backend/services/schedule_snapshot_email.py services/schedule_snapshot_email.py
 fetch backend/services/model_schedule_recipients.py services/model_schedule_recipients.py
+fetch backend/services/email_service.py services/email_service.py
 fetch scripts/patch-be-main-model-schedule.sh scripts/patch-be-main-model-schedule.sh
 fetch scripts/be-restart-uvicorn-standalone.sh scripts/be-restart-uvicorn-standalone.sh
 chmod +x scripts/patch-be-main-model-schedule.sh scripts/be-restart-uvicorn-standalone.sh
