@@ -4,8 +4,13 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [ ! -f main.py ] && [ -f /workspace/project/main.py ]; then
+  ROOT=/workspace/project
+  cd "$ROOT"
+fi
+
 if [ ! -f main.py ]; then
-  echo "Error: main.py not found"
+  echo "Error: main.py not found (cwd: $(pwd) — cd /workspace/project 후 실행)"
   exit 1
 fi
 

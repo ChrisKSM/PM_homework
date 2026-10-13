@@ -1,0 +1,93 @@
+#!/bin/sh
+# BE — overview Snapshot 개발 수신자(swPm) 반영 검증
+set -e
+cd "$(dirname "$0")/.."
+. "$(dirname "$0")/pod-detect.sh"
+
+ROOT="$(be_project_root)"
+cd "$ROOT"
+
+ok=0
+fail=0
+
+check() {
+  name="$1"
+  shift
+  if eval "$@"; then
+    echo "  ✓ $name"
+    ok=$((ok + 1))
+  else
+    echo "  ✗ $name"
+    fail=$((fail + 1))
+  fi
+}
+
+echo "=== Verify overview dev recipients BE (cwd: $ROOT) ==="
+
+check "model_schedule_recipients.py" "[ -f services/model_schedule_recipients.py ]"
+check "dev_emails_from_models" "grep -q 'def dev_emails_from_models' services/model_schedule_recipients.py"
+check "model_schedule imports recipients" "grep -q 'model_schedule_recipients' routers/model_schedule.py"
+check "_resolve_share_recipients models kwarg" "grep -q 'models: list' routers/model_schedule.py"
+check "overview share passes models" "grep -q 'models=req.models' routers/model_schedule.py"
+
+if [ -x .venv/bin/python ]; then
+  PY=".venv/bin/python"
+elif [ -x venv/bin/python ]; then
+  PY="venv/bin/python"
+else
+  PY="python3"
+fi
+
+if $PY -c "
+import sys
+sys.path.insert(0, '.')
+from routers.model_schedule import _resolve_share_recipients
+addrs = _resolve_share_recipients({'개발'}, None, models=[{'swPm': '고석민/윤필규'}, {'swPm': '조성연'}])
+expected = ['seokmin.koh@lge.com', 'pilkyu.yoon@lge.com', 'sungyeon.cho@lge.com']
+assert addrs == expected, f'got {addrs}, want {expected}'
+" 2>/dev/null; then
+  echo "  ✓ swPm recipients logic"
+  ok=$((ok + 1))
+else
+  echo "  ✗ swPm recipients logic"
+  fail=$((fail + 1))
+fi
+
+BASE="${API_BASE:-http://127.0.0.1:8000/api}"
+for port in 8000; do
+  if curl -sf "http://127.0.0.1:${port}/docs" >/dev/null 2>&1; then
+    BASE="http://127.0.0.1:${port}/api"
+    break
+  fi
+done
+
+if curl -sf "${BASE%/api}/docs" >/dev/null 2>&1; then
+  CODE=$(curl -s -o /tmp/dev_recip_test.json -w "%{http_code}" -X POST "${BASE}/model-schedule/overview/share" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "period_label": "test",
+      "dates": ["2026-10-01"],
+      "models": [{"id":"m1","swPm":"고석민/윤필규"}],
+      "display_rows": [{"modelId":"m1","timelineKind":"sw","lineIndex":0,"bars":[]}],
+      "audiences": ["개발"],
+      "recipients": ["seokmin.koh@lge.com","pilkyu.yoon@lge.com"]
+    }' 2>/dev/null || echo "000")
+  if [ "$CODE" = "200" ] || [ "$CODE" = "503" ]; then
+    echo "  ✓ overview/share API reachable (HTTP $CODE)"
+    ok=$((ok + 1))
+  else
+    echo "  ✗ overview/share API (HTTP $CODE) — uvicorn 재시작 필요"
+    fail=$((fail + 1))
+  fi
+else
+  echo "  ⚠ uvicorn 미기동 — API 스킵 (sh scripts/restart-be-route-port.sh)"
+fi
+
+echo ""
+if [ "$fail" -eq 0 ]; then
+  echo "✅ BE dev recipients OK ($ok checks)"
+  exit 0
+fi
+
+echo "❌ BE dev recipients FAIL ($fail failed, $ok passed)"
+exit 1
