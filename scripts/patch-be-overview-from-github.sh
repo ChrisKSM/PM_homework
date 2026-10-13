@@ -41,6 +41,17 @@ if [ -f config.py.patched ]; then
 fi
 
 grep -q pymilvus requirements.txt 2>/dev/null || echo "pymilvus==2.5.8" >> requirements.txt
+grep -q 'setuptools>=' requirements.txt 2>/dev/null || echo "setuptools>=69.0.0,<82" >> requirements.txt
+
+PIP="pip"
+[ -x venv/bin/pip ] && PIP="venv/bin/pip"
+echo ""
+echo "=== pip install (pymilvus — overview Mongo) ==="
+if ! "$PIP" install -q "pymilvus==2.5.8" "setuptools>=69.0.0,<82"; then
+  echo "NG  pip install pymilvus failed — 네트워크/PyPI 확인"
+  exit 1
+fi
+echo "OK  pymilvus installed"
 
 sh scripts/patch-be-main-model-schedule.sh
 
