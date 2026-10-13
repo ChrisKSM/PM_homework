@@ -51,8 +51,16 @@ while [ "$i" -le 15 ]; do
   CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT}/health" 2>/dev/null || echo "000")
   if [ "$CODE" = "200" ]; then
     echo "OK  GET /health → 200"
-    curl -s -o /dev/null -w "OK  GET /api/model-schedule/overview/load → %{http_code}\n" \
-      "http://127.0.0.1:${PORT}/api/model-schedule/overview/load" || true
+    OVC=$(curl -s -o /dev/null -w "%{http_code}" \
+      "http://127.0.0.1:${PORT}/api/model-schedule/overview/load" 2>/dev/null || echo "000")
+    if [ "$OVC" = "200" ] || [ "$OVC" = "502" ]; then
+      echo "OK  GET /api/model-schedule/overview/load → $OVC"
+    elif [ "$OVC" = "404" ]; then
+      echo "WARN GET /api/model-schedule/overview/load → 404 (BE 기동 OK, overview 라우터 없음)"
+      echo "     curl -fsSL \".../patch-be-overview-from-github.sh\" | sh"
+    else
+      echo "     GET /api/model-schedule/overview/load → $OVC"
+    fi
     exit 0
   fi
   sleep 1
