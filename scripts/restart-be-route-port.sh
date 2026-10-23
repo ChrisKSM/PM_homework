@@ -2,19 +2,14 @@
 # be-audio-test — Route 포트(8000) uvicorn 재시작 (.env + Jira token 반영)
 #
 # FE(브라우저) → be-audio-test Route → port 8000
-# pod 수동 dev → port 8200 (별도)
+# pod 수동 dev → port 8000 (별도)
 #
 #   sh scripts/restart-be-route-port.sh
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
+. "$(dirname "$0")/pod-detect.sh"
+require_be_project
 PORT="${BE_ROUTE_PORT:-8000}"
-
-if [ ! -f main.py ] || [ ! -d routers ]; then
-  echo "Error: BE pod가 아닙니다 (main.py + routers/ 없음)"
-  echo "  hostname: $(hostname 2>/dev/null || echo unknown)"
-  echo "  → project-be-audio-test-* pod에서 실행하세요"
-  exit 1
-fi
 
 if [ ! -f .env ] && [ ! -f /workspace/project/.env ]; then
   echo "Error: .env 없음"
@@ -45,6 +40,24 @@ fi
 PY="uv run --frozen python"
 command -v uv >/dev/null 2>&1 || PY="python3"
 
+echo "=== preflight: import main:app ==="
+if ! $PY -c "import main" 2>/tmp/uvicorn-import.err; then
+  echo "  NG  import main failed — uvicorn would exit (503 on Route)"
+  sed -n '1,20p' /tmp/uvicorn-import.err
+  if grep -q 'tvjira_client' /tmp/uvicorn-import.err 2>/dev/null; then
+    echo ""
+    echo "  Fix: sh scripts/fix-tvjira-missing.sh"
+    echo "       (or sh scripts/be-model-status-initiative-patch.sh)"
+  fi
+  if grep -q 'release_gantt_service' /tmp/uvicorn-import.err 2>/dev/null; then
+    echo ""
+    echo "  Fix: sh scripts/fix-release-gantt-missing.sh"
+    echo "       (or sh scripts/be-model-status-initiative-patch.sh)"
+  fi
+  exit 1
+fi
+echo "  OK  import main"
+
 echo "=== starting uvicorn 0.0.0.0:$PORT ==="
 nohup $PY -m uvicorn main:app --host 0.0.0.0 --port "$PORT" \
   >> "/tmp/uvicorn-${PORT}.log" 2>&1 &
@@ -68,5 +81,5 @@ echo "  → local 8000 이 200이면 BE 정상. external 502는 pod 내부 hairp
 echo "  → **브라우저(FE) Network 탭** 으로 최종 확인하세요."
 
 echo ""
-echo "8200 dev uvicorn은 건드리지 않았습니다."
+echo "port 8000 uvicorn 재시작 완료."
 echo "=== Done ==="

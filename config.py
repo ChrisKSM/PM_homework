@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     # 커스텀 필드 ID (LGE Jira Server)
     story_points_field: str = "customfield_10808"
+    # WorklogReport / KPI-1: 1 Story Point = N hours logged
+    sp_hours_per_point: float = 4.0
     epic_name_field: str = "customfield_10804"
     epic_link_field: str = "customfield_10801"
     sprint_field: str = "customfield_10800"
@@ -46,7 +48,7 @@ class Settings(BaseSettings):
     initiative_categorization_field: str = "customfield_35516"
     initiative_estimated_effort_field: str = "customfield_35454"
 
-    # 릴리즈 Gantt Milestone JQL fixVersion
+    # 릴리즈 Gantt — Milestone JQL fixVersion (Initiative fixVersions 에 없을 때 fallback)
     release_gantt_milestone_fix_version: str = "Audio_2025"
 
     # 조달 Request DoD (Story DoD customfield_18874 와 별도)
