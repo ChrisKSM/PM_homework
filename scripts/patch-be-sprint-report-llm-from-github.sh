@@ -21,8 +21,9 @@ fetch backend/services/llm_client.py services/llm_client.py
 fetch backend/services/jira_service.py services/jira_service.py
 fetch backend/jira_client.py jira_client.py
 fetch scripts/verify-sprint-report-be.sh scripts/verify-sprint-report-be.sh
+fetch scripts/diagnose-sprint-report-llm.sh scripts/diagnose-sprint-report-llm.sh
 fetch scripts/be-restart-uvicorn-standalone.sh scripts/be-restart-uvicorn-standalone.sh
-chmod +x scripts/verify-sprint-report-be.sh scripts/be-restart-uvicorn-standalone.sh 2>/dev/null || true
+chmod +x scripts/verify-sprint-report-be.sh scripts/diagnose-sprint-report-llm.sh scripts/be-restart-uvicorn-standalone.sh 2>/dev/null || true
 
 # config LLM fields (append-only style via python)
 PY="python3"

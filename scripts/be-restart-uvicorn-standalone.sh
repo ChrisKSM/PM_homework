@@ -25,13 +25,54 @@ if command -v fuser >/dev/null 2>&1; then
   sleep 1
 fi
 
-if [ -x venv/bin/python ]; then
-  PY="venv/bin/python"
-elif command -v python3 >/dev/null 2>&1; then
-  PY="python3"
-else
-  echo "NG: python3 or venv/bin/python required"
+_dej_ok() {
+  "$1" -c "from dej_sdk import llm" >/dev/null 2>&1
+}
+
+_main_ok() {
+  "$1" -c "import main" >/dev/null 2>&1
+}
+
+_llm_wanted() {
+  if [ -f .env ] && grep -qE '^LLM_ENABLED=(1|true|yes|on|TRUE|True)' .env 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+PY=""
+for candidate in venv/bin/python python3 python /usr/bin/python3; do
+  [ -n "$candidate" ] || continue
+  [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1 || continue
+  _main_ok "$candidate" || continue
+  PY="$candidate"
+  break
+done
+
+if [ -z "$PY" ]; then
+  echo "NG: python with import main required (venv/bin/python or python3)"
   exit 1
+fi
+
+if _llm_wanted; then
+  if _dej_ok "$PY"; then
+    echo "OK  LLM_ENABLED — dej_sdk on $PY"
+  else
+    echo "WARN dej_sdk missing on $PY — trying alternate interpreters"
+    for candidate in python3 python /usr/bin/python3 venv/bin/python; do
+      [ "$candidate" = "$PY" ] && continue
+      [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1 || continue
+      _main_ok "$candidate" || continue
+      if _dej_ok "$candidate"; then
+        echo "OK  using $candidate (dej_sdk available)"
+        PY="$candidate"
+        break
+      fi
+    done
+    if ! _dej_ok "$PY"; then
+      echo "WARN dej_sdk still missing — sprint report will use source=rule only"
+    fi
+  fi
 fi
 
 echo "=== import main:app ==="
