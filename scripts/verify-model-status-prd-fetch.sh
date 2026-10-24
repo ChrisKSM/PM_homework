@@ -4,8 +4,21 @@ set -e
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 MODEL="${MODEL:-H7_VI}"
 
-URL="${API_BASE}/model-status/prd?model=${MODEL}&probe=true"
+PING_URL="${API_BASE%/}/model-status/initiatives/ping"
+URL="${API_BASE%/}/model-status/prd?model=${MODEL}&probe=true"
+PING_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$PING_URL" 2>/dev/null || echo "000")
+echo "GET $PING_URL → HTTP $PING_CODE"
+if [ "$PING_CODE" = "404" ]; then
+  echo "NG  model-status router 미등록 — sh scripts/patch-be-main-model-status.sh 후 restart"
+  exit 1
+fi
 echo "GET $URL"
+PRD_HEAD=$(curl -s -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null || echo "000")
+if [ "$PRD_HEAD" = "404" ]; then
+  echo "NG  /prd 404 — PRD 패치가 routers/model_status.py 가 아닌 backend/routers/ 에 들어갔을 수 있음"
+  echo "    curl .../patch-be-model-status-prd-from-github.sh | REF=최신 sh 재실행"
+  exit 1
+fi
 if ! command -v python3 >/dev/null 2>&1; then
   curl -fsS "$URL"
   exit 0
