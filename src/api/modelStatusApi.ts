@@ -2,7 +2,7 @@ import client from './client'
 import type { ModelStatusInitiativeIssue } from '../types/modelStatusInitiative'
 import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt'
 import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
-import type { ModelStatusPrdResponse } from '../types/modelStatusPrd'
+import type { ModelStatusPrdLabelSaveBody, ModelStatusPrdResponse } from '../types/modelStatusPrd'
 import {
   initiativeJiraLabelForModel,
   MODEL_STATUS_INITIATIVE_JIRA_LABEL,
@@ -65,12 +65,15 @@ export const modelStatusApi = {
   getReleaseCalendar: () =>
     client.get<ModelReleaseGanttResponse['calendar']>('/model-status/release/calendar').then((r) => r.data),
 
-  getPrd: (model: string, probe = true) =>
+  getPrd: (model: string, probe = false) =>
     client
       .get<ModelStatusPrdResponse>('/model-status/prd', {
-        params: { model, probe: probe ? true : undefined },
+        params: { model, probe: probe ? true : undefined, discover: probe ? true : undefined },
       })
       .then((r) => r.data),
+
+  savePrdReviewLabel: (body: ModelStatusPrdLabelSaveBody) =>
+    client.put<{ ok: boolean }>('/model-status/prd/labels', body).then((r) => r.data),
 
   getStorySpKpi: (model: string) => {
     const label =

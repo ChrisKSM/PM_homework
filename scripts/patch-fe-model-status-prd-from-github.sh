@@ -19,6 +19,7 @@ fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelStatus/ModelStatusPrdPanel.tsx
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
+fetch src/utils/modelStatusPrdWorkflow.ts src/utils/modelStatusPrdWorkflow.ts
 
 echo "  npm run build (optional on pod)"
 echo "=== patch-fe-model-status-prd done ==="

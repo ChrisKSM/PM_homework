@@ -23,6 +23,8 @@ fetch() {
 
 echo "=== model-status PRD @ $REF (flat pod paths) ==="
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
+fetch backend/services/model_status_prd_labels.py services/model_status_prd_labels.py
+fetch backend/services/model_status_prd_status.py services/model_status_prd_status.py
 fetch backend/tests/test_model_status_prd.py tests/test_model_status_prd.py
 fetch backend/routers/model_status.py routers/model_status.py
 fetch backend/config.py config.py

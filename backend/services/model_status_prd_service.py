@@ -89,6 +89,33 @@ def apply_model_search_terms(model: str | None) -> list[str]:
     return out
 
 
+def _extract_alm_labels(flat: dict[str, Any]) -> list[str]:
+    raw = flat.get("labels") or flat.get("label") or flat.get("Labels") or flat.get("tags")
+    out: list[str] = []
+    if isinstance(raw, list):
+        for item in raw:
+            t = _field_text(item)
+            if t:
+                out.append(t)
+    elif isinstance(raw, str):
+        for part in re.split(r"[,;|\n]+", raw):
+            t = part.strip()
+            if t:
+                out.append(t)
+    elif isinstance(raw, dict):
+        t = _field_text(raw)
+        if t:
+            out.append(t)
+    seen: set[str] = set()
+    uniq: list[str] = []
+    for x in out:
+        k = x.lower()
+        if k not in seen:
+            seen.add(k)
+            uniq.append(x)
+    return uniq
+
+
 def _extract_apply_model(flat: dict[str, Any]) -> str:
     for key in APPLY_MODEL_FIELD_CANDIDATES:
         v = _safe_text(flat, key)
@@ -116,6 +143,7 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
         "assignee": _safe_text(flat, "assignee"),
         "created": _safe_text(flat, "created")[:10],
         "updated": _safe_text(flat, "updated")[:10],
+        "almLabels": _extract_alm_labels(flat),
         "polarionUrl": f"{portal_base}/polarion/#/project/{project_key}/workitem?id={wid}",
     }
 
@@ -401,6 +429,7 @@ async def _fetch_davis_alm(query: str, project_id: str, alm_type: str) -> tuple[
                 "assignee": _safe_text(flat, "assignee"),
                 "created": _safe_text(flat, "created")[:10],
                 "updated": _safe_text(flat, "updated")[:10],
+                "almLabels": _extract_alm_labels(flat),
                 "polarionUrl": "",
             }
         )
@@ -504,10 +533,18 @@ async def get_prd_for_model(
             except Exception:
                 continue
 
+    from services.model_status_prd_labels import merge_labels_into_items
+    from services.model_status_prd_status import PRD_WORKFLOW_COLUMNS, enrich_prd_item_workflow
+
+    items = [enrich_prd_item_workflow(i) for i in items]
+    items, label_meta = merge_labels_into_items(model or "", items)
+
     discovered: set[str] = set()
     for it in items:
         if it.get("applyModel"):
             discovered.add("applyModel(value)")
+        if it.get("almLabels"):
+            discovered.add("labels")
 
     return {
         "meta": {
@@ -523,7 +560,9 @@ async def get_prd_for_model(
                 (getattr(settings, "davis_db_api_base_url", "") or "").strip()
                 and (getattr(settings, "davis_db_api_key", "") or "").strip()
             ),
+            "labelStore": label_meta,
         },
+        "workflowColumns": [{"id": c["id"], "label": c["label"], "order": c["order"]} for c in PRD_WORKFLOW_COLUMNS],
         "probe": probe_results if probe else [],
         "discovery": discovery,
         "items": items,

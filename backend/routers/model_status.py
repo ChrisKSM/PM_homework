@@ -2,6 +2,7 @@ import socket
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from config import settings
 from services import model_status_initiative_service
@@ -404,3 +405,31 @@ async def model_status_prd(
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"PRD ALM 조회 오류: {e}") from e
+
+
+class ModelStatusPrdLabelBody(BaseModel):
+    model: str = Field(..., description="UI model e.g. H7_VI")
+    prdId: str = Field(..., description="Polarion workitem id")
+    reviewLabel: str = Field("", description="검토 일정/그룹 라벨 (Milvus 저장)")
+    almLabels: list[str] | None = Field(None, description="저장 시 ALM labels 스냅샷")
+
+
+@router.put("/prd/labels")
+async def model_status_prd_save_label(body: ModelStatusPrdLabelBody):
+    """PRD 검토 라벨 — Milvus model_status_prd_labels."""
+    from services.model_status_prd_labels import save_review_label
+
+    try:
+        doc = save_review_label(
+            model=body.model,
+            prd_id=body.prdId,
+            review_label=body.reviewLabel,
+            alm_labels=body.almLabels,
+        )
+        return {"ok": True, "label": doc}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PRD label 저장 오류: {e}") from e
