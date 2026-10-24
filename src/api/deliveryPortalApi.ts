@@ -7,4 +7,7 @@ export const deliveryPortalApi = {
 
   getAllDeliveries: () =>
     client.get<DeliveryPortalPayload>('/delivery-portal/all-deliveries').then((r) => r.data),
+
+  getProgramReport: (params?: Record<string, string>) =>
+    client.get<unknown>('/delivery-portal/program-report', { params }).then((r) => r.data),
 }

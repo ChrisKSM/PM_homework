@@ -1,8 +1,8 @@
-"""Delivery Portal — all_deliveries_data 프록시 (PAT는 BE .env)."""
+"""Delivery Portal — all_deliveries_data / program-report 프록시 (토큰은 BE .env)."""
 from __future__ import annotations
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from config import settings
 
@@ -29,20 +29,37 @@ async def delivery_ping():
     }
 
 
-@router.get("/all-deliveries")
-async def all_deliveries():
-    """Davis MilestonePage — GET /api/v1/all_deliveries_data/"""
+async def _portal_get(path: str, *, params: dict | None = None) -> object:
+    """GET /api/v1/{path} — Bearer DELIVERY_PORTAL_API_TOKEN."""
     base = settings.delivery_portal_base_url.rstrip("/")
-    url = f"{base}/api/v1/all_deliveries_data/"
+    segment = path.strip("/")
+    url = f"{base}/api/v1/{segment}/"
     token = _resolve_token()
     try:
         async with httpx.AsyncClient(verify=settings.delivery_portal_verify_ssl, timeout=120.0) as client:
-            resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
+            resp = await client.get(
+                url,
+                headers={"Authorization": f"Bearer {token}"},
+                params=params or None,
+            )
             if resp.status_code >= 400:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Delivery Portal HTTP {resp.status_code}: {resp.text[:300]}",
+                    detail=f"Delivery Portal HTTP {resp.status_code}: {resp.text[:500]}",
                 )
             return resp.json()
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Delivery Portal 연결 실패: {e}") from e
+
+
+@router.get("/all-deliveries")
+async def all_deliveries():
+    """Davis MilestonePage — GET /api/v1/all_deliveries_data/"""
+    return await _portal_get("all_deliveries_data")
+
+
+@router.get("/program-report")
+async def program_report(request: Request):
+    """GET /api/v1/program-report/ — 쿼리스트링 그대로 전달."""
+    params = dict(request.query_params)
+    return await _portal_get("program-report", params=params or None)
