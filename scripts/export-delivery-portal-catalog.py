@@ -39,7 +39,119 @@ def _fetch(url: str, token: str) -> object:
         return json.loads(resp.read().decode("utf-8"))
 
 
-def catalog_all_deliveries(data: dict) -> None:
+def export_department_details(
+    data: dict,
+    department: str,
+    *,
+    platform_filter: str | None = None,
+    include_schedules: bool = False,
+) -> None:
+    """department=Audio 등 필터 — 매칭용 상세 목록."""
+    dept = department.strip()
+    pd_list = data.get("platform_data") or []
+    out_dir = Path(os.environ.get("DELIVERY_CATALOG_OUT", "/tmp"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    slug = dept.lower().replace(" ", "_")
+    tsv_path = out_dir / f"delivery-portal-{slug}.tsv"
+    sched_path = out_dir / f"delivery-portal-{slug}-schedules.tsv"
+
+    header = (
+        "platform\tprogram\tprogram_detail\tprogram_id\tsoc\tsite\tregion\tstatus\tpl\tshow\t"
+        "schedule_count\ttest_names_sample"
+    )
+    sched_header = "platform\tprogram\tprogram_detail\tsoc\ttest_name\tplan_start\tplan_end\tactual_start\tactual_end"
+    rows: list[str] = []
+    sched_rows: list[str] = []
+    total = 0
+    by_platform: Counter[str] = Counter()
+
+    print(f"\n=== department={dept!r} details ===")
+    if platform_filter:
+        print(f"    platform filter: {platform_filter!r}")
+
+    for pd in pd_list:
+        platform = str(pd.get("platform") or "")
+        if platform_filter and platform != platform_filter:
+            continue
+        platform_hits = 0
+        for pi in pd.get("program_info") or []:
+            program = str(pi.get("program") or "")
+            program_detail = str(pi.get("program_detail") or "")
+            program_id = str(pi.get("id") or "")
+            for d in pi.get("details") or []:
+                if str(d.get("department") or "") != dept:
+                    continue
+                if d.get("show") == "N":
+                    continue
+                schedules = d.get("schedules") or []
+                test_names = [str(s.get("test_name") or "").strip() for s in schedules if s.get("test_name")]
+                sample = ", ".join(test_names[:12])
+                if len(test_names) > 12:
+                    sample += f" (+{len(test_names) - 12})"
+                row = [
+                    platform,
+                    program,
+                    program_detail,
+                    program_id,
+                    str(d.get("soc") or ""),
+                    str(d.get("site") or ""),
+                    str(d.get("region") or ""),
+                    str(d.get("status") or ""),
+                    str(d.get("pl") or ""),
+                    str(d.get("show") or "Y"),
+                    str(len(schedules)),
+                    sample,
+                ]
+                rows.append("\t".join(row))
+                total += 1
+                platform_hits += 1
+                by_platform[platform] += 1
+                if include_schedules:
+                    for s in schedules:
+                        sched_rows.append(
+                            "\t".join(
+                                [
+                                    platform,
+                                    program,
+                                    program_detail.replace("\t", " "),
+                                    str(d.get("soc") or ""),
+                                    str(s.get("test_name") or ""),
+                                    str(s.get("plan_start_date") or ""),
+                                    str(s.get("plan_end_date") or ""),
+                                    str(s.get("actual_start_date") or ""),
+                                    str(s.get("actual_end_date") or ""),
+                                ]
+                            )
+                        )
+        if platform_hits and not platform_filter:
+            print(f"  {platform}: {platform_hits} Audio detail row(s)")
+
+    print(f"\n  Total {dept} rows (show≠N): {total}")
+    print("  By platform:")
+    for p, c in by_platform.most_common():
+        print(f"    {c:4d}  {p}")
+
+    tsv_path.write_text(header + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
+    print(f"\n=== Wrote {tsv_path} ===")
+
+    if include_schedules and sched_rows:
+        sched_path.write_text(sched_header + "\n" + "\n".join(sched_rows) + "\n", encoding="utf-8")
+        print(f"=== Wrote {sched_path} ({len(sched_rows)} schedule lines) ===")
+
+    print(f"\n--- Preview (first 25 rows, col: program_detail | soc | site | #sched) ---")
+    for line in rows[:25]:
+        parts = line.split("\t")
+        if len(parts) >= 11:
+            print(f"  [{parts[0]}] {parts[2][:70]}{'…' if len(parts[2]) > 70 else ''}")
+            print(f"       soc={parts[4]!r} site={parts[5]!r} schedules={parts[10]}  tests: {parts[11][:60]}")
+
+    if len(rows) > 25:
+        print(f"  … +{len(rows) - 25} rows in TSV")
+
+
+def catalog_all_deliveries(data: dict, *, skip_full_summary: bool = False) -> None:
+    if skip_full_summary:
+        return
     gd = data.get("global_data") or {}
     print("=== global_data ===")
     print(f"  global_min_from: {gd.get('global_min_from')}")

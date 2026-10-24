@@ -52,9 +52,19 @@ python3 scripts/export-delivery-portal-catalog.py
 python3 scripts/export-delivery-portal-catalog.py --fetch
 ```
 
+**Audio만 (전 모델 일정 매칭용):**
+
+```bash
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --department Audio
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --department Audio --platform webOS26
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --department Audio --schedules
+```
+
 생성 파일:
 
 - `/tmp/delivery-portal-catalog.tsv` — detail 1행 = platform×program×soc×site…
+- `/tmp/delivery-portal-audio.tsv` — department=Audio 만
+- `/tmp/delivery-portal-audio-schedules.tsv` — `--schedules` 시 일정 bar 단위
 - `/tmp/delivery-portal-program-report.tsv` — program-report 전체
 
 TSV를 엑셀/스프레드시트로 열어 Mongo 모델 id(`ov-*`)와 옆에 매칭列을 채우면 됩니다.
