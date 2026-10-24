@@ -8,6 +8,13 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from services.delivery_portal_catalog import (
+    AUDIO_PRODUCT_CATEGORIES,
+    iter_portal_program_rows,
+    overview_category_from_portal,
+    slug_overview_id,
+)
+
 # PO 확정 매칭 (webOS26 Audio — program UUID)
 OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
     {
@@ -200,9 +207,166 @@ def apply_delivery_portal_to_models(
 
     return {
         "dry_run": dry_run,
+        "scope": "linked",
         "removed_ids": removed,
         "updated": updated,
         "missing_overview_ids": missing_overview,
         "missing_portal_programs": missing_portal,
+        "model_count": len(models),
+    }
+
+
+def _norm_model_key(name: str) -> str:
+    return re.sub(r"\s+", "", (name or "")).upper().replace("-", "_")
+
+
+def _program_id_to_overview_id() -> dict[str, str]:
+    return {link["program_id"].lower(): link["overview_id"] for link in OVERVIEW_PROGRAM_LINKS}
+
+
+def _blank_overview_model(
+    oid: str,
+    *,
+    category: str,
+    model_name: str,
+    soc: str,
+    sw_pm: str,
+    events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    psoc = soc.strip()
+    if psoc.lower() in ("others", "common"):
+        psoc = ""
+    return {
+        "id": oid,
+        "category": category,
+        "model": model_name,
+        "variant": "",
+        "manufacturer": "",
+        "soc": psoc,
+        "hwPm": "",
+        "swPo": "",
+        "swPm": sw_pm,
+        "spec": "",
+        "pv": "",
+        "mp": "",
+        "ats": "",
+        "events": events,
+    }
+
+
+def apply_delivery_portal_audio_products(
+    models: list[dict[str, Any]],
+    portal: dict[str, Any],
+    *,
+    dry_run: bool = False,
+    product_categories: tuple[str, ...] = AUDIO_PRODUCT_CATEGORIES,
+) -> dict[str, Any]:
+    """
+    Product category (Audio_Soundbar 등) 전체 program → overview upsert.
+    PO linked ids 우선; 없으면 model명으로 기존 row 매칭; 없으면 신규 추가.
+    """
+    by_id = {m.get("id"): m for m in models if m.get("id")}
+    by_model_key: dict[str, str] = {}
+    for m in models:
+        mid = m.get("id")
+        mk = _norm_model_key(str(m.get("model") or ""))
+        if mid and mk and mk not in by_model_key:
+            by_model_key[mk] = str(mid)
+
+    pid_to_oid = _program_id_to_overview_id()
+    removed: list[str] = []
+    updated: list[dict[str, Any]] = []
+    created: list[dict[str, Any]] = []
+    skipped: list[str] = []
+
+    for rid in OVERVIEW_IDS_TO_REMOVE:
+        if rid in by_id:
+            removed.append(rid)
+            if not dry_run:
+                models[:] = [m for m in models if m.get("id") != rid]
+                by_id.pop(rid, None)
+
+    cat_set = set(product_categories)
+    for row in iter_portal_program_rows(
+        portal,
+        product_categories=cat_set,
+        department="Audio",
+        require_schedules=True,
+    ):
+        prog_id = str(row["program_id"] or "").lower()
+        if not prog_id:
+            skipped.append("missing_program_id")
+            continue
+
+        events = schedules_to_events(row.get("schedules") or [])
+        if not events:
+            skipped.append(prog_id)
+            continue
+
+        oid = pid_to_oid.get(prog_id)
+        if not oid:
+            mk = _norm_model_key(str(row.get("model") or ""))
+            oid = by_model_key.get(mk) or slug_overview_id(
+                str(row.get("model") or ""),
+                str(row.get("program_detail") or ""),
+            )
+
+        model = by_id.get(oid)
+        is_new = model is None
+        category = overview_category_from_portal(
+            str(row.get("product_category") or ""),
+            str(row.get("product") or ""),
+            str(row.get("model") or ""),
+        )
+        summary = {
+            "overview_id": oid,
+            "program_id": row["program_id"],
+            "platform": row["platform"],
+            "product_category": row.get("product_category"),
+            "product": row.get("product"),
+            "model": row.get("model"),
+            "program_detail": row.get("program_detail"),
+            "events_after": len(events),
+            "created": is_new,
+        }
+
+        if is_new:
+            created.append(summary)
+            if not dry_run:
+                model = _blank_overview_model(
+                    oid,
+                    category=category,
+                    model_name=str(row.get("model") or ""),
+                    soc=str(row.get("soc") or ""),
+                    sw_pm=str(row.get("pl") or ""),
+                    events=events,
+                )
+                models.append(model)
+                by_id[oid] = model
+                mk = _norm_model_key(str(row.get("model") or ""))
+                if mk:
+                    by_model_key.setdefault(mk, oid)
+        else:
+            updated.append(summary)
+            if not dry_run:
+                model["events"] = events
+                if category:
+                    model["category"] = category
+                psoc = str(row.get("soc") or "").strip()
+                if psoc and psoc.lower() not in ("others", "common"):
+                    model["soc"] = psoc
+                pl = str(row.get("pl") or "").strip()
+                if pl:
+                    model["swPm"] = pl
+
+    return {
+        "dry_run": dry_run,
+        "scope": "audio_products",
+        "product_categories": list(product_categories),
+        "removed_ids": removed,
+        "updated": updated,
+        "created": created,
+        "skipped_no_events": skipped[:20],
+        "portal_program_count": len(updated) + len(created),
         "model_count": len(models),
     }

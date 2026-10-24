@@ -20,6 +20,8 @@ platform_data[i]
     ├── program_detail  ← "webOS27 PI 프로그램"
     └── details[]       ← Gantt **한 줄** (SOC·site·담당 등)
         ├── department, soc, site, region, status, pl, show
+        ├── product_category ← UI Product category (Audio_Soundbar, Audio_Speaker, …)
+        ├── product, model (있을 때)
         └── schedules[] ← 일정 막대
             ├── test_name       ← "SIT1", "FC1", "QP", …
             ├── plan_start_date / plan_end_date
@@ -52,7 +54,7 @@ python3 scripts/export-delivery-portal-catalog.py
 python3 scripts/export-delivery-portal-catalog.py --fetch
 ```
 
-**Audio만 (전 모델 일정 매칭용):**
+**Audio department (플랫폼 전체):**
 
 ```bash
 python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --department Audio
@@ -60,11 +62,31 @@ python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.js
 python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --department Audio --schedules
 ```
 
+**Product category 4종 (Portal UI와 동일 — 전 모델 목록):**
+
+`Audio_Earbud`, `Audio_Others`, `Audio_Soundbar`, `Audio_Speaker`
+
+```bash
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --list-product-categories
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --audio-products
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --audio-products --schedules
+python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json --audio-products --models-only
+```
+
 생성 파일:
 
 - `/tmp/delivery-portal-catalog.tsv` — detail 1행 = platform×program×soc×site…
 - `/tmp/delivery-portal-audio.tsv` — department=Audio 만
 - `/tmp/delivery-portal-audio-schedules.tsv` — `--schedules` 시 일정 bar 단위
+- `/tmp/delivery-portal-audio-products-models.tsv` — program 1행 = 모델 후보 (매칭용)
+- `/tmp/delivery-portal-audio-products.tsv` — product category 필터 detail 전체
 - `/tmp/delivery-portal-program-report.tsv` — program-report 전체
+
+**Mongo sync (BE pod, seed 후):**
+
+```bash
+DRY=1 SCOPE=audio_products API_BASE=http://127.0.0.1:8000/api sh scripts/sync-overview-from-delivery-portal.sh
+SCOPE=audio_products API_BASE=http://127.0.0.1:8000/api sh scripts/sync-overview-from-delivery-portal.sh
+```
 
 TSV를 엑셀/스프레드시트로 열어 Mongo 모델 id(`ov-*`)와 옆에 매칭列을 채우면 됩니다.

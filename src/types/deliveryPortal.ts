@@ -11,6 +11,9 @@ export interface DeliverySchedule {
 
 export interface DeliveryDetail {
   department?: string
+  product_category?: string
+  product?: string
+  model?: string
   soc?: string
   pl?: string
   status?: string

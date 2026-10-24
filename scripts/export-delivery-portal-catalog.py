@@ -23,6 +23,16 @@ import urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+import sys
+
+sys.path.insert(0, str(ROOT / "backend"))
+from services.delivery_portal_catalog import (  # noqa: E402
+    AUDIO_PRODUCT_CATEGORIES,
+    iter_portal_program_rows,
+    scan_product_categories,
+)
+
 
 def _load(path: Path | None) -> object | None:
     if not path or not path.is_file():
@@ -232,6 +242,159 @@ def catalog_all_deliveries(data: dict, *, skip_full_summary: bool = False) -> No
         print(f"  {cnt:5d}  {name}")
 
 
+def export_audio_product_categories(
+    data: dict,
+    *,
+    categories: tuple[str, ...] = AUDIO_PRODUCT_CATEGORIES,
+    platform_filter: str | None = None,
+    include_schedules: bool = False,
+    list_models_only: bool = False,
+) -> None:
+    """Product category Audio_Earbud / Audio_Others / Audio_Soundbar / Audio_Speaker."""
+    cat_set = set(categories)
+    out_dir = Path(os.environ.get("DELIVERY_CATALOG_OUT", "/tmp"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    slug = "audio-products"
+    tsv_path = out_dir / f"delivery-portal-{slug}.tsv"
+    models_path = out_dir / f"delivery-portal-{slug}-models.tsv"
+    sched_path = out_dir / f"delivery-portal-{slug}-schedules.tsv"
+
+    header = (
+        "platform\tproduct_category\tproduct\tmodel\tprogram\tprogram_detail\tprogram_id\t"
+        "soc\tsite\tregion\tstatus\tpl\tshow\tschedule_count\ttest_names_sample"
+    )
+    models_header = (
+        "platform\tproduct_category\tproduct\tmodel\tprogram_detail\tprogram_id\tsoc\tschedule_count"
+    )
+    sched_header = (
+        "platform\tproduct_category\tmodel\tprogram_detail\tprogram_id\tsoc\t"
+        "test_name\tplan_start\tplan_end\tactual_start\tactual_end"
+    )
+
+    rows: list[str] = []
+    model_rows: list[str] = []
+    sched_rows: list[str] = []
+    by_cat: Counter[str] = Counter()
+    seen_program: set[str] = set()
+
+    print(f"\n=== product categories {list(categories)} ===")
+    if platform_filter:
+        print(f"    platform filter: {platform_filter!r}")
+
+    for row in iter_portal_program_rows(
+        data,
+        product_categories=cat_set,
+        department="Audio",
+    ):
+        platform = row["platform"]
+        if platform_filter and platform != platform_filter:
+            continue
+        d = row["detail"]
+        schedules = row.get("schedules") or []
+        test_names = [str(s.get("test_name") or "").strip() for s in schedules if s.get("test_name")]
+        sample = ", ".join(test_names[:12])
+        if len(test_names) > 12:
+            sample += f" (+{len(test_names) - 12})"
+
+        line = [
+            platform,
+            str(row.get("product_category") or ""),
+            str(row.get("product") or ""),
+            str(row.get("model") or ""),
+            str(row.get("program") or ""),
+            str(row.get("program_detail") or ""),
+            str(row.get("program_id") or ""),
+            str(row.get("soc") or ""),
+            str(row.get("site") or ""),
+            str(d.get("region") or ""),
+            str(d.get("status") or ""),
+            str(row.get("pl") or ""),
+            str(d.get("show") or "Y"),
+            str(len(schedules)),
+            sample,
+        ]
+        rows.append("\t".join(line))
+        by_cat[str(row.get("product_category") or "?")] += 1
+
+        pid = str(row.get("program_id") or "")
+        if pid and pid not in seen_program:
+            seen_program.add(pid)
+            model_rows.append(
+                "\t".join(
+                    [
+                        platform,
+                        str(row.get("product_category") or ""),
+                        str(row.get("product") or ""),
+                        str(row.get("model") or ""),
+                        str(row.get("program_detail") or ""),
+                        pid,
+                        str(row.get("soc") or ""),
+                        str(len(schedules)),
+                    ]
+                )
+            )
+
+        if include_schedules:
+            for s in schedules:
+                sched_rows.append(
+                    "\t".join(
+                        [
+                            platform,
+                            str(row.get("product_category") or ""),
+                            str(row.get("model") or ""),
+                            str(row.get("program_detail") or "").replace("\t", " "),
+                            pid,
+                            str(row.get("soc") or ""),
+                            str(s.get("test_name") or ""),
+                            str(s.get("plan_start_date") or ""),
+                            str(s.get("plan_end_date") or ""),
+                            str(s.get("actual_start_date") or ""),
+                            str(s.get("actual_end_date") or ""),
+                        ]
+                    )
+                )
+
+    print(f"\n  Total detail rows (show≠N): {len(rows)}")
+    print(f"  Unique programs (models): {len(model_rows)}")
+    print("  By product_category:")
+    for c, n in by_cat.most_common():
+        print(f"    {n:4d}  {c}")
+
+    models_path.write_text(models_header + "\n" + "\n".join(model_rows) + "\n", encoding="utf-8")
+    print(f"\n=== Wrote {models_path} ({len(model_rows)} programs) ===")
+
+    if not list_models_only:
+        tsv_path.write_text(header + "\n" + "\n".join(rows) + "\n", encoding="utf-8")
+        print(f"=== Wrote {tsv_path} ===")
+
+    if include_schedules and sched_rows:
+        sched_path.write_text(sched_header + "\n" + "\n".join(sched_rows) + "\n", encoding="utf-8")
+        print(f"=== Wrote {sched_path} ({len(sched_rows)} schedule lines) ===")
+
+    print("\n--- Programs preview (first 30) ---")
+    for line in model_rows[:30]:
+        parts = line.split("\t")
+        if len(parts) >= 7:
+            print(
+                f"  [{parts[0]}] {parts[1]} | {parts[3]!r} — {parts[4][:55]}"
+                f"{'…' if len(parts[4]) > 55 else ''}  (#sched={parts[7]})"
+            )
+    if len(model_rows) > 30:
+        print(f"  … +{len(model_rows) - 30} programs in models TSV")
+
+
+def list_product_categories(data: dict) -> None:
+    counts = scan_product_categories(data)
+    print("\n=== product_category values in JSON (detail / program) ===")
+    if not counts:
+        print("  (none found — check API export or field names)")
+        return
+    for name, cnt in counts.most_common():
+        mark = " *" if name in AUDIO_PRODUCT_CATEGORIES else ""
+        print(f"  {cnt:5d}  {name}{mark}")
+    print(f"\n  Audio export preset: {', '.join(AUDIO_PRODUCT_CATEGORIES)}")
+
+
 def catalog_program_report(data: list | dict) -> None:
     items = data if isinstance(data, list) else data.get("results") or data.get("data") or []
     if not isinstance(items, list):
@@ -282,7 +445,28 @@ def main() -> None:
     ap.add_argument(
         "--schedules",
         action="store_true",
-        help="With --department, also write *-schedules.tsv (one row per test bar)",
+        help="With --department / --audio-products, also write *-schedules.tsv",
+    )
+    ap.add_argument(
+        "--audio-products",
+        action="store_true",
+        help="Filter 4 Audio product categories (Earbud/Others/Soundbar/Speaker). Writes *-models.tsv.",
+    )
+    ap.add_argument(
+        "--product-category",
+        action="append",
+        metavar="NAME",
+        help="Filter product category (repeatable). Implies --audio-products style export.",
+    )
+    ap.add_argument(
+        "--list-product-categories",
+        action="store_true",
+        help="Print distinct product_category values and exit.",
+    )
+    ap.add_argument(
+        "--models-only",
+        action="store_true",
+        help="With --audio-products, write only *-models.tsv (skip full detail TSV).",
     )
     args = ap.parse_args()
 
@@ -307,7 +491,19 @@ def main() -> None:
             sys.exit(1)
 
     if isinstance(all_data, dict):
-        if args.department:
+        if args.list_product_categories:
+            list_product_categories(all_data)
+            return
+        if args.audio_products or args.product_category:
+            cats = tuple(args.product_category) if args.product_category else AUDIO_PRODUCT_CATEGORIES
+            export_audio_product_categories(
+                all_data,
+                categories=cats,
+                platform_filter=args.platform or None,
+                include_schedules=args.schedules,
+                list_models_only=args.models_only,
+            )
+        elif args.department:
             export_department_details(
                 all_data,
                 args.department,
@@ -316,7 +512,7 @@ def main() -> None:
             )
         else:
             catalog_all_deliveries(all_data)
-    if report_data is not None and not args.department:
+    if report_data is not None and not args.department and not args.audio_products and not args.product_category:
         catalog_program_report(report_data)
 
 

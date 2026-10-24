@@ -7,8 +7,10 @@
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
-QS=""
-[ -n "$DRY" ] && QS="?dry_run=true"
+# linked = PO 5건 UUID. audio_products = Audio_Earbud/Others/Soundbar/Speaker 전체
+SCOPE="${SCOPE:-linked}"
+QS="?scope=${SCOPE}"
+[ -n "$DRY" ] && QS="${QS}&dry_run=true"
 
 echo "=== POST $API_BASE/model-schedule/overview/sync-delivery-portal$QS ==="
 curl -sf -X POST "$API_BASE/model-schedule/overview/sync-delivery-portal$QS" | python3 -m json.tool

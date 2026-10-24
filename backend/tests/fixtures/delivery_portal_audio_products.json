@@ -1,0 +1,68 @@
+{
+  "platform_data": [
+    {
+      "platform": "webOS26",
+      "program_info": [
+        {
+          "id": "b39d2ab0-e63c-44ad-8945-54f7ec1561b7",
+          "program": "Initial",
+          "program_detail": "Initial S90C (AMLogic)",
+          "details": [
+            {
+              "department": "Audio",
+              "product_category": "Audio_Soundbar",
+              "product": "soundbar_WiFi",
+              "model": "S90C",
+              "soc": "Others",
+              "site": "HQ",
+              "show": "Y",
+              "schedules": [
+                {
+                  "test_name": "FC1",
+                  "plan_start_date": "2026-10-30",
+                  "plan_end_date": "2026-11-09"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "dead-beef-0000-0000-000000000001",
+          "program": "Portable",
+          "program_detail": "XT7S Dev",
+          "details": [
+            {
+              "department": "Audio",
+              "product_category": "Audio_Speaker",
+              "product": "speaker_Portable",
+              "model": "XT7S",
+              "soc": "QCC5125",
+              "pl": "pm.user",
+              "show": "Y",
+              "schedules": [
+                {
+                  "test_name": "QP",
+                  "plan_start_date": "2026-09-16",
+                  "plan_end_date": "2026-09-28"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "skip-m5-0000-0000-000000000002",
+          "program": "Initial",
+          "program_detail": "Initial M5_VI",
+          "details": [
+            {
+              "department": "Audio",
+              "product_category": "Audio_Soundbar",
+              "show": "Y",
+              "schedules": [{ "test_name": "FC1", "plan_start_date": "2026-01-01", "plan_end_date": "2026-01-02" }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

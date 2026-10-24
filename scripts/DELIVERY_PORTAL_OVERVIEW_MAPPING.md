@@ -17,7 +17,10 @@
 
 ## 미매칭 overview (W5, S80C, …)
 
-`--department Audio` 전체 TSV로 program_id 추가 후 `OVERVIEW_PROGRAM_LINKS` 에 확장.
+`--audio-products` 로 `/tmp/delivery-portal-audio-products-models.tsv` 생성 후 program_id 확인.
+
+- **scope=linked** — 아래 5건 UUID만 events 갱신
+- **scope=audio_products** — 4 product category 전 program upsert (신규 overview row 자동 추가)
 
 ## Sync (BE pod)
 

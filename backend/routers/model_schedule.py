@@ -17,7 +17,10 @@ from services.overview_snapshot_email import (
 from services.model_schedule_recipients import dev_emails_from_models
 from services.schedule_snapshot_email import build_snapshot_html, build_snapshot_subject
 from services.delivery_portal_client import fetch_all_deliveries_data
-from services.delivery_portal_overview_sync import apply_delivery_portal_to_models
+from services.delivery_portal_overview_sync import (
+    apply_delivery_portal_audio_products,
+    apply_delivery_portal_to_models,
+)
 
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
 
@@ -201,9 +204,13 @@ async def save_overview_schedule(req: OverviewSaveRequest):
 
 
 @router.post("/overview/sync-delivery-portal")
-async def sync_overview_from_delivery_portal(dry_run: bool = False):
+async def sync_overview_from_delivery_portal(
+    dry_run: bool = False,
+    scope: str = "linked",
+):
     """
-    Delivery Portal all_deliveries_data → 매칭된 overview models events 갱신.
+    Delivery Portal all_deliveries_data → overview models events 갱신.
+    scope=linked: PO 확정 program UUID 5건. scope=audio_products: Audio_* product category 전체.
     ov-m5-vi 제거. dry_run=true 이면 Mongo 저장 없음.
     """
     try:
@@ -221,7 +228,15 @@ async def sync_overview_from_delivery_portal(dry_run: bool = False):
                 status_code=404,
                 detail="overview Mongo 비어 있음 — seed 후 sync",
             )
-        summary = apply_delivery_portal_to_models(docs, portal, dry_run=dry_run)
+        if scope == "audio_products":
+            summary = apply_delivery_portal_audio_products(docs, portal, dry_run=dry_run)
+        elif scope == "linked":
+            summary = apply_delivery_portal_to_models(docs, portal, dry_run=dry_run)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="scope must be linked or audio_products",
+            )
         if dry_run:
             return {"message": "dry_run", **summary}
         if not mongo_helper.delete_all_documents(COLLECTION_OVERVIEW):
