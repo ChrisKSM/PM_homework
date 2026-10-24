@@ -8,7 +8,7 @@
 #
 set -e
 cd /workspace/project 2>/dev/null || exit 1
-REF="${REF:-c595c95}"
+REF="${REF:-726bfc5}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
 fetch() {
