@@ -44,10 +44,18 @@ if [ -n "$PID" ] && [ "$PID" != "-" ]; then
   kill "$PID" 2>/dev/null || true
   sleep 2
   kill -0 "$PID" 2>/dev/null && kill -9 "$PID" 2>/dev/null || true
+elif command -v fuser >/dev/null 2>&1; then
+  fuser -k "${PORT}/tcp" 2>/dev/null || true
 fi
 
 PY="uv run --frozen python"
-command -v uv >/dev/null 2>&1 || PY="python3"
+if ! command -v uv >/dev/null 2>&1; then
+  if [ -x venv/bin/python ]; then
+    PY="venv/bin/python"
+  else
+    PY="python3"
+  fi
+fi
 
 echo "=== preflight: import main:app ==="
 if ! $PY -c "import main" 2>/tmp/uvicorn-import.err; then
