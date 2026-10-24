@@ -1,8 +1,10 @@
 from services.model_status_prd_service import (
+    _probe_query_priority,
     apply_model_search_terms,
     build_prd_discovery_queries,
     build_prd_probe_queries,
     workitem_matches_apply_terms,
+    workitem_matches_model_scope,
 )
 
 
@@ -28,3 +30,16 @@ def test_discovery_includes_title_and_model_name():
 def test_client_filter_apply_terms():
     flat = {"title": "foo", "customApplyModel": "Sound suite_H7"}
     assert workitem_matches_apply_terms(flat, ["Sound Suite H7"])
+
+
+def test_probe_priority_prefers_apply_model():
+    tight = "type:PRD AND applyModel:\"Sound Suite H7\""
+    broad = "type:PRD"
+    assert _probe_query_priority(tight) > _probe_query_priority(broad)
+
+
+def test_model_scope_rejects_unrelated_title():
+    flat = {"title": "WiFi module PRD", "applyModel": ""}
+    assert not workitem_matches_model_scope(flat, ["Sound Suite H7", "H7_VI"])
+    flat2 = {"title": "Audio feature", "applyModel": "Sound Suite H7"}
+    assert workitem_matches_model_scope(flat2, ["Sound Suite H7"])

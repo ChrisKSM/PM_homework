@@ -290,8 +290,17 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
         <Filter size={14} className="text-gray-400" />
         {isFetching ? <Loader2 size={14} className="animate-spin text-violet-500" /> : null}
         <span>
-          {modelCode.replace(/_/g, ' ')} — PRD (ALM · {meta?.source ?? '—'}, {items.length}건)
+          {modelCode.replace(/_/g, ' ')} — PRD (ALM · {meta?.source ?? '—'}, {items.length}건
+          {meta?.listLimit ? ` · max ${meta.listLimit}` : ''})
         </span>
+        {meta?.winningQuery ? (
+          <span
+            className="block w-full text-[10px] text-gray-400 truncate max-w-4xl"
+            title={meta.winningQuery}
+          >
+            query: {meta.winningQuery}
+          </span>
+        ) : null}
         <button
           type="button"
           onClick={() => refetch()}
