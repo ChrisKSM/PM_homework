@@ -20,6 +20,8 @@ fetch() {
 echo "=== BE Delivery Portal @ commit/ref $REF ==="
 fetch backend/routers/delivery_portal.py routers/delivery_portal.py
 fetch scripts/verify-delivery-portal-api.sh scripts/verify-delivery-portal-api.sh
+fetch scripts/export-delivery-portal-catalog.py scripts/export-delivery-portal-catalog.py
+fetch scripts/DELIVERY_PORTAL_DATA_SCHEMA.md scripts/DELIVERY_PORTAL_DATA_SCHEMA.md
 fetch scripts/restart-be-route-port.sh scripts/restart-be-route-port.sh
 fetch scripts/be-restart-uvicorn-standalone.sh scripts/be-restart-uvicorn-standalone.sh
 chmod +x scripts/verify-delivery-portal-api.sh scripts/restart-be-route-port.sh scripts/be-restart-uvicorn-standalone.sh 2>/dev/null || true

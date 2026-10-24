@@ -114,7 +114,11 @@ else
 fi
 
 echo ""
+echo "=== Catalog (매칭 가이드용 TSV) ==="
+echo "  python3 scripts/export-delivery-portal-catalog.py /tmp/dp_all_deliveries_data.json /tmp/dp_program_report.json"
+echo "  → /tmp/delivery-portal-catalog.tsv , /tmp/delivery-portal-program-report.tsv"
+echo ""
 echo "=== Next (전 모델 일정 반영은 2단계) ==="
-echo "  1) 위 HTTP 200 + platform_data 확인"
-echo "  2) delivery → OverviewModel 매핑 규칙 확정 후 overview Mongo 저장"
+echo "  1) TSV + Mongo overview id(ov-h7-vi 등) 매칭表 작성"
+echo "  2) delivery → OverviewModel import → overview/save"
 echo "=== Done ==="
