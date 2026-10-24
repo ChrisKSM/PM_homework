@@ -29,6 +29,10 @@ checkout src/components/modelSchedule/OverviewScheduleTable.tsx
 checkout src/utils/overviewBarStyles.ts
 checkout src/components/modelSchedule/OverviewSnapshotDialog.tsx
 checkout src/pages/ModelScheduleOverviewPage.tsx
+checkout src/pages/ModelScheduleStatusPage.tsx
+checkout src/components/layout/Header.tsx
+checkout src/utils/overviewModelStatusLink.ts
+checkout src/utils/overviewTimelineRange.ts
 checkout src/utils/modelScheduleOverviewRows.ts
 checkout src/types/modelScheduleOverview.ts
 checkout src/api/client.ts

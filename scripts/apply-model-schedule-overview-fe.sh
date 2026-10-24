@@ -11,6 +11,10 @@
 #   chmod +x scripts/apply-model-schedule-overview-fe.sh
 #
 #   sh scripts/apply-model-schedule-overview-fe.sh
+#
+# curl only (git remote 없을 때):
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/fdc8161/scripts/patch-fe-overview-portal-sync-from-github.sh" | REF=fdc8161 sh
+#
 #   npm run build && git add -A && git commit -m "feat: 전 모델 일정 overview" && git push origin master
 
 set -e
@@ -30,6 +34,9 @@ mkdir -p src/pages src/data src/types src/utils src/api src/components/modelSche
 for f in \
   src/pages/ModelScheduleOverviewPage.tsx \
   src/pages/ModelScheduleStatusPage.tsx \
+  src/components/layout/Header.tsx \
+  src/utils/overviewModelStatusLink.ts \
+  src/utils/overviewTimelineRange.ts \
   src/pages/ManagerDashboard.tsx \
   src/components/modelStatus/ManagerDashboardBody.tsx \
   src/components/modelStatus/ModelStatusMetaCard.tsx \
