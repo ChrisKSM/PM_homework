@@ -93,22 +93,45 @@ def apply_model_search_terms(model: str | None) -> list[str]:
     return out
 
 
-def polarion_component_for_model(model: str | None) -> str | None:
-    """Polarion PRD components 필드 값 (Lucene components:(…))."""
+def polarion_component_values_for_model(model: str | None) -> list[str]:
+    """Polarion PRD components 필드 값 — OR 로 묶어 검색."""
     code = normalize_model_code(model) or (model or "").strip()
-    mapping: dict[str, str] = {
-        "H7_VI": "SoundSuite_H7(VI)",
-        "H5": "SoundSuite_H5",
-        "M7_VI": "SoundSuite_M7(VI)",
-        "W5": "SoundSuite_W5",
+    mapping: dict[str, list[str]] = {
+        "H7_VI": ["SoundSuite_H7(VI)", "H7_VI"],
+        "H5": ["SoundSuite_H5"],
+        "M7_VI": ["SoundSuite_M7(VI)", "M7_VI"],
+        "W5": ["SoundSuite_W5"],
     }
-    return mapping.get(code)
+    seen: set[str] = set()
+    out: list[str] = []
+    for v in mapping.get(code, []):
+        s = (v or "").strip()
+        if s and s.lower() not in seen:
+            seen.add(s.lower())
+            out.append(s)
+    return out
 
 
-def build_components_query(component: str) -> str:
-    """예: components:(\"SoundSuite_H7(VI)\") — Polarion UI와 동일."""
-    inner = _quote_polarion_value((component or "").strip())
-    return f"components:({inner})"
+def polarion_component_for_model(model: str | None) -> str | None:
+    """meta 표시용 — 복수 component 는 | 로."""
+    vals = polarion_component_values_for_model(model)
+    if not vals:
+        return None
+    return " | ".join(vals)
+
+
+def build_components_query(components: str | list[str]) -> str:
+    """예: components:(\"SoundSuite_H7(VI)\" OR H7_VI)."""
+    if isinstance(components, str):
+        raw = [components]
+    else:
+        raw = list(components)
+    parts = [_quote_polarion_value(c.strip()) for c in raw if (c or "").strip()]
+    if not parts:
+        return "components:(*)"
+    if len(parts) == 1:
+        return f"components:({parts[0]})"
+    return f"components:({' OR '.join(parts)})"
 
 
 def resolve_prd_polarion(project_key: str | None = None) -> tuple[str, str]:
@@ -187,9 +210,9 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
 def build_prd_probe_queries(terms: list[str], *, model: str | None = None) -> list[str]:
     """Lucene 후보 — components × type PRD × 적용모델 필드."""
     queries: list[str] = []
-    comp = polarion_component_for_model(model)
-    if comp:
-        queries.append(build_components_query(comp))
+    comps = polarion_component_values_for_model(model)
+    if comps:
+        queries.append(build_components_query(comps))
     if not terms:
         return queries or ["type:PRD"]
     text_or = " OR ".join(_quote_polarion_value(t) for t in terms)
@@ -209,11 +232,13 @@ def build_prd_probe_queries(terms: list[str], *, model: str | None = None) -> li
 def build_prd_discovery_queries(terms: list[str], *, model: str | None = None) -> list[str]:
     """type/필드명 불명일 때 — components·title·model_name 등."""
     queries: list[str] = []
-    comp = polarion_component_for_model(model)
-    if comp:
-        queries.append(build_components_query(comp))
+    comps = polarion_component_values_for_model(model)
+    if comps:
+        queries.append(build_components_query(comps))
+        for one in comps:
+            queries.append(build_components_query(one))
         for alt in terms[:4]:
-            if alt and alt != comp:
+            if alt and alt not in comps:
                 queries.append(build_components_query(alt))
     for term in terms[:5]:
         qv = _quote_polarion_value(term)
@@ -555,17 +580,40 @@ async def _try_components_queries(
     *,
     list_path: str,
 ) -> tuple[list[dict[str, Any]], str | None]:
-    """Polarion PRD — components:(SoundSuite_H7(VI)) 등 (UI와 동일)."""
-    candidates: list[str] = []
-    primary = polarion_component_for_model(model)
-    if primary:
-        candidates.append(primary)
-    for t in terms:
+    """Polarion PRD — components:(SoundSuite_H7(VI) OR H7_VI) 등."""
+    comps = polarion_component_values_for_model(model)
+    if comps:
+        q = build_components_query(comps)
+        pr = await _probe_polarion_query(q, project_key, list_path=list_path)
+        if int(pr.get("count") or 0) > 0 and not pr.get("error"):
+            items = await _fetch_polarion_items(
+                q,
+                project_key,
+                limit=PRD_LIST_LIMIT,
+                list_path=list_path,
+                client_filter=False,
+            )
+            if items:
+                return items, q
+        for one in comps:
+            q1 = build_components_query(one)
+            pr = await _probe_polarion_query(q1, project_key, list_path=list_path)
+            if int(pr.get("count") or 0) <= 0 or pr.get("error"):
+                continue
+            items = await _fetch_polarion_items(
+                q1,
+                project_key,
+                limit=PRD_LIST_LIMIT,
+                list_path=list_path,
+                client_filter=False,
+            )
+            if items:
+                return items, q1
+    for t in terms[:6]:
         s = (t or "").strip()
-        if s and s not in candidates:
-            candidates.append(s)
-    for comp in candidates:
-        q = build_components_query(comp)
+        if not s or s in comps:
+            continue
+        q = build_components_query(s)
         pr = await _probe_polarion_query(q, project_key, list_path=list_path)
         if int(pr.get("count") or 0) <= 0 or pr.get("error"):
             continue

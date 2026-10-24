@@ -3,6 +3,7 @@ from services.model_status_prd_service import (
     _probe_query_priority,
     build_components_query,
     polarion_component_for_model,
+    polarion_component_values_for_model,
     polarion_workitems_search_url,
     apply_model_search_terms,
     build_prd_discovery_queries,
@@ -20,13 +21,21 @@ def test_apply_model_terms_h7():
 
 
 def test_h7_polarion_component_and_query():
-    assert polarion_component_for_model("H7_VI") == "SoundSuite_H7(VI)"
+    assert polarion_component_values_for_model("H7_VI") == [
+        "SoundSuite_H7(VI)",
+        "H7_VI",
+    ]
+    assert polarion_component_for_model("H7_VI") == "SoundSuite_H7(VI) | H7_VI"
     assert build_components_query("SoundSuite_H7(VI)") == 'components:("SoundSuite_H7(VI)")'
+    assert (
+        build_components_query(["SoundSuite_H7(VI)", "H7_VI"])
+        == 'components:("SoundSuite_H7(VI)" OR H7_VI)'
+    )
 
 
 def test_build_prd_queries_contains_components():
     qs = build_prd_probe_queries(["Sound Suite H7"], model="H7_VI")
-    assert qs[0] == 'components:("SoundSuite_H7(VI)")'
+    assert qs[0] == 'components:("SoundSuite_H7(VI)" OR H7_VI)'
 
 
 def test_build_prd_queries_contains_apply_model():
