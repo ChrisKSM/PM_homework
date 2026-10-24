@@ -2,6 +2,7 @@ from services.model_status_prd_service import (
     _extract_workitem_title,
     _query_is_lucene_model_scoped,
     _probe_query_priority,
+    build_components_lucene_queries,
     build_components_query,
     polarion_component_for_model,
     polarion_component_values_for_model,
@@ -29,13 +30,17 @@ def test_h7_polarion_component_and_query():
     assert polarion_component_for_model("H7_VI") == "SoundSuite_H7(VI) | H7_VI"
     assert build_components_query("SoundSuite_H7(VI)") == 'components:("SoundSuite_H7(VI)")'
     assert build_components_query(["SoundSuite_H7(VI)", "H7_VI"]) == (
-        '(components:("SoundSuite_H7(VI)") OR components:(H7_VI))'
+        'components:("SoundSuite_H7(VI)" OR H7_VI)'
     )
+    lucene = build_components_lucene_queries(["SoundSuite_H7(VI)", "H7_VI"])
+    assert lucene[0] == 'components:("SoundSuite_H7(VI)" OR H7_VI)'
+    assert 'components:(H7_VI)' in lucene
 
 
 def test_build_prd_queries_contains_components():
     qs = build_prd_probe_queries(["Sound Suite H7"], model="H7_VI")
-    assert qs[0] == '(components:("SoundSuite_H7(VI)") OR components:(H7_VI))'
+    assert qs[0] == 'components:("SoundSuite_H7(VI)" OR H7_VI)'
+    assert not any(q.startswith("title:") for q in qs)
 
 
 def test_build_prd_queries_contains_apply_model():

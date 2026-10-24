@@ -122,7 +122,10 @@ def polarion_component_for_model(model: str | None) -> str | None:
 
 
 def build_components_query(components: str | list[str]) -> str:
-    """예: (components:(\"SoundSuite_H7(VI)\") OR components:(H7_VI))."""
+    """
+    Polarion UI — components:(…) 필드만 사용 (title 아님).
+    H7_VI canonical: components:(\"SoundSuite_H7(VI)\" OR H7_VI)
+    """
     if isinstance(components, str):
         raw = [components]
     else:
@@ -132,8 +135,27 @@ def build_components_query(components: str | list[str]) -> str:
         return "components:(*)"
     if len(parts) == 1:
         return f"components:({parts[0]})"
-    clauses = [f"components:({p})" for p in parts]
-    return f"({' OR '.join(clauses)})"
+    return f"components:({' OR '.join(parts)})"
+
+
+def build_components_lucene_queries(comps: list[str]) -> list[str]:
+    """components 후보 — UI 한 줄 OR + 필드별 OR + 단일 값."""
+    parts = [_quote_polarion_value(c.strip()) for c in comps if (c or "").strip()]
+    if not parts:
+        return []
+    queries: list[str] = []
+    if len(parts) == 1:
+        queries.append(f"components:({parts[0]})")
+        return queries
+    queries.append(f"components:({' OR '.join(parts)})")
+    queries.append(f"({' OR '.join(f'components:({p})' for p in parts)})")
+    for p in parts:
+        queries.append(f"components:({p})")
+    return _dedupe_queries(queries, limit=10)
+
+
+def build_prd_component_queries(model: str | None) -> list[str]:
+    return build_components_lucene_queries(polarion_component_values_for_model(model))
 
 
 def _prd_list_path_candidates(primary: str) -> list[str]:
@@ -253,11 +275,11 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
 
 
 def build_prd_probe_queries(terms: list[str], *, model: str | None = None) -> list[str]:
-    """Lucene 후보 — components × type PRD × 적용모델 필드."""
-    queries: list[str] = []
+    """Lucene 후보 — 매핑된 모델은 components 만."""
     comps = polarion_component_values_for_model(model)
     if comps:
-        queries.append(build_components_query(comps))
+        return build_components_lucene_queries(comps)
+    queries: list[str] = []
     if not terms:
         return queries or ["type:PRD"]
     text_or = " OR ".join(_quote_polarion_value(t) for t in terms)
@@ -275,16 +297,11 @@ def build_prd_probe_queries(terms: list[str], *, model: str | None = None) -> li
 
 
 def build_prd_discovery_queries(terms: list[str], *, model: str | None = None) -> list[str]:
-    """type/필드명 불명일 때 — components·title·model_name 등."""
-    queries: list[str] = []
+    """type/필드명 불명일 때 — 매핑된 모델은 components 만."""
     comps = polarion_component_values_for_model(model)
     if comps:
-        queries.append(build_components_query(comps))
-        for one in comps:
-            queries.append(build_components_query(one))
-        for alt in terms[:4]:
-            if alt and alt not in comps:
-                queries.append(build_components_query(alt))
+        return build_components_lucene_queries(comps)
+    queries: list[str] = []
     for term in terms[:5]:
         qv = _quote_polarion_value(term)
         queries.append(f"title:{qv}")
@@ -655,36 +672,33 @@ async def _try_components_queries(
             enrich_details=True,
         )
 
-    if comps:
-        combined = build_components_query(comps)
+    canonical = build_components_query(comps) if comps else None
+    lucene_qs = build_components_lucene_queries(comps) if comps else []
+
+    if comps and lucene_qs:
         for path in paths:
-            path_hits = False
-            pr = await _probe_polarion_query(combined, project_key, list_path=path)
-            if int(pr.get("count") or 0) > 0 and not pr.get("error"):
-                for it in await _pull(combined, path):
-                    merged[it["id"]] = it
-                path_hits = True
-            for one in comps:
-                q1 = build_components_query(one)
-                pr1 = await _probe_polarion_query(q1, project_key, list_path=path)
-                if int(pr1.get("count") or 0) <= 0 or pr1.get("error"):
+            for q in lucene_qs:
+                pr = await _probe_polarion_query(q, project_key, list_path=path)
+                if int(pr.get("count") or 0) <= 0 or pr.get("error"):
                     continue
-                for it in await _pull(q1, path):
+                for it in await _pull(q, path):
                     merged[it["id"]] = it
-                path_hits = True
-            if path_hits and merged:
-                winning_query = combined
+            if merged:
+                winning_query = canonical
                 winning_path = path
                 break
 
     if merged:
         items = list(merged.values())[:PRD_LIST_LIMIT]
-        return items, winning_query or build_components_query(comps or []), winning_path
+        return items, winning_query or canonical, winning_path
+
+    if comps:
+        return [], canonical, None
 
     for path in paths:
         for t in terms[:6]:
             s = (t or "").strip()
-            if not s or s in comps:
+            if not s:
                 continue
             q = build_components_query(s)
             pr = await _probe_polarion_query(q, project_key, list_path=path)
@@ -945,12 +959,17 @@ async def get_prd_for_model(
     effective_discover = discover or (list_mode and not component_scoped)
 
     if probe:
-        for q in probe_queries:
+        probe_qs = probe_queries
+        if component_scoped:
+            probe_qs = build_prd_component_queries(model)
+            winning_query = build_components_query(polarion_component_values_for_model(model))
+        for q in probe_qs:
             probe_results.append(await _probe_polarion_query(q, proj, list_path=prd_path))
-        for pr in probe_results:
-            if pr.get("count") and not pr.get("error"):
-                winning_query = str(pr["query"])
-                break
+        if not component_scoped:
+            for pr in probe_results:
+                if pr.get("count") and not pr.get("error"):
+                    winning_query = str(pr["query"])
+                    break
 
     if (settings.polarion_pat or "").strip() and list_mode:
         items, winning_query, comp_path = await _try_components_queries(
@@ -959,14 +978,16 @@ async def get_prd_for_model(
         if items:
             source = "polarion+components"
             winning_list_path = comp_path or prd_path
+        elif component_scoped and not winning_query:
+            winning_query = build_components_query(polarion_component_values_for_model(model))
 
-    if (settings.polarion_pat or "").strip() and list_mode and not items:
+    if (settings.polarion_pat or "").strip() and list_mode and not items and not component_scoped:
         items, winning_query = await _try_title_term_queries(proj, terms, list_path=prd_path)
         if items:
             source = "polarion+title"
             winning_list_path = prd_path
 
-    if (settings.polarion_pat or "").strip() and list_mode and not items:
+    if (settings.polarion_pat or "").strip() and list_mode and not items and not component_scoped:
         items, winning_query = await _try_tight_apply_model_queries(
             proj, terms, probe_queries, list_path=prd_path
         )
@@ -981,7 +1002,10 @@ async def get_prd_for_model(
         if items:
             source = "polarion+discovery"
 
-    run_discovery = discover or (probe and not any(p.get("count") for p in probe_results))
+    run_discovery = (
+        not component_scoped
+        and (discover or (probe and not any(p.get("count") for p in probe_results)))
+    )
     if run_discovery and (settings.polarion_pat or "").strip() and not discovery:
         discovery = await _run_discovery(proj, terms, model=model, list_path=prd_path)
         best = (discovery or {}).get("bestProbe") or {}
@@ -1021,7 +1045,12 @@ async def get_prd_for_model(
                     "items": [],
                 }
 
-    if not items and (settings.polarion_pat or "").strip() and discovery:
+    if (
+        not items
+        and (settings.polarion_pat or "").strip()
+        and discovery
+        and not component_scoped
+    ):
         items, winning_query, winning_list_path = await _fetch_from_discovery_probes(
             discovery, proj, terms
         )
