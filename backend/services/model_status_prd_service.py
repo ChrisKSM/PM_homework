@@ -13,6 +13,7 @@ import httpx
 
 from config import settings
 from polarion_client import (
+    _fetch_detail_batch,
     _quote_polarion_value,
     _safe_text,
     fetch_list_page,
@@ -121,7 +122,7 @@ def polarion_component_for_model(model: str | None) -> str | None:
 
 
 def build_components_query(components: str | list[str]) -> str:
-    """예: components:(\"SoundSuite_H7(VI)\" OR H7_VI)."""
+    """예: (components:(\"SoundSuite_H7(VI)\") OR components:(H7_VI))."""
     if isinstance(components, str):
         raw = [components]
     else:
@@ -131,7 +132,48 @@ def build_components_query(components: str | list[str]) -> str:
         return "components:(*)"
     if len(parts) == 1:
         return f"components:({parts[0]})"
-    return f"components:({' OR '.join(parts)})"
+    clauses = [f"components:({p})" for p in parts]
+    return f"({' OR '.join(clauses)})"
+
+
+def _prd_list_path_candidates(primary: str) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in (primary, "workitems/PRD", "PRD", "workitems"):
+        s = (p or "").strip().strip("/")
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
+
+def _workitem_self_url(row: dict[str, Any], flat: dict[str, Any] | None = None) -> str:
+    f = flat if flat is not None else flatten_workitem(row)
+    links = row.get("links") if isinstance(row.get("links"), dict) else {}
+    links = links or (f.get("links") if isinstance(f.get("links"), dict) else {})
+    if isinstance(links, dict):
+        u = links.get("self") or links.get("Self")
+        if isinstance(u, str) and u.strip():
+            return u.strip()
+    for key in ("uri", "self", "url"):
+        u = f.get(key) or row.get(key)
+        if isinstance(u, str) and u.strip().startswith("http"):
+            return u.strip()
+    return ""
+
+
+def _extract_workitem_title(flat: dict[str, Any], wid: str) -> str:
+    for key in ("title", "summary", "name", "Subject", "headline"):
+        t = _safe_text(flat, key)
+        if t and t != wid:
+            return t
+    desc = _safe_text(flat, "description")
+    if desc:
+        plain = re.sub(r"<[^>]+>", " ", desc)
+        plain = re.sub(r"\s+", " ", plain).strip()
+        if plain and not plain.startswith(wid):
+            return plain[:400]
+    return _safe_text(flat, "title") or _safe_text(flat, "summary") or wid
 
 
 def resolve_prd_polarion(project_key: str | None = None) -> tuple[str, str]:
@@ -191,11 +233,14 @@ def _extract_apply_model(flat: dict[str, Any]) -> str:
 
 def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str, Any]:
     flat = flatten_workitem(row)
+    detail = row.get("_detailMerged")
+    if isinstance(detail, dict):
+        flat = {**flat, **detail}
     wid = workitem_id(flat, row)
     portal_base = "https://alm-lge-hlm.singlex.com"
     return {
         "id": wid,
-        "title": _safe_text(flat, "title") or _safe_text(flat, "summary") or wid,
+        "title": _extract_workitem_title(flat, wid),
         "status": _safe_text(flat, "status"),
         "type": _safe_text(flat, "type"),
         "applyModel": _extract_apply_model(flat),
@@ -461,6 +506,7 @@ async def _fetch_polarion_items(
     terms: list[str] | None = None,
     client_filter: bool = False,
     strict_model_scope: bool = False,
+    enrich_details: bool = True,
 ) -> list[dict[str, Any]]:
     rows: list[dict] = []
     total = 0
@@ -485,7 +531,19 @@ async def _fetch_polarion_items(
             if match_fn(flat, terms):
                 filtered.append(r)
         rows = filtered
-    return [normalize_prd_workitem(r, project_key=project_key) for r in rows[:limit]]
+    slice_rows = rows[:limit]
+    if enrich_details and slice_rows:
+        urls = [_workitem_self_url(r) for r in slice_rows]
+        if any(urls):
+            details = await _fetch_detail_batch(urls)
+            merged_rows: list[dict[str, Any]] = []
+            for row, det in zip(slice_rows, details):
+                if det:
+                    merged_rows.append({**row, "_detailMerged": det})
+                else:
+                    merged_rows.append(row)
+            slice_rows = merged_rows
+    return [normalize_prd_workitem(r, project_key=project_key) for r in slice_rows]
 
 
 def _query_needs_client_filter(query: str) -> bool:
@@ -579,54 +637,65 @@ async def _try_components_queries(
     terms: list[str],
     *,
     list_path: str,
-) -> tuple[list[dict[str, Any]], str | None]:
-    """Polarion PRD — components:(SoundSuite_H7(VI) OR H7_VI) 등."""
+) -> tuple[list[dict[str, Any]], str | None, str | None]:
+    """Polarion PRD — components SoundSuite_H7(VI) / H7_VI (경로·값별 merge)."""
     comps = polarion_component_values_for_model(model)
-    if comps:
-        q = build_components_query(comps)
-        pr = await _probe_polarion_query(q, project_key, list_path=list_path)
-        if int(pr.get("count") or 0) > 0 and not pr.get("error"):
-            items = await _fetch_polarion_items(
-                q,
-                project_key,
-                limit=PRD_LIST_LIMIT,
-                list_path=list_path,
-                client_filter=False,
-            )
-            if items:
-                return items, q
-        for one in comps:
-            q1 = build_components_query(one)
-            pr = await _probe_polarion_query(q1, project_key, list_path=list_path)
-            if int(pr.get("count") or 0) <= 0 or pr.get("error"):
-                continue
-            items = await _fetch_polarion_items(
-                q1,
-                project_key,
-                limit=PRD_LIST_LIMIT,
-                list_path=list_path,
-                client_filter=False,
-            )
-            if items:
-                return items, q1
-    for t in terms[:6]:
-        s = (t or "").strip()
-        if not s or s in comps:
-            continue
-        q = build_components_query(s)
-        pr = await _probe_polarion_query(q, project_key, list_path=list_path)
-        if int(pr.get("count") or 0) <= 0 or pr.get("error"):
-            continue
-        items = await _fetch_polarion_items(
+    paths = _prd_list_path_candidates(list_path)
+    merged: dict[str, dict[str, Any]] = {}
+    winning_query: str | None = None
+    winning_path: str | None = None
+
+    async def _pull(q: str, path: str) -> list[dict[str, Any]]:
+        return await _fetch_polarion_items(
             q,
             project_key,
             limit=PRD_LIST_LIMIT,
-            list_path=list_path,
+            list_path=path,
             client_filter=False,
+            enrich_details=True,
         )
-        if items:
-            return items, q
-    return [], None
+
+    if comps:
+        combined = build_components_query(comps)
+        for path in paths:
+            path_hits = False
+            pr = await _probe_polarion_query(combined, project_key, list_path=path)
+            if int(pr.get("count") or 0) > 0 and not pr.get("error"):
+                for it in await _pull(combined, path):
+                    merged[it["id"]] = it
+                path_hits = True
+            for one in comps:
+                q1 = build_components_query(one)
+                pr1 = await _probe_polarion_query(q1, project_key, list_path=path)
+                if int(pr1.get("count") or 0) <= 0 or pr1.get("error"):
+                    continue
+                for it in await _pull(q1, path):
+                    merged[it["id"]] = it
+                path_hits = True
+            if path_hits and merged:
+                winning_query = combined
+                winning_path = path
+                break
+
+    if merged:
+        items = list(merged.values())[:PRD_LIST_LIMIT]
+        return items, winning_query or build_components_query(comps or []), winning_path
+
+    for path in paths:
+        for t in terms[:6]:
+            s = (t or "").strip()
+            if not s or s in comps:
+                continue
+            q = build_components_query(s)
+            pr = await _probe_polarion_query(q, project_key, list_path=path)
+            if int(pr.get("count") or 0) <= 0 or pr.get("error"):
+                continue
+            for it in await _pull(q, path):
+                merged[it["id"]] = it
+            if merged:
+                return list(merged.values())[:PRD_LIST_LIMIT], q, path
+
+    return [], None, None
 
 
 async def _try_title_term_queries(
@@ -872,7 +941,8 @@ async def get_prd_for_model(
     discovery: dict[str, Any] | None = None
 
     list_mode = not probe
-    effective_discover = discover or list_mode
+    component_scoped = bool(polarion_component_values_for_model(model))
+    effective_discover = discover or (list_mode and not component_scoped)
 
     if probe:
         for q in probe_queries:
@@ -883,12 +953,12 @@ async def get_prd_for_model(
                 break
 
     if (settings.polarion_pat or "").strip() and list_mode:
-        items, winning_query = await _try_components_queries(
+        items, winning_query, comp_path = await _try_components_queries(
             proj, model, terms, list_path=prd_path
         )
         if items:
             source = "polarion+components"
-            winning_list_path = prd_path
+            winning_list_path = comp_path or prd_path
 
     if (settings.polarion_pat or "").strip() and list_mode and not items:
         items, winning_query = await _try_title_term_queries(proj, terms, list_path=prd_path)
@@ -958,7 +1028,11 @@ async def get_prd_for_model(
         if items:
             source = "polarion+discovery"
 
-    if not items and (settings.polarion_pat or "").strip():
+    if (
+        not items
+        and (settings.polarion_pat or "").strip()
+        and not component_scoped
+    ):
         for q in build_prd_discovery_queries(terms, model=model):
             try:
                 items = await _fetch_polarion_items(
@@ -977,7 +1051,12 @@ async def get_prd_for_model(
             except Exception:
                 continue
 
-    if list_mode and not items and (settings.polarion_pat or "").strip():
+    if (
+        list_mode
+        and not items
+        and (settings.polarion_pat or "").strip()
+        and not component_scoped
+    ):
         cat = await get_prd_query_catalog(model, project_key=proj, max_queries=24)
         rec = cat.get("recommended") or []
         if rec:
