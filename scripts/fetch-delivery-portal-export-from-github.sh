@@ -6,7 +6,7 @@
 #
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
-REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
+REF="${REF:-ef5804c}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
 fetch() {
@@ -18,5 +18,6 @@ fetch() {
 echo "=== Fetch Delivery Portal export (REF=${REF}) ==="
 fetch export-delivery-portal-catalog.py
 fetch delivery_portal_catalog_lib.py
-chmod +x scripts/fetch-delivery-portal-export-from-github.sh 2>/dev/null || true
-echo "=== Done — run verify + export ==="
+fetch sync-overview-from-delivery-portal.sh
+chmod +x scripts/fetch-delivery-portal-export-from-github.sh scripts/sync-overview-from-delivery-portal.sh 2>/dev/null || true
+echo "=== Done — verify + export; sync needs BE patch (fetch-delivery-portal-pod-scripts.sh) ==="

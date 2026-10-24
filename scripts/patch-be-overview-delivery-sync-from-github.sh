@@ -1,17 +1,16 @@
 #!/bin/sh
-# BE pod — Delivery Portal → overview Mongo sync API
-# REF=241e848 or latest commit SHA
+# BE pod — Delivery Portal → overview Mongo sync API (+ sync shell script)
+#
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/ef5804c/scripts/patch-be-overview-delivery-sync-from-github.sh" | REF=ef5804c sh
+#   REF=ef5804c sh scripts/patch-be-overview-delivery-sync-from-github.sh
+#
 set -e
-cd /workspace/project 2>/dev/null || exit 1
-REF="${REF:-75c065b}"
-BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
-fetch() { mkdir -p "$(dirname "$2")"; curl -fsSL "$BASE/$1" -o "$2"; echo "  + $2"; }
-echo "=== overview delivery sync @ $REF ==="
-fetch backend/services/delivery_portal_client.py services/delivery_portal_client.py
-fetch backend/services/delivery_portal_overview_sync.py services/delivery_portal_overview_sync.py
-fetch backend/routers/delivery_portal.py routers/delivery_portal.py
-fetch backend/routers/model_schedule.py routers/model_schedule.py
-fetch scripts/sync-overview-from-delivery-portal.sh scripts/sync-overview-from-delivery-portal.sh
-fetch scripts/DELIVERY_PORTAL_OVERVIEW_MAPPING.md scripts/DELIVERY_PORTAL_OVERVIEW_MAPPING.md
-chmod +x scripts/sync-overview-from-delivery-portal.sh 2>/dev/null || true
-echo "Next: sh scripts/restart-be-route-port.sh && DRY=1 API_BASE=http://127.0.0.1:8000/api sh scripts/sync-overview-from-delivery-portal.sh"
+cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
+REF="${REF:-ef5804c}"
+exec sh scripts/fetch-delivery-portal-pod-scripts.sh 2>/dev/null || {
+  BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
+  fetch() { mkdir -p "$(dirname "$2")"; curl -fsSL "$BASE/$1" -o "$2"; echo "  + $2"; }
+  echo "=== overview delivery sync @ $REF (inline) ==="
+  fetch scripts/fetch-delivery-portal-pod-scripts.sh scripts/fetch-delivery-portal-pod-scripts.sh
+  REF="$REF" sh scripts/fetch-delivery-portal-pod-scripts.sh
+}
