@@ -5,7 +5,7 @@ API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 MODEL="${MODEL:-H7_VI}"
 
 PING_URL="${API_BASE%/}/model-status/initiatives/ping"
-URL="${API_BASE%/}/model-status/prd?model=${MODEL}&probe=true"
+URL="${API_BASE%/}/model-status/prd?model=${MODEL}&probe=true&discover=true"
 PING_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$PING_URL" 2>/dev/null || echo "000")
 echo "GET $PING_URL → HTTP $PING_CODE"
 if [ "$PING_CODE" = "404" ]; then
@@ -46,6 +46,19 @@ print("items:", len(items))
 print("probe hits:", len(hits), "/", len(probe))
 for p in hits[:8]:
     print("  +", p.get("count"), p.get("query", "")[:100])
+disc = d.get("discovery") or {}
+if disc:
+    print("discovery hits:", disc.get("hits"))
+    best = disc.get("bestProbe") or {}
+    if best:
+        print("discovery best:", best.get("count"), best.get("query", "")[:80], best.get("listPath") or "")
+    sa = disc.get("sampleAnalysis") or {}
+    if sa.get("typesSeen"):
+        print("typesSeen:", sa.get("typesSeen"))
+    for hint in (sa.get("applyFieldHints") or [])[:5]:
+        print("  field", hint.get("field"), "→", hint.get("samples"))
+    if sa.get("interestingKeys"):
+        print("interestingKeys:", ", ".join(sa.get("interestingKeys")[:12]))
 if items:
     print("sample:", items[0].get("id"), "|", (items[0].get("title") or "")[:60], "| applyModel=", items[0].get("applyModel"))
 if not meta.get("polarionConfigured") and not meta.get("davisConfigured"):

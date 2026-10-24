@@ -384,6 +384,7 @@ async def release_gantt(
 async def model_status_prd(
     model: str | None = Query(None, description="UI model e.g. H7_VI"),
     probe: bool = Query(False, description="true면 Lucene probe 결과 포함"),
+    discover: bool = Query(False, description="true면 type/필드 discovery probe (probe 0 hit 시 자동)"),
     project_key: str | None = Query(None, description="Polarion project override"),
     alm_type: str = Query("tv", description="davis alm_type (alm page.js)"),
 ):
@@ -397,6 +398,7 @@ async def model_status_prd(
         return await get_prd_for_model(
             model,
             probe=probe,
+            discover=discover,
             project_key=project_key,
             alm_type=alm_type,
         )

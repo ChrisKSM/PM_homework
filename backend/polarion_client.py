@@ -61,8 +61,8 @@ def _base_url() -> str:
     return settings.polarion_base_url.rstrip("/")
 
 
-def _list_endpoint(project_key: str | None = None) -> str:
-    path = (getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
+def _list_endpoint(project_key: str | None = None, list_path: str | None = None) -> str:
+    path = (list_path or getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
     key = (project_key or settings.polarion_project_key).strip()
     return f"{_base_url()}/projects/{key}/{path}"
 
@@ -84,6 +84,7 @@ async def fetch_list_page(
     query: str = "type:testDefect",
     page_size: int = 100,
     project_key: str | None = None,
+    list_path: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
     params: dict[str, Any] = {
@@ -91,7 +92,7 @@ async def fetch_list_page(
         "page": page,
         "pageSize": page_size,
     }
-    resp = await _get_with_retry(_list_endpoint(project_key), params=params)
+    resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
     data = resp.json()
 
     # 응답 구조: {"data": [{"page":1, "totalCount":N, "workitems":[...]}]}

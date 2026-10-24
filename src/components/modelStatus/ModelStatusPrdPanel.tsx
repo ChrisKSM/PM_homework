@@ -42,6 +42,8 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
   const meta = data?.meta
   const items = data?.items ?? []
   const probe = data?.probe ?? []
+  const discovery = data?.discovery
+  const sampleAnalysis = discovery?.sampleAnalysis
 
   return (
     <div className="rounded-xl border border-surface-border bg-white overflow-hidden">
@@ -67,6 +69,26 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
         <p className="text-xs text-amber-800 bg-amber-50 px-4 py-2 border-b border-amber-100">
           POLARION_PAT 또는 DAVIS_DB_API_BASE_URL + DAVIS_DB_API_KEY 가 BE .env에 필요합니다.
         </p>
+      )}
+
+      {discovery && (
+        <div className="px-4 py-2 border-b text-[10px] text-gray-600 bg-slate-50">
+          <p className="font-medium text-gray-700">Discovery — hit {discovery.hits ?? 0}</p>
+          {sampleAnalysis?.applyFieldHints?.length ? (
+            <ul className="mt-1 space-y-0.5">
+              {sampleAnalysis.applyFieldHints.map((h) => (
+                <li key={h.field}>
+                  <span className="font-mono text-emerald-800">{h.field}</span>: {h.samples?.join(' · ')}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500">type/필드 hit 없음 — Polarion PRD 프로젝트 키(POLARION_PRD_PROJECT_KEY) 확인</p>
+          )}
+          {sampleAnalysis?.typesSeen && (
+            <p className="mt-1 text-gray-500">types: {JSON.stringify(sampleAnalysis.typesSeen)}</p>
+          )}
+        </div>
       )}
 
       {probe.length > 0 && (
