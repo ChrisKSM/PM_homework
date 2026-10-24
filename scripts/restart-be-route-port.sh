@@ -6,17 +6,11 @@
 #
 #   sh scripts/restart-be-route-port.sh
 set -e
-cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
-SCRIPT_DIR="$(dirname "$0")"
-if [ -f "$SCRIPT_DIR/pod-detect.sh" ]; then
-  . "$SCRIPT_DIR/pod-detect.sh"
-  require_be_project
-else
-  if [ ! -f main.py ] || [ ! -d routers ]; then
-    echo "Error: BE pod /workspace/project (main.py + routers/) — pod-detect.sh 없음"
-    echo "  curl .../be-restart-uvicorn-standalone.sh | sh"
-    exit 1
-  fi
+cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
+if [ ! -f main.py ] || [ ! -d routers ]; then
+  echo "Error: BE pod /workspace/project (main.py + routers/) 에서 실행하세요"
+  echo "  sh scripts/be-restart-uvicorn-standalone.sh"
+  exit 1
 fi
 PORT="${BE_ROUTE_PORT:-8000}"
 
