@@ -2,6 +2,7 @@ import socket
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from config import settings
 from services import model_status_initiative_service
@@ -111,7 +112,8 @@ async def initiatives_story_sp_kpi(
     ),
 ):
     """
-    KPI-1 SP 소진율 — 라벨 Initiative Description '예상 SP' 합 vs Story SP 합.
+    KPI-1 SP 소진율 — 라벨 Initiative(9건) Description 표 '예상 SP' 합 vs Story SP 합.
+    릴리즈 Gantt SP 캘린더 경과율과 별개.
     """
     if not (label and label.strip()) and model:
         auto = model_status_initiative_service.resolve_initiative_label(model, None)
@@ -131,7 +133,7 @@ async def initiatives_story_sp_kpi(
             status_code=503,
             detail={
                 "message": f"initiative_sp_kpi_service missing: {e}",
-                "hint": "sh scripts/patch-be-story-sp-kpi-standalone.sh",
+                "hint": "sh scripts/apply-be-story-sp-kpi.sh && restart-be-route-port.sh",
                 "plannedSpTotal": None,
             },
         ) from e
@@ -144,27 +146,6 @@ async def initiatives_story_sp_kpi(
                 "hint": "TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
             },
         ) from e
-
-
-async def initiatives_story_sp_kpi(
-    model: str | None = Query(None),
-    label: str | None = Query(None),
-    project: str = Query("TVPLAT"),
-):
-    """
-    KPI-1 작업 완료율(Story SP) — Initiative Description 계획 SP vs Epic 하위 Story SP.
-    릴리즈 Gantt SP 캘린더 경과율과 별개.
-    """
-    if not (label and label.strip()) and model:
-        auto = model_status_initiative_service.resolve_initiative_label(model, None)
-        if auto:
-            label = auto
-    try:
-        from services.initiative_sp_kpi_service import preview_story_sp_kpi
-
-        return await preview_story_sp_kpi(model=model, label=label, project_key=project)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e)) from e
 
 
 @router.get("/initiatives")
@@ -398,3 +379,57 @@ async def release_gantt(
             model=model,
             label=label,
         )
+
+
+@router.get("/prd")
+async def model_status_prd(
+    model: str | None = Query(None, description="UI model e.g. H7_VI"),
+    probe: bool = Query(False, description="true면 Lucene probe 결과 포함"),
+    discover: bool = Query(False, description="true면 type/필드 discovery probe (probe 0 hit 시 자동)"),
+    project_key: str | None = Query(None, description="Polarion project override"),
+    alm_type: str = Query("tv", description="davis alm_type (alm page.js)"),
+):
+    """
+    ALM PRD workitem — 적용모델(Sound Suite H7 등) 필터 probe/조회.
+    Polarion PAT 또는 DAVIS_DB_API_* 설정 필요.
+    """
+    from services.model_status_prd_service import get_prd_for_model
+
+    try:
+        return await get_prd_for_model(
+            model,
+            probe=probe,
+            discover=discover,
+            project_key=project_key,
+            alm_type=alm_type,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PRD ALM 조회 오류: {e}") from e
+
+
+class ModelStatusPrdLabelBody(BaseModel):
+    model: str = Field(..., description="UI model e.g. H7_VI")
+    prdId: str = Field(..., description="Polarion workitem id")
+    reviewLabel: str = Field("", description="검토 일정/그룹 라벨 (Milvus 저장)")
+    almLabels: list[str] | None = Field(None, description="저장 시 ALM labels 스냅샷")
+
+
+@router.put("/prd/labels")
+async def model_status_prd_save_label(body: ModelStatusPrdLabelBody):
+    """PRD 검토 라벨 — Milvus model_status_prd_labels."""
+    from services.model_status_prd_labels import save_review_label
+
+    try:
+        doc = save_review_label(
+            model=body.model,
+            prd_id=body.prdId,
+            review_label=body.reviewLabel,
+            alm_labels=body.almLabels,
+        )
+        return {"ok": True, "label": doc}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PRD label 저장 오류: {e}") from e
