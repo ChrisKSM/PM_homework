@@ -381,6 +381,24 @@ async def release_gantt(
         )
 
 
+@router.get("/prd/query-catalog")
+async def model_status_prd_query_catalog(
+    model: str | None = Query(None, description="UI model e.g. H7_VI"),
+    project_key: str | None = Query(None, description="Polarion project override"),
+    max_queries: int = Query(50, ge=1, le=80),
+):
+    """
+    PRD Lucene 후보 probe — **Polarion UI URL** 포함.
+    브라우저에서 recommended[].polarionUrl 로 hit 쿼리 확인.
+    """
+    from services.model_status_prd_service import get_prd_query_catalog
+
+    try:
+        return await get_prd_query_catalog(model, project_key=project_key, max_queries=max_queries)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PRD query catalog 오류: {e}") from e
+
+
 @router.get("/prd")
 async def model_status_prd(
     model: str | None = Query(None, description="UI model e.g. H7_VI"),
