@@ -108,6 +108,33 @@ def _infer_bar_type(test_name: str) -> str | None:
     return None
 
 
+def merge_overview_events(
+    existing: list[dict[str, Any]],
+    incoming: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Same overview_id에 Portal program이 여러 개일 때 events 합침."""
+    by_key: dict[tuple, dict[str, Any]] = {}
+    for ev in existing or []:
+        key = (
+            ev.get("kind"),
+            str(ev.get("name") or "").lower().replace(" ", ""),
+            ev.get("start"),
+            ev.get("end"),
+        )
+        by_key[key] = ev
+    for ev in incoming or []:
+        key = (
+            ev.get("kind"),
+            str(ev.get("name") or "").lower().replace(" ", ""),
+            ev.get("start"),
+            ev.get("end"),
+        )
+        by_key[key] = ev
+    merged = list(by_key.values())
+    merged.sort(key=lambda e: (e.get("start") or "", e.get("name") or ""))
+    return merged
+
+
 def schedules_to_events(schedules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     seen: set[tuple] = set()
@@ -303,20 +330,24 @@ def apply_delivery_portal_audio_products(
             skipped.append(prog_id)
             continue
 
-        oid = pid_to_oid.get(prog_id)
+        mongo_model = str(row.get("model") or "")
+        oid = pid_to_oid.get(prog_id) or str(row.get("overview_id") or "")
         if not oid:
-            mk = _norm_model_key(str(row.get("model") or ""))
+            mk = _norm_model_key(mongo_model)
             oid = by_model_key.get(mk) or slug_overview_id(
-                str(row.get("model") or ""),
+                mongo_model,
                 str(row.get("program_detail") or ""),
             )
 
         model = by_id.get(oid)
         is_new = model is None
+        if model and model.get("events"):
+            events = merge_overview_events(model.get("events") or [], events)
+
         category = overview_category_from_portal(
             str(row.get("product_category") or ""),
             str(row.get("product") or ""),
-            str(row.get("model") or ""),
+            mongo_model,
         )
         summary = {
             "overview_id": oid,
@@ -324,7 +355,8 @@ def apply_delivery_portal_audio_products(
             "platform": row["platform"],
             "product_category": row.get("product_category"),
             "product": row.get("product"),
-            "model": row.get("model"),
+            "portal_model": row.get("portal_model"),
+            "model": mongo_model,
             "program_detail": row.get("program_detail"),
             "events_after": len(events),
             "created": is_new,
@@ -336,21 +368,22 @@ def apply_delivery_portal_audio_products(
                 model = _blank_overview_model(
                     oid,
                     category=category,
-                    model_name=str(row.get("model") or ""),
+                    model_name=mongo_model,
                     soc=str(row.get("soc") or ""),
                     sw_pm=str(row.get("pl") or ""),
                     events=events,
                 )
                 models.append(model)
                 by_id[oid] = model
-                mk = _norm_model_key(str(row.get("model") or ""))
+                mk = _norm_model_key(mongo_model)
                 if mk:
                     by_model_key.setdefault(mk, oid)
         else:
             updated.append(summary)
             if not dry_run:
                 model["events"] = events
-                if category:
+                model["model"] = mongo_model
+                if category and not model.get("category"):
                     model["category"] = category
                 psoc = str(row.get("soc") or "").strip()
                 if psoc and psoc.lower() not in ("others", "common"):

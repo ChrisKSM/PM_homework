@@ -264,7 +264,8 @@ def export_audio_product_categories(
         "soc\tsite\tregion\tstatus\tpl\tshow\tschedule_count\ttest_names_sample"
     )
     models_header = (
-        "platform\tproduct_category\tproduct\tmodel\tprogram_detail\tprogram_id\tsoc\tschedule_count"
+        "platform\tproduct_category\tproduct\tportal_model\toverview_model\toverview_id\t"
+        "program_detail\tprogram_id\tsoc\tschedule_count"
     )
     sched_header = (
         "platform\tproduct_category\tmodel\tprogram_detail\tprogram_id\tsoc\t"
@@ -325,7 +326,9 @@ def export_audio_product_categories(
                         platform,
                         str(row.get("product_category") or ""),
                         str(row.get("product") or ""),
+                        str(row.get("portal_model") or ""),
                         str(row.get("model") or ""),
+                        str(row.get("overview_id") or ""),
                         str(row.get("program_detail") or ""),
                         pid,
                         str(row.get("soc") or ""),
@@ -374,10 +377,10 @@ def export_audio_product_categories(
     print("\n--- Programs preview (first 30) ---")
     for line in model_rows[:30]:
         parts = line.split("\t")
-        if len(parts) >= 7:
+        if len(parts) >= 10:
             print(
-                f"  [{parts[0]}] {parts[1]} | {parts[3]!r} — {parts[4][:55]}"
-                f"{'…' if len(parts[4]) > 55 else ''}  (#sched={parts[7]})"
+                f"  [{parts[0]}] {parts[1]} | {parts[4]!r} (portal={parts[3]!r}) "
+                f"id={parts[5]} — {parts[6][:50]}{'…' if len(parts[6]) > 50 else ''}  (#sched={parts[9]})"
             )
     if len(model_rows) > 30:
         print(f"  … +{len(model_rows) - 30} programs in models TSV")
