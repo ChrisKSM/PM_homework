@@ -4,7 +4,7 @@
 # 브랜치 raw CDN 캐시 이슈 시 REF=커밋 SHA 로 고정:
 #   REF=c595c95 sh /tmp/patch-be-delivery-portal-from-github.sh
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/c595c95/scripts/patch-be-delivery-portal-from-github.sh" -o /tmp/p.sh && sh /tmp/p.sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/726bfc5/scripts/patch-be-delivery-portal-from-github.sh" -o /tmp/p.sh && sh /tmp/p.sh
 #
 set -e
 cd /workspace/project 2>/dev/null || exit 1
@@ -27,7 +27,9 @@ chmod +x scripts/verify-delivery-portal-api.sh scripts/restart-be-route-port.sh 
 if [ -f main.py ] && grep -q delivery_portal main.py 2>/dev/null; then
   echo "  OK  main.py delivery_portal"
 else
-  echo "  WARN main.py — delivery_portal router include 확인"
+  fetch scripts/ensure-be-delivery-portal-router.sh scripts/ensure-be-delivery-portal-router.sh
+  chmod +x scripts/ensure-be-delivery-portal-router.sh 2>/dev/null || true
+  sh scripts/ensure-be-delivery-portal-router.sh
 fi
 
 mkdir -p /usr/app/src 2>/dev/null || true
