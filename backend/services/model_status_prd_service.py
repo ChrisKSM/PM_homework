@@ -342,6 +342,52 @@ async def _fetch_polarion_items(
     return [normalize_prd_workitem(r, project_key=project_key) for r in rows[:limit]]
 
 
+def _query_needs_client_filter(query: str) -> bool:
+    q = (query or "").lower()
+    if q.startswith("type:") and "and" not in q:
+        return True
+    return "title:" in q or q.startswith("(")
+
+
+async def _fetch_from_discovery_probes(
+    discovery: dict[str, Any],
+    project_key: str,
+    terms: list[str],
+    *,
+    limit: int = 150,
+) -> tuple[list[dict[str, Any]], str | None, str | None]:
+    """discovery probe 중 hit 난 쿼리 순으로 fetch (count 내림차순)."""
+    probes = list(discovery.get("probes") or [])
+    probes.sort(key=lambda p: int(p.get("count") or 0), reverse=True)
+    for pr in probes:
+        if not pr.get("count") or pr.get("error"):
+            continue
+        q = str(pr["query"])
+        lp = pr.get("listPath")
+        use_filter = _query_needs_client_filter(q)
+        items = await _fetch_polarion_items(
+            q,
+            project_key,
+            limit=limit,
+            list_path=lp if lp else None,
+            terms=terms,
+            client_filter=use_filter,
+        )
+        if items:
+            return items, q, lp if lp else None
+        if use_filter:
+            items = await _fetch_polarion_items(
+                q,
+                project_key,
+                limit=limit,
+                list_path=lp if lp else None,
+                client_filter=False,
+            )
+            if items:
+                return items, q, lp if lp else None
+    return [], None, None
+
+
 async def _run_discovery(
     project_key: str,
     terms: list[str],
@@ -455,6 +501,9 @@ async def get_prd_for_model(
     items: list[dict[str, Any]] = []
     discovery: dict[str, Any] | None = None
 
+    list_mode = not probe
+    effective_discover = discover or list_mode
+
     if probe:
         for q in probe_queries:
             probe_results.append(await _probe_polarion_query(q, proj))
@@ -463,53 +512,68 @@ async def get_prd_for_model(
                 winning_query = str(pr["query"])
                 break
 
+    if (settings.polarion_pat or "").strip() and list_mode and effective_discover:
+        discovery = await _run_discovery(proj, terms)
+        items, winning_query, winning_list_path = await _fetch_from_discovery_probes(
+            discovery, proj, terms
+        )
+        if items:
+            source = "polarion+discovery"
+
     run_discovery = discover or (probe and not any(p.get("count") for p in probe_results))
-    if run_discovery and (settings.polarion_pat or "").strip():
+    if run_discovery and (settings.polarion_pat or "").strip() and not discovery:
         discovery = await _run_discovery(proj, terms)
         best = (discovery or {}).get("bestProbe") or {}
         if best.get("count") and not winning_query:
             winning_query = str(best.get("query"))
             winning_list_path = best.get("listPath")
 
-    if not winning_query:
-        # 기본: 첫 번째 applyModel OR 쿼리
-        for q in probe_queries:
-            if "applyModel" in q or "applicationModel" in q or "model_name" in q:
-                winning_query = q
-                break
-        if not winning_query and probe_queries:
-            winning_query = probe_queries[0]
+    if not items and not list_mode:
+        if not winning_query:
+            for q in probe_queries:
+                if "applyModel" in q or "applicationModel" in q or "model_name" in q:
+                    winning_query = q
+                    break
+            if not winning_query and probe_queries:
+                winning_query = probe_queries[0]
 
-    if winning_query and (settings.polarion_pat or "").strip():
-        try:
-            items = await _fetch_polarion_items(
-                winning_query,
-                proj,
-                list_path=winning_list_path,
-            )
-        except Exception as e:
-            return {
-                "meta": {
-                    "model": model,
-                    "projectKey": proj,
-                    "source": source,
-                    "terms": terms,
-                    "winningQuery": winning_query,
-                    "error": str(e),
-                    "polarionConfigured": bool(settings.polarion_pat),
-                },
-                "probe": probe_results if probe else [],
-                "discovery": discovery,
-                "items": [],
-            }
+        if winning_query:
+            try:
+                items = await _fetch_polarion_items(
+                    winning_query,
+                    proj,
+                    list_path=winning_list_path,
+                )
+            except Exception as e:
+                return {
+                    "meta": {
+                        "model": model,
+                        "projectKey": proj,
+                        "source": source,
+                        "terms": terms,
+                        "winningQuery": winning_query,
+                        "error": str(e),
+                        "polarionConfigured": bool(settings.polarion_pat),
+                    },
+                    "probe": probe_results if probe else [],
+                    "discovery": discovery,
+                    "items": [],
+                }
+
+    if not items and (settings.polarion_pat or "").strip() and discovery:
+        items, winning_query, winning_list_path = await _fetch_from_discovery_probes(
+            discovery, proj, terms
+        )
+        if items:
+            source = "polarion+discovery"
 
     if not items and (settings.polarion_pat or "").strip():
-        for q in build_prd_discovery_queries(terms)[:6]:
+        for q in build_prd_discovery_queries(terms):
             try:
                 items = await _fetch_polarion_items(
                     q,
                     proj,
-                    limit=80,
+                    limit=120,
                     terms=terms,
                     client_filter=True,
                 )
@@ -554,6 +618,7 @@ async def get_prd_for_model(
             "source": source,
             "terms": terms,
             "winningQuery": winning_query,
+            "discoveryHits": (discovery or {}).get("hits") if discovery else None,
             "total": len(items),
             "polarionConfigured": bool((settings.polarion_pat or "").strip()),
             "davisConfigured": bool(

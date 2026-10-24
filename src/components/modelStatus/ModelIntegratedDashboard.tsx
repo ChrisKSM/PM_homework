@@ -321,7 +321,11 @@ export default function ModelIntegratedDashboard({
         />
       )}
 
-      <section className={clsx(tab !== 'prd' && 'hidden')} aria-hidden={tab !== 'prd'} data-testid="model-status-prd-section">
+      <section
+        className={clsx(tab !== 'prd' && 'hidden', tab === 'prd' && 'min-h-[320px]')}
+        aria-hidden={tab !== 'prd'}
+        data-testid="model-status-prd-section"
+      >
         <ErrorBoundary title="PRD 탭 오류">
           <ModelStatusPrdPanel modelCode={modelCode} active={tab === 'prd'} />
         </ErrorBoundary>
