@@ -32,7 +32,17 @@ CODE=$(curl -s -o /tmp/sprint_report.json -w "%{http_code}" \
   "http://127.0.0.1:8000/api/sprints/current/report?refresh=true" 2>/dev/null || echo "000")
 echo "$CODE"
 if [ "$CODE" = "200" ]; then
-  head -c 300 /tmp/sprint_report.json
+  PY="python3"
+  [ -x venv/bin/python ] && PY="venv/bin/python"
+  "$PY" <<'PY' 2>/dev/null || head -c 300 /tmp/sprint_report.json
+import json
+from pathlib import Path
+data = json.loads(Path("/tmp/sprint_report.json").read_text())
+print(f"  source={data.get('source')} sprint={data.get('sprintName')}")
+if data.get("llmDebug"):
+    d = data["llmDebug"]
+    print(f"  llmDebug: {d.get('phase')} — {str(d.get('reason', ''))[:120]}")
+PY
   echo ""
 elif [ "$CODE" = "404" ]; then
   echo "  → 404: devteam.py 미반영 또는 uvicorn 재시작 필요"
@@ -42,5 +52,13 @@ elif [ "$CODE" = "502" ] || [ "$CODE" = "500" ]; then
   echo ""
 fi
 
+echo ""
+echo -n "  /api/llm/diagnostics → "
+curl -s http://127.0.0.1:8000/api/llm/diagnostics 2>/dev/null | head -c 600
+echo ""
+
+echo ""
+echo "=== 4. 상세 LLM 진단 (선택) ==="
+echo "  sh scripts/diagnose-sprint-report-llm.sh"
 echo ""
 echo "=== Done ==="

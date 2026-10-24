@@ -16,6 +16,11 @@ from services.overview_snapshot_email import (
 )
 from services.model_schedule_recipients import dev_emails_from_models
 from services.schedule_snapshot_email import build_snapshot_html, build_snapshot_subject
+from services.delivery_portal_client import fetch_all_deliveries_data
+from services.delivery_portal_overview_sync import (
+    apply_delivery_portal_audio_products,
+    apply_delivery_portal_to_models,
+)
 
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
 
@@ -196,6 +201,53 @@ async def save_overview_schedule(req: OverviewSaveRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"DB 저장 오류: {e}")
+
+
+@router.post("/overview/sync-delivery-portal")
+async def sync_overview_from_delivery_portal(
+    dry_run: bool = False,
+    scope: str = "linked",
+):
+    """
+    Delivery Portal all_deliveries_data → overview models events 갱신.
+    scope=linked: PO 확정 program UUID 5건. scope=audio_products: Audio_* product category 전체.
+    ov-m5-vi 제거. dry_run=true 이면 Mongo 저장 없음.
+    """
+    try:
+        if not mongo_helper.ensure_collection(COLLECTION_OVERVIEW):
+            raise HTTPException(
+                status_code=502,
+                detail=f"DB collection 준비 실패: {COLLECTION_OVERVIEW}",
+            )
+        portal = await fetch_all_deliveries_data()
+        docs = mongo_helper.get_all_documents(COLLECTION_OVERVIEW, use_cache=False)
+        for doc in docs:
+            doc.pop("_id", None)
+        if not docs:
+            raise HTTPException(
+                status_code=404,
+                detail="overview Mongo 비어 있음 — seed 후 sync",
+            )
+        if scope == "audio_products":
+            summary = apply_delivery_portal_audio_products(docs, portal, dry_run=dry_run)
+        elif scope == "linked":
+            summary = apply_delivery_portal_to_models(docs, portal, dry_run=dry_run)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="scope must be linked or audio_products",
+            )
+        if dry_run:
+            return {"message": "dry_run", **summary}
+        if not mongo_helper.delete_all_documents(COLLECTION_OVERVIEW):
+            raise HTTPException(status_code=502, detail="overview 삭제 실패")
+        if not mongo_helper.insert_documents(COLLECTION_OVERVIEW, docs):
+            raise HTTPException(status_code=502, detail="overview 저장 실패")
+        return {"message": "sync 완료", **summary}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"sync 오류: {e}")
 
 
 def _is_overview_share(req: ScheduleShareRequest) -> bool:

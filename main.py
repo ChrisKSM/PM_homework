@@ -68,3 +68,9 @@ async def invalidate_cache():
     """캐시 전체 초기화 (Frontend 새로고침 버튼 연동)."""
     await clear_cache()
     return {"message": "캐시가 초기화되었습니다."}
+
+try:
+    from routers import delivery_portal
+    app.include_router(delivery_portal.router)
+except ImportError:
+    pass
