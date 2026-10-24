@@ -22,10 +22,14 @@ fetch() {
 
 echo "=== FE model-status PRD @ $REF ==="
 echo "  (BE API·라벨 저장은 be-audio-test pod — patch-be-model-status-prd-from-github.sh)"
+fetch src/data/modelStatusCatalog.ts src/data/modelStatusCatalog.ts
+fetch src/pages/ModelScheduleStatusPage.tsx src/pages/ModelScheduleStatusPage.tsx
+fetch src/hooks/useModelStatusPrd.ts src/hooks/useModelStatusPrd.ts
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelStatus/ModelStatusPrdPanel.tsx
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
+fetch src/components/ErrorBoundary.tsx src/components/ErrorBoundary.tsx
 fetch src/utils/modelStatusPrdWorkflow.ts src/utils/modelStatusPrdWorkflow.ts
 fetch scripts/verify-model-status-prd-fe-deployed.sh scripts/verify-model-status-prd-fe-deployed.sh
 chmod +x scripts/verify-model-status-prd-fe-deployed.sh 2>/dev/null || true

@@ -7,6 +7,7 @@ import ModelStatusMetaCard from './ModelStatusMetaCard'
 import ManagerDashboardBody from './ManagerDashboardBody'
 import ModelStatusInitiativePanel from './ModelStatusInitiativePanel'
 import ModelStatusPrdPanel from './ModelStatusPrdPanel'
+import ErrorBoundary from '../ErrorBoundary'
 import ModelStatusReleaseEpicGantt from './ModelStatusReleaseEpicGantt'
 import ModelStatusOverviewEventTimeline from './ModelStatusOverviewEventTimeline'
 import {
@@ -320,7 +321,11 @@ export default function ModelIntegratedDashboard({
         />
       )}
 
-      {tab === 'prd' && <ModelStatusPrdPanel modelCode={modelCode} active={tab === 'prd'} />}
+      <section className={clsx(tab !== 'prd' && 'hidden')} aria-hidden={tab !== 'prd'} data-testid="model-status-prd-section">
+        <ErrorBoundary title="PRD 탭 오류">
+          <ModelStatusPrdPanel modelCode={modelCode} active={tab === 'prd'} />
+        </ErrorBoundary>
+      </section>
 
       {tab === 'issues' && (
         <div className="rounded-xl border border-surface-border bg-white overflow-hidden">

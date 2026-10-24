@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import clsx from 'clsx'
 import { ExternalLink, Filter, Loader2 } from 'lucide-react'
 import { modelStatusApi } from '../../api/modelStatusApi'
+import { useModelStatusPrd } from '../../hooks/useModelStatusPrd'
 import type { ModelStatusPrdItem } from '../../types/modelStatusPrd'
 import {
   PRD_LABEL_UNASSIGNED,
@@ -69,12 +70,10 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
   const [draftLabels, setDraftLabels] = useState<Record<string, string>>({})
 
   const queryKey = ['model-status-prd', modelCode]
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey,
-    queryFn: () => modelStatusApi.getPrd(modelCode, false),
-    enabled: active && Boolean(modelCode),
-    staleTime: 60_000,
-  })
+  const { data, isPending, isFetching, isError, error, refetch, fetchStatus } = useModelStatusPrd(
+    modelCode,
+    active,
+  )
 
   const saveLabel = useMutation({
     mutationFn: (args: { prdId: string; reviewLabel: string; almLabels: string[] }) =>
@@ -160,13 +159,23 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
     })
   }
 
-  if (!active) return null
+  if (!active) {
+    return null
+  }
 
-  if (isLoading) {
+  if (!modelCode?.trim()) {
+    return (
+      <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-6 text-center">
+        모델을 선택하면 PRD(ALM)를 조회합니다.
+      </p>
+    )
+  }
+
+  if (isPending || (fetchStatus === 'idle' && !data)) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
         <Loader2 size={16} className="animate-spin" />
-        ALM PRD 조회 중…
+        ALM PRD 조회 중… ({modelCode})
       </div>
     )
   }
@@ -176,7 +185,8 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
     return (
       <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
         <p className="font-semibold mb-1">PRD ALM 조회 실패</p>
-        <p className="text-xs">{msg}</p>
+        <p className="text-xs">{String(msg)}</p>
+        <p className="text-[10px] mt-2 text-red-700">Network: GET /api/model-status/prd?model={modelCode}</p>
         <button type="button" className="mt-2 text-xs underline" onClick={() => refetch()}>
           다시 시도
         </button>
@@ -215,11 +225,6 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
           <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-700">
             {row.workflowStageLabel || row.status || '—'}
           </span>
-          {row.status && row.workflowStageLabel !== row.status ? (
-            <span className="block text-[9px] text-gray-400 mt-0.5 truncate max-w-[100px]" title={row.status}>
-              {row.status}
-            </span>
-          ) : null}
         </td>
         <td className="p-2 text-gray-600">{row.assignee || '—'}</td>
         <td className="p-2 text-gray-600 text-[10px]">
@@ -292,18 +297,6 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
             <option value="reviewLabel">검토 라벨</option>
           </select>
         </label>
-        {(filters.id || filters.title || filters.status || stageFilter) && (
-          <button
-            type="button"
-            className="text-red-500 hover:underline"
-            onClick={() => {
-              setFilters({ ...EMPTY_FILTER })
-              setStageFilter(null)
-            }}
-          >
-            필터 초기화
-          </button>
-        )}
       </div>
 
       {meta?.labelStore && !meta.labelStore.milvusOk && (
@@ -387,7 +380,7 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
               {!filtered.length && (
                 <tr>
                   <td colSpan={8} className="p-8 text-center text-sm text-gray-400">
-                    PRD 없음
+                    PRD 없음 (BE pod PRD API 패치 확인)
                   </td>
                 </tr>
               )}
@@ -421,9 +414,7 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
                     <span className="text-gray-800 flex-1 min-w-[200px]">{r.title}</span>
                     <span className="text-gray-500 shrink-0">{r.workflowStageLabel}</span>
                     {(r.almLabels || []).length > 0 && (
-                      <span className="text-[10px] text-slate-600">
-                        ALM: {r.almLabels!.join(', ')}
-                      </span>
+                      <span className="text-[10px] text-slate-600">ALM: {r.almLabels!.join(', ')}</span>
                     )}
                   </li>
                 ))}
@@ -433,11 +424,6 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
           {!groupedByReviewLabel.length && <p className="text-sm text-gray-400 text-center py-6">표시할 PRD 없음</p>}
         </div>
       </div>
-
-      <p className="text-[10px] text-gray-400">
-        검토 라벨은 Milvus `{meta?.labelStore?.collection ?? 'model_status_prd_labels'}` 에 저장됩니다. ALM labels는 Polarion
-        필드 읽기 전용입니다.
-      </p>
     </div>
   )
 }

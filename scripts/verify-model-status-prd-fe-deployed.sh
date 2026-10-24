@@ -17,6 +17,8 @@ check() {
 echo "=== verify model-status PRD FE ==="
 check "ModelStatusPrdPanel" "test -f src/components/modelStatus/ModelStatusPrdPanel.tsx"
 check "dashboard imports PRD panel" "grep -q ModelStatusPrdPanel src/components/modelStatus/ModelIntegratedDashboard.tsx"
+check "dashboard PRD section wired" "grep -q model-status-prd-section src/components/modelStatus/ModelIntegratedDashboard.tsx"
+check "useModelStatusPrd hook" "test -f src/hooks/useModelStatusPrd.ts"
 check "workflow utils" "test -f src/utils/modelStatusPrdWorkflow.ts"
 check "savePrdReviewLabel API" "grep -q savePrdReviewLabel src/api/modelStatusApi.ts"
 check "검토 라벨 UI string" "grep -q '검토 라벨' src/components/modelStatus/ModelStatusPrdPanel.tsx"

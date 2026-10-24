@@ -29,6 +29,13 @@ export default function ModelScheduleStatusPage() {
   const [modelCode, setModelCode] = useState('H7_VI')
   const [tab, setTab] = useState<ModelStatusTabId>('summary')
 
+  const parseTab = (raw: string | null): ModelStatusTabId | null => {
+    if (!raw) return null
+    const t = raw.trim().toLowerCase()
+    const ids: ModelStatusTabId[] = ['summary', 'release', 'initiative', 'prd', 'issues']
+    return ids.includes(t as ModelStatusTabId) ? (t as ModelStatusTabId) : null
+  }
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -72,6 +79,8 @@ export default function ModelScheduleStatusPage() {
       const decoded = decodeURIComponent(qModel).trim()
       setModelCode(decoded.includes('_') ? decoded : canonicalModelName(decoded))
     }
+    const qTab = parseTab(searchParams.get('tab'))
+    if (qTab) setTab(qTab)
   }, [searchParams])
 
   useEffect(() => {
