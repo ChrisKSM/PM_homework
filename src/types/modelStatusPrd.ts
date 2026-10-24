@@ -48,6 +48,8 @@ export interface ModelStatusPrdResponse {
     terms: string[]
     winningQuery?: string | null
     polarionUrl?: string | null
+    listPath?: string | null
+    polarionComponent?: string | null
     discoveryHits?: number | null
     listLimit?: number
     filterMode?: string

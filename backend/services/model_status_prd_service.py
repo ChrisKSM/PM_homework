@@ -64,11 +64,11 @@ def apply_model_search_terms(model: str | None) -> list[str]:
     if code == "H7_VI":
         terms.extend(
             [
+                "SoundSuite_H7(VI)",
                 "Sound Suite H7",
                 "Sound suite_H7",
                 "SoundSuite_H7",
                 "Sound Suite H7(VI)",
-                "SoundSuite_H7(VI)",
                 "Sound suite H7",
             ]
         )
@@ -91,6 +91,38 @@ def apply_model_search_terms(model: str | None) -> list[str]:
             seen.add(s.lower())
             out.append(s)
     return out
+
+
+def polarion_component_for_model(model: str | None) -> str | None:
+    """Polarion PRD components 필드 값 (Lucene components:(…))."""
+    code = normalize_model_code(model) or (model or "").strip()
+    mapping: dict[str, str] = {
+        "H7_VI": "SoundSuite_H7(VI)",
+        "H5": "SoundSuite_H5",
+        "M7_VI": "SoundSuite_M7(VI)",
+        "W5": "SoundSuite_W5",
+    }
+    return mapping.get(code)
+
+
+def build_components_query(component: str) -> str:
+    """예: components:(\"SoundSuite_H7(VI)\") — Polarion UI와 동일."""
+    inner = _quote_polarion_value((component or "").strip())
+    return f"components:({inner})"
+
+
+def resolve_prd_polarion(project_key: str | None = None) -> tuple[str, str]:
+    """(projectKey, listPath) — PRD 전용 Polarion REST/UI 경로."""
+    proj = (
+        (project_key or "").strip()
+        or (getattr(settings, "polarion_prd_project_key", "") or "").strip()
+        or settings.polarion_project_key.strip()
+    )
+    path = (
+        (getattr(settings, "polarion_prd_list_path", "") or "").strip().strip("/")
+        or "workitems/PRD"
+    )
+    return proj, path
 
 
 def _extract_alm_labels(flat: dict[str, Any]) -> list[str]:
@@ -152,11 +184,14 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
     }
 
 
-def build_prd_probe_queries(terms: list[str]) -> list[str]:
-    """Lucene 후보 — type PRD × 적용모델 필드 × 검색어."""
-    if not terms:
-        return ["type:PRD"]
+def build_prd_probe_queries(terms: list[str], *, model: str | None = None) -> list[str]:
+    """Lucene 후보 — components × type PRD × 적용모델 필드."""
     queries: list[str] = []
+    comp = polarion_component_for_model(model)
+    if comp:
+        queries.append(build_components_query(comp))
+    if not terms:
+        return queries or ["type:PRD"]
     text_or = " OR ".join(_quote_polarion_value(t) for t in terms)
     for ttype in PRD_TYPE_TOKENS:
         queries.append(f"type:{ttype}")
@@ -171,9 +206,15 @@ def build_prd_probe_queries(terms: list[str]) -> list[str]:
     return _dedupe_queries(queries, limit=40)
 
 
-def build_prd_discovery_queries(terms: list[str]) -> list[str]:
-    """type/필드명 불명일 때 — title·model_name·project_name 등 (type 단독은 맨 뒤)."""
+def build_prd_discovery_queries(terms: list[str], *, model: str | None = None) -> list[str]:
+    """type/필드명 불명일 때 — components·title·model_name 등."""
     queries: list[str] = []
+    comp = polarion_component_for_model(model)
+    if comp:
+        queries.append(build_components_query(comp))
+        for alt in terms[:4]:
+            if alt and alt != comp:
+                queries.append(build_components_query(alt))
     for term in terms[:5]:
         qv = _quote_polarion_value(term)
         queries.append(f"title:{qv}")
@@ -282,17 +323,27 @@ def workitem_matches_model_scope(flat: dict[str, Any], terms: list[str]) -> bool
 POLARION_UI_BASE = "https://alm-lge-hlm.singlex.com/polarion/#/project"
 
 
-def polarion_workitems_search_url(project_key: str, query: str) -> str:
+def polarion_workitems_search_url(
+    project_key: str,
+    query: str,
+    *,
+    list_path: str | None = None,
+) -> str:
     """Polarion UI — workitems Lucene 검색 URL (브라우저에 붙여넣기)."""
     key = (project_key or settings.polarion_project_key).strip()
+    path = (list_path or getattr(settings, "polarion_prd_list_path", "") or "workitems/PRD").strip(
+        "/"
+    )
     enc = quote(query, safe="")
-    return f"{POLARION_UI_BASE}/{key}/workitems?query={enc}"
+    return f"{POLARION_UI_BASE}/{key}/{path}?query={enc}"
 
 
 def _probe_query_priority(query: str) -> int:
     """높을수록 적용모델/타입이 명시된 쿼리 (type:PRD 단독은 최하위)."""
     ql = (query or "").lower()
     score = 0
+    if "components:" in ql:
+        score += 250
     if "applymodel" in ql or "applicationmodel" in ql:
         score += 120
     if "model_name" in ql:
@@ -422,6 +473,8 @@ def _query_needs_client_filter(query: str) -> bool:
 def _query_is_lucene_model_scoped(query: str, terms: list[str]) -> bool:
     """title:\"H7 VI\" / applyModel:… 처럼 Lucene이 이미 모델을 좁힌 경우 — BE 재필터 생략."""
     ql = (query or "").lower()
+    if "components:" in ql:
+        return True
     if "applymodel" in ql or "applicationmodel" in ql or "model_name:" in ql:
         return True
     if "title:" in ql:
@@ -495,24 +548,60 @@ async def _fetch_from_discovery_probes(
     return [], None, None
 
 
-async def _try_title_term_queries(
+async def _try_components_queries(
     project_key: str,
+    model: str | None,
     terms: list[str],
+    *,
+    list_path: str,
 ) -> tuple[list[dict[str, Any]], str | None]:
-    """Polarion hit — title:\"H7 VI\" 등 (probe에서 검증된 패턴)."""
-    ordered = sorted(terms, key=lambda t: len(t or ""), reverse=True)
-    for term in ordered:
-        t = (term or "").strip()
-        if len(t) < 4:
-            continue
-        q = f"title:{_quote_polarion_value(t)}"
-        pr = await _probe_polarion_query(q, project_key)
+    """Polarion PRD — components:(SoundSuite_H7(VI)) 등 (UI와 동일)."""
+    candidates: list[str] = []
+    primary = polarion_component_for_model(model)
+    if primary:
+        candidates.append(primary)
+    for t in terms:
+        s = (t or "").strip()
+        if s and s not in candidates:
+            candidates.append(s)
+    for comp in candidates:
+        q = build_components_query(comp)
+        pr = await _probe_polarion_query(q, project_key, list_path=list_path)
         if int(pr.get("count") or 0) <= 0 or pr.get("error"):
             continue
         items = await _fetch_polarion_items(
             q,
             project_key,
             limit=PRD_LIST_LIMIT,
+            list_path=list_path,
+            client_filter=False,
+        )
+        if items:
+            return items, q
+    return [], None
+
+
+async def _try_title_term_queries(
+    project_key: str,
+    terms: list[str],
+    *,
+    list_path: str | None = None,
+) -> tuple[list[dict[str, Any]], str | None]:
+    """폴백 — title:\"H7 VI\" 등 (RelProjMgmt 등 legacy)."""
+    ordered = sorted(terms, key=lambda t: len(t or ""), reverse=True)
+    for term in ordered:
+        t = (term or "").strip()
+        if len(t) < 4:
+            continue
+        q = f"title:{_quote_polarion_value(t)}"
+        pr = await _probe_polarion_query(q, project_key, list_path=list_path)
+        if int(pr.get("count") or 0) <= 0 or pr.get("error"):
+            continue
+        items = await _fetch_polarion_items(
+            q,
+            project_key,
+            limit=PRD_LIST_LIMIT,
+            list_path=list_path,
             client_filter=False,
         )
         if items:
@@ -524,6 +613,8 @@ async def _try_tight_apply_model_queries(
     project_key: str,
     terms: list[str],
     probe_queries: list[str],
+    *,
+    list_path: str | None = None,
 ) -> tuple[list[dict[str, Any]], str | None]:
     """applyModel / type+field probe hit 만 사용 (UI 1차)."""
     for q in probe_queries:
@@ -532,7 +623,7 @@ async def _try_tight_apply_model_queries(
             continue
         if "type:" not in ql:
             continue
-        pr = await _probe_polarion_query(q, project_key)
+        pr = await _probe_polarion_query(q, project_key, list_path=list_path)
         count = int(pr.get("count") or 0)
         if count <= 0 or pr.get("error") or count > 400:
             continue
@@ -540,6 +631,7 @@ async def _try_tight_apply_model_queries(
             q,
             project_key,
             limit=PRD_LIST_LIMIT,
+            list_path=list_path,
             terms=terms,
             client_filter=True,
             strict_model_scope=True,
@@ -552,27 +644,31 @@ async def _try_tight_apply_model_queries(
 async def _run_discovery(
     project_key: str,
     terms: list[str],
+    *,
+    model: str | None = None,
+    list_path: str | None = None,
 ) -> dict[str, Any]:
     """Polarion type/필드 후보 탐색 + 샘플 attribute 키."""
     discovery_probes: list[dict[str, Any]] = []
     sample_rows: list[dict] = []
     winning: dict[str, Any] | None = None
-    queries = build_prd_discovery_queries(terms)
+    queries = build_prd_discovery_queries(terms, model=model)
+    default_path = list_path
 
     for q in queries:
-        pr = await _probe_polarion_query(q, project_key)
+        pr = await _probe_polarion_query(q, project_key, list_path=default_path)
         discovery_probes.append(pr)
         if pr.get("count") and not pr.get("error") and not winning:
             winning = pr
 
     if not winning:
-        alt_paths: list[str | None] = []
-        prd_path = (getattr(settings, "polarion_prd_list_path", "") or "").strip()
-        if prd_path:
-            alt_paths.append(prd_path)
-        alt_paths.extend(["requirements", "requirement"])
+        alt_paths: list[str | None] = [default_path, "workitems", "requirements", "requirement"]
+        seen_lp: set[str | None] = set()
         for lp in alt_paths:
-            for q in queries[:5]:
+            if lp in seen_lp:
+                continue
+            seen_lp.add(lp)
+            for q in queries[:8]:
                 pr = await _probe_polarion_query(q, project_key, list_path=lp)
                 discovery_probes.append(pr)
                 if pr.get("count") and not pr.get("error") and not winning:
@@ -653,10 +749,10 @@ async def get_prd_query_catalog(
     Polarion Lucene 후보 전부 probe — count + UI URL.
     BE pod / 브라우저에서 query 확인용.
     """
-    proj = (project_key or getattr(settings, "polarion_prd_project_key", "") or settings.polarion_project_key).strip()
+    proj, prd_path = resolve_prd_polarion(project_key)
     terms = apply_model_search_terms(model)
-    probe_queries = build_prd_probe_queries(terms)
-    discovery_queries = build_prd_discovery_queries(terms)
+    probe_queries = build_prd_probe_queries(terms, model=model)
+    discovery_queries = build_prd_discovery_queries(terms, model=model)
     all_queries = _dedupe_queries(probe_queries + discovery_queries, limit=max_queries)
 
     catalog: list[dict[str, Any]] = []
@@ -674,7 +770,7 @@ async def get_prd_query_catalog(
         }
 
     for q in all_queries:
-        pr = await _probe_polarion_query(q, proj)
+        pr = await _probe_polarion_query(q, proj, list_path=prd_path)
         count = int(pr.get("count") or 0)
         catalog.append(
             {
@@ -682,7 +778,7 @@ async def get_prd_query_catalog(
                 "count": count,
                 "error": pr.get("error"),
                 "priority": _probe_query_priority(q),
-                "polarionUrl": polarion_workitems_search_url(proj, q),
+                "polarionUrl": polarion_workitems_search_url(proj, q, list_path=prd_path),
             }
         )
 
@@ -694,6 +790,8 @@ async def get_prd_query_catalog(
         "meta": {
             "model": model,
             "projectKey": proj,
+            "listPath": prd_path,
+            "polarionComponent": polarion_component_for_model(model),
             "terms": terms,
             "polarionConfigured": True,
             "probed": len(catalog),
@@ -713,9 +811,10 @@ async def get_prd_for_model(
     project_key: str | None = None,
     alm_type: str = "tv",
 ) -> dict[str, Any]:
-    proj = (project_key or getattr(settings, "polarion_prd_project_key", "") or settings.polarion_project_key).strip()
+    proj, prd_path = resolve_prd_polarion(project_key)
     terms = apply_model_search_terms(model)
-    probe_queries = build_prd_probe_queries(terms)
+    probe_queries = build_prd_probe_queries(terms, model=model)
+    polarion_component = polarion_component_for_model(model)
 
     source = "polarion"
     probe_results: list[dict[str, Any]] = []
@@ -729,24 +828,35 @@ async def get_prd_for_model(
 
     if probe:
         for q in probe_queries:
-            probe_results.append(await _probe_polarion_query(q, proj))
+            probe_results.append(await _probe_polarion_query(q, proj, list_path=prd_path))
         for pr in probe_results:
             if pr.get("count") and not pr.get("error"):
                 winning_query = str(pr["query"])
                 break
 
     if (settings.polarion_pat or "").strip() and list_mode:
-        items, winning_query = await _try_title_term_queries(proj, terms)
+        items, winning_query = await _try_components_queries(
+            proj, model, terms, list_path=prd_path
+        )
         if items:
-            source = "polarion+title"
+            source = "polarion+components"
+            winning_list_path = prd_path
 
     if (settings.polarion_pat or "").strip() and list_mode and not items:
-        items, winning_query = await _try_tight_apply_model_queries(proj, terms, probe_queries)
+        items, winning_query = await _try_title_term_queries(proj, terms, list_path=prd_path)
+        if items:
+            source = "polarion+title"
+            winning_list_path = prd_path
+
+    if (settings.polarion_pat or "").strip() and list_mode and not items:
+        items, winning_query = await _try_tight_apply_model_queries(
+            proj, terms, probe_queries, list_path=prd_path
+        )
         if items:
             source = "polarion+applyModel"
 
     if (settings.polarion_pat or "").strip() and list_mode and effective_discover and not items:
-        discovery = await _run_discovery(proj, terms)
+        discovery = await _run_discovery(proj, terms, model=model, list_path=prd_path)
         items, winning_query, winning_list_path = await _fetch_from_discovery_probes(
             discovery, proj, terms
         )
@@ -755,7 +865,7 @@ async def get_prd_for_model(
 
     run_discovery = discover or (probe and not any(p.get("count") for p in probe_results))
     if run_discovery and (settings.polarion_pat or "").strip() and not discovery:
-        discovery = await _run_discovery(proj, terms)
+        discovery = await _run_discovery(proj, terms, model=model, list_path=prd_path)
         best = (discovery or {}).get("bestProbe") or {}
         if best.get("count") and not winning_query:
             winning_query = str(best.get("query"))
@@ -775,7 +885,7 @@ async def get_prd_for_model(
                 items = await _fetch_polarion_items(
                     winning_query,
                     proj,
-                    list_path=winning_list_path,
+                    list_path=winning_list_path or prd_path,
                 )
             except Exception as e:
                 return {
@@ -801,12 +911,13 @@ async def get_prd_for_model(
             source = "polarion+discovery"
 
     if not items and (settings.polarion_pat or "").strip():
-        for q in build_prd_discovery_queries(terms):
+        for q in build_prd_discovery_queries(terms, model=model):
             try:
                 items = await _fetch_polarion_items(
                     q,
                     proj,
                     limit=PRD_LIST_LIMIT,
+                    list_path=prd_path,
                     terms=terms,
                     client_filter=True,
                     strict_model_scope=True,
@@ -830,6 +941,7 @@ async def get_prd_for_model(
                     q,
                     proj,
                     limit=PRD_LIST_LIMIT,
+                    list_path=prd_path,
                     terms=terms,
                     client_filter=True,
                     strict_model_scope=False,
@@ -869,11 +981,21 @@ async def get_prd_for_model(
         "meta": {
             "model": model,
             "projectKey": proj,
+            "listPath": prd_path,
+            "polarionComponent": polarion_component,
             "almType": alm_type,
             "source": source,
             "terms": terms,
             "winningQuery": winning_query,
-            "polarionUrl": polarion_workitems_search_url(proj, winning_query) if winning_query else None,
+            "polarionUrl": (
+                polarion_workitems_search_url(
+                    proj,
+                    winning_query,
+                    list_path=winning_list_path or prd_path,
+                )
+                if winning_query
+                else None
+            ),
             "listLimit": PRD_LIST_LIMIT,
             "filterMode": (
                 "luceneOnly"

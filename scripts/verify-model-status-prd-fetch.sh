@@ -36,6 +36,9 @@ probe = d.get("probe") or []
 hits = [p for p in probe if (p.get("count") or 0) > 0 and not p.get("error")]
 print("model:", meta.get("model"))
 print("source:", meta.get("source"))
+print("projectKey:", meta.get("projectKey"))
+print("listPath:", meta.get("listPath"))
+print("polarionComponent:", meta.get("polarionComponent"))
 print("winningQuery:", meta.get("winningQuery"))
 print("items:", len(items))
 print("probe hits:", len(hits), "/", len(probe))

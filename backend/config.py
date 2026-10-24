@@ -115,8 +115,8 @@ class Settings(BaseSettings):
     polarion_verify_ssl: bool = False
     # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
     polarion_list_path: str = "workitems"
-    polarion_prd_project_key: str = ""  # 비우면 polarion_project_key
-    polarion_prd_list_path: str = ""  # 비우면 polarion_list_path (workitems)
+    polarion_prd_project_key: str = "AVSWReqMgmt"  # PRD workitem 목록 프로젝트
+    polarion_prd_list_path: str = "workitems/PRD"  # UI: .../workitems/PRD?query=
     # alm page.js — davis-db-api /alm/workitems/list (선택)
     davis_db_api_base_url: str = ""
     davis_db_api_key: str = ""
