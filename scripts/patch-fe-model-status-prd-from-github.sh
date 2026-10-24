@@ -8,6 +8,12 @@ cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
+if [ ! -f package.json ] || [ ! -d src/components/modelStatus ]; then
+  echo "ERROR: FE pod 아님 (package.json / src/components/modelStatus 없음) — cwd=$(pwd)" >&2
+  echo "  → BE pod 에서는 patch-be-model-status-prd-from-github.sh 를 실행하세요." >&2
+  exit 1
+fi
+
 fetch() {
   mkdir -p "$(dirname "$2")"
   curl -fsSL "$BASE/$1" -o "$2"
@@ -15,11 +21,16 @@ fetch() {
 }
 
 echo "=== FE model-status PRD @ $REF ==="
+echo "  (BE API·라벨 저장은 be-audio-test pod — patch-be-model-status-prd-from-github.sh)"
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelStatus/ModelStatusPrdPanel.tsx
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/utils/modelStatusPrdWorkflow.ts src/utils/modelStatusPrdWorkflow.ts
 
-echo "  npm run build (optional on pod)"
+grep -q ModelStatusPrdPanel src/components/modelStatus/ModelIntegratedDashboard.tsx \
+  && echo "  OK  ModelIntegratedDashboard → PRD tab wired"
+
+echo ""
+echo "  다음: npm run build && git push origin master  (또는 팀 배포 절차)"
 echo "=== patch-fe-model-status-prd done ==="

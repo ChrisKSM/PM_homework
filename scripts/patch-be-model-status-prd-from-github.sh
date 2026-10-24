@@ -11,6 +11,13 @@ cd "$ROOT" 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
 REF="${REF:-cursor/model-schedule-bar-label-fix-b14b}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
+if [ ! -f main.py ] || [ ! -d routers ]; then
+  echo "SKIP: BE pod 아님 (main.py + routers/ 없음) — cwd=$(pwd)"
+  echo "  → react-audio FE pod 에서는 patch-fe-model-status-prd-from-github.sh 만 실행하세요."
+  echo "  → BE: project-be-audio-test pod 에서 이 스크립트를 실행하세요."
+  exit 0
+fi
+
 mkdir -p routers services scripts tests
 
 fetch() {
