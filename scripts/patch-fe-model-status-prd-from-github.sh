@@ -27,10 +27,22 @@ fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelStatus/ModelStatusPrdPanel.tsx
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/utils/modelStatusPrdWorkflow.ts src/utils/modelStatusPrdWorkflow.ts
+fetch scripts/verify-model-status-prd-fe-deployed.sh scripts/verify-model-status-prd-fe-deployed.sh
+chmod +x scripts/verify-model-status-prd-fe-deployed.sh 2>/dev/null || true
 
 grep -q ModelStatusPrdPanel src/components/modelStatus/ModelIntegratedDashboard.tsx \
   && echo "  OK  ModelIntegratedDashboard → PRD tab wired"
 
+if [ "${RUN_BUILD:-1}" = "1" ] && command -v npm >/dev/null 2>&1; then
+  echo ""
+  echo "=== npm run build ==="
+  npm run build
+  sh scripts/verify-model-status-prd-fe-deployed.sh || true
+else
+  echo ""
+  echo "  build 생략 — RUN_BUILD=1 npm run build 후 verify"
+fi
+
 echo ""
-echo "  다음: npm run build && git push origin master  (또는 팀 배포 절차)"
+echo "  배포: git push origin master (팀 절차에 맞게)"
 echo "=== patch-fe-model-status-prd done ==="
