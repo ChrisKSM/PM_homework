@@ -3,7 +3,7 @@
 # REF=241e848 or latest commit SHA
 set -e
 cd /workspace/project 2>/dev/null || exit 1
-REF="${REF:-241e848}"
+REF="${REF:-75c065b}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 fetch() { mkdir -p "$(dirname "$2")"; curl -fsSL "$BASE/$1" -o "$2"; echo "  + $2"; }
 echo "=== overview delivery sync @ $REF ==="
