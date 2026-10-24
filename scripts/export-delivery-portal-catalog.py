@@ -23,13 +23,13 @@ import urllib.request
 from collections import Counter, defaultdict
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-import sys
-
-sys.path.insert(0, str(ROOT / "backend"))
-from services.delivery_portal_catalog import (  # noqa: E402
+_SCRIPTS = Path(__file__).resolve().parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+from delivery_portal_catalog_lib import (  # noqa: E402
     AUDIO_PRODUCT_CATEGORIES,
     iter_portal_program_rows,
+    scan_detail_keys,
     scan_product_categories,
 )
 
@@ -387,12 +387,19 @@ def list_product_categories(data: dict) -> None:
     counts = scan_product_categories(data)
     print("\n=== product_category values in JSON (detail / program) ===")
     if not counts:
-        print("  (none found — check API export or field names)")
-        return
-    for name, cnt in counts.most_common():
-        mark = " *" if name in AUDIO_PRODUCT_CATEGORIES else ""
-        print(f"  {cnt:5d}  {name}{mark}")
+        print("  (none found — run with --scan-detail-keys or check program-report join)")
+    else:
+        for name, cnt in counts.most_common():
+            mark = " *" if name in AUDIO_PRODUCT_CATEGORIES else ""
+            print(f"  {cnt:5d}  {name}{mark}")
     print(f"\n  Audio export preset: {', '.join(AUDIO_PRODUCT_CATEGORIES)}")
+
+
+def print_detail_key_scan(data: dict) -> None:
+    keys = scan_detail_keys(data)
+    print("\n=== detail / program_info keys (frequency) ===")
+    for name, cnt in keys.most_common():
+        print(f"  {cnt:5d}  {name}")
 
 
 def catalog_program_report(data: list | dict) -> None:
@@ -464,6 +471,11 @@ def main() -> None:
         help="Print distinct product_category values and exit.",
     )
     ap.add_argument(
+        "--scan-detail-keys",
+        action="store_true",
+        help="Print detail/program_info JSON keys (field name discovery).",
+    )
+    ap.add_argument(
         "--models-only",
         action="store_true",
         help="With --audio-products, write only *-models.tsv (skip full detail TSV).",
@@ -491,6 +503,9 @@ def main() -> None:
             sys.exit(1)
 
     if isinstance(all_data, dict):
+        if args.scan_detail_keys:
+            print_detail_key_scan(all_data)
+            return
         if args.list_product_categories:
             list_product_categories(all_data)
             return

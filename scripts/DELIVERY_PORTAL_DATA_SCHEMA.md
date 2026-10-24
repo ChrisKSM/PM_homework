@@ -49,6 +49,8 @@ platform_data[i]
 
 ```bash
 sh scripts/verify-delivery-portal-api.sh direct
+# pod: export + catalog lib 둘 다 필요 (한 파일만 curl 하면 ModuleNotFoundError)
+sh scripts/fetch-delivery-portal-export-from-github.sh
 python3 scripts/export-delivery-portal-catalog.py
 # 또는
 python3 scripts/export-delivery-portal-catalog.py --fetch
