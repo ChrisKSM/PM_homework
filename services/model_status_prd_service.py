@@ -34,6 +34,9 @@ APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
     "ApplyModel",
 )
 
+# UI 목록 최대 건수 (Polarion page fetch 상한)
+PRD_LIST_LIMIT = 80
+
 PRD_TYPE_TOKENS: tuple[str, ...] = (
     "PRD",
     "prd",
@@ -168,10 +171,8 @@ def build_prd_probe_queries(terms: list[str]) -> list[str]:
 
 
 def build_prd_discovery_queries(terms: list[str]) -> list[str]:
-    """type/필드명 불명일 때 — title·model_name·project_name 등 넓은 probe."""
+    """type/필드명 불명일 때 — title·model_name·project_name 등 (type 단독은 맨 뒤)."""
     queries: list[str] = []
-    for ttype in PRD_TYPE_TOKENS[:6]:
-        queries.append(f"type:{ttype}")
     for term in terms[:5]:
         qv = _quote_polarion_value(term)
         queries.append(f"title:{qv}")
@@ -188,9 +189,14 @@ def build_prd_discovery_queries(terms: list[str]) -> list[str]:
                 "applyModel:*H7*",
             ]
         )
-    part = " OR ".join(_quote_polarion_value(t) for t in terms[:6])
-    queries.append(f"({part})")
-    return _dedupe_queries(queries, limit=28)
+    for ttype in PRD_TYPE_TOKENS[:4]:
+        for term in terms[:4]:
+            qv = _quote_polarion_value(term)
+            queries.append(f"type:{ttype} AND (applyModel:{qv} OR model_name:{qv})")
+            queries.append(f"type:{ttype} AND title:{qv}")
+    for ttype in PRD_TYPE_TOKENS[:3]:
+        queries.append(f"type:{ttype}")
+    return _dedupe_queries(queries, limit=32)
 
 
 def _dedupe_queries(queries: list[str], *, limit: int) -> list[str]:
@@ -242,6 +248,55 @@ def workitem_matches_apply_terms(flat: dict[str, Any], terms: list[str]) -> bool
         if v and any(_norm_match_text(term) in v for term in terms):
             return True
     return False
+
+
+def workitem_matches_model_scope(flat: dict[str, Any], terms: list[str]) -> bool:
+    """모델현황 UI — 적용모델·labels·title 기준 (넓은 type:PRD 전체 제외)."""
+    if not terms:
+        return True
+    apply = _norm_match_text(_extract_apply_model(flat))
+    for term in terms:
+        nt = _norm_match_text(term)
+        if len(nt) >= 3 and apply and nt in apply:
+            return True
+    for label in _extract_alm_labels(flat):
+        nlb = _norm_match_text(label)
+        for term in terms:
+            nt = _norm_match_text(term)
+            if len(nt) >= 3 and nt in nlb:
+                return True
+    title = _norm_match_text(_safe_text(flat, "title") or _safe_text(flat, "summary"))
+    for term in terms:
+        nt = _norm_match_text(term)
+        if len(nt) >= 5 and nt in title:
+            return True
+    if any("h7" in _norm_match_text(t) for t in terms):
+        if "h7" in title and ("sound" in title or "suite" in title):
+            return True
+        if "h7" in apply:
+            return True
+    return False
+
+
+def _probe_query_priority(query: str) -> int:
+    """높을수록 적용모델/타입이 명시된 쿼리 (type:PRD 단독은 최하위)."""
+    ql = (query or "").lower()
+    score = 0
+    if "applymodel" in ql or "applicationmodel" in ql:
+        score += 120
+    if "model_name" in ql:
+        score += 110
+    if "type:" in ql and " and " in ql:
+        score += 90
+    if "title:" in ql and ("h7" in ql or "sound" in ql):
+        score += 70
+    if "project_name:" in ql:
+        score += 40
+    if ql.startswith("type:") and " and " not in ql:
+        score += 5
+    if ql.startswith("(") and "type:" not in ql:
+        score += 15
+    return score
 
 
 def analyze_workitems_for_apply_fields(
@@ -316,6 +371,7 @@ async def _fetch_polarion_items(
     list_path: str | None = None,
     terms: list[str] | None = None,
     client_filter: bool = False,
+    strict_model_scope: bool = False,
 ) -> list[dict[str, Any]]:
     rows: list[dict] = []
     total = 0
@@ -333,10 +389,11 @@ async def _fetch_polarion_items(
         if len(rows) >= total or len(rows) >= limit * 3:
             break
     if client_filter and terms:
+        match_fn = workitem_matches_model_scope if strict_model_scope else workitem_matches_apply_terms
         filtered = []
         for r in rows:
             flat = flatten_workitem(r)
-            if workitem_matches_apply_terms(flat, terms):
+            if match_fn(flat, terms):
                 filtered.append(r)
         rows = filtered
     return [normalize_prd_workitem(r, project_key=project_key) for r in rows[:limit]]
@@ -354,38 +411,78 @@ async def _fetch_from_discovery_probes(
     project_key: str,
     terms: list[str],
     *,
-    limit: int = 150,
+    limit: int = PRD_LIST_LIMIT,
 ) -> tuple[list[dict[str, Any]], str | None, str | None]:
-    """discovery probe 중 hit 난 쿼리 순으로 fetch (count 내림차순)."""
-    probes = list(discovery.get("probes") or [])
-    probes.sort(key=lambda p: int(p.get("count") or 0), reverse=True)
+    """discovery — **구체적 쿼리 우선**, 항상 모델 scope 필터."""
+    probes = [p for p in (discovery.get("probes") or []) if p.get("count") and not p.get("error")]
+    probes.sort(
+        key=lambda p: (
+            -_probe_query_priority(str(p.get("query") or "")),
+            int(p.get("count") or 0),
+        )
+    )
     for pr in probes:
-        if not pr.get("count") or pr.get("error"):
-            continue
         q = str(pr["query"])
+        if _probe_query_priority(q) < 20:
+            continue
         lp = pr.get("listPath")
-        use_filter = _query_needs_client_filter(q)
         items = await _fetch_polarion_items(
             q,
             project_key,
             limit=limit,
             list_path=lp if lp else None,
             terms=terms,
-            client_filter=use_filter,
+            client_filter=True,
+            strict_model_scope=True,
         )
         if items:
             return items, q, lp if lp else None
-        if use_filter:
-            items = await _fetch_polarion_items(
-                q,
-                project_key,
-                limit=limit,
-                list_path=lp if lp else None,
-                client_filter=False,
-            )
-            if items:
-                return items, q, lp if lp else None
+    for pr in probes:
+        q = str(pr["query"])
+        if _probe_query_priority(q) >= 20:
+            continue
+        lp = pr.get("listPath")
+        items = await _fetch_polarion_items(
+            q,
+            project_key,
+            limit=limit,
+            list_path=lp if lp else None,
+            terms=terms,
+            client_filter=True,
+            strict_model_scope=True,
+        )
+        if items:
+            return items, q, lp if lp else None
     return [], None, None
+
+
+async def _try_tight_apply_model_queries(
+    project_key: str,
+    terms: list[str],
+    probe_queries: list[str],
+) -> tuple[list[dict[str, Any]], str | None]:
+    """applyModel / type+field probe hit 만 사용 (UI 1차)."""
+    for q in probe_queries:
+        ql = q.lower()
+        if "applymodel" not in ql and "model_name" not in ql:
+            continue
+        if "type:" not in ql:
+            continue
+        pr = await _probe_polarion_query(q, project_key)
+        count = int(pr.get("count") or 0)
+        if count <= 0 or pr.get("error") or count > 400:
+            continue
+        items = await _fetch_polarion_items(
+            q,
+            project_key,
+            limit=PRD_LIST_LIMIT,
+            terms=terms,
+            client_filter=True,
+            strict_model_scope=True,
+        )
+        if items:
+            return items, q
+    return [], None
 
 
 async def _run_discovery(
@@ -512,7 +609,12 @@ async def get_prd_for_model(
                 winning_query = str(pr["query"])
                 break
 
-    if (settings.polarion_pat or "").strip() and list_mode and effective_discover:
+    if (settings.polarion_pat or "").strip() and list_mode:
+        items, winning_query = await _try_tight_apply_model_queries(proj, terms, probe_queries)
+        if items:
+            source = "polarion+applyModel"
+
+    if (settings.polarion_pat or "").strip() and list_mode and effective_discover and not items:
         discovery = await _run_discovery(proj, terms)
         items, winning_query, winning_list_path = await _fetch_from_discovery_probes(
             discovery, proj, terms
@@ -573,9 +675,10 @@ async def get_prd_for_model(
                 items = await _fetch_polarion_items(
                     q,
                     proj,
-                    limit=120,
+                    limit=PRD_LIST_LIMIT,
                     terms=terms,
                     client_filter=True,
+                    strict_model_scope=True,
                 )
                 if items:
                     winning_query = q
@@ -618,6 +721,8 @@ async def get_prd_for_model(
             "source": source,
             "terms": terms,
             "winningQuery": winning_query,
+            "listLimit": PRD_LIST_LIMIT,
+            "filterMode": "modelScope" if list_mode else "probe",
             "discoveryHits": (discovery or {}).get("hits") if discovery else None,
             "total": len(items),
             "polarionConfigured": bool((settings.polarion_pat or "").strip()),
