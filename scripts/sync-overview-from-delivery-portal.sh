@@ -9,11 +9,6 @@
 #
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
-SCRIPT_DIR="$(dirname "$0")"
-if [ ! -f "$SCRIPT_DIR/sync-overview-from-delivery-portal.sh" ] && [ ! -f "scripts/sync-overview-from-delivery-portal.sh" ]; then
-  echo "sync-overview-from-delivery-portal.sh 없음 — fetch-delivery-portal-pod-scripts.sh 실행" >&2
-  exit 1
-fi
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 # linked = PO 5건 UUID. audio_products = Audio_Earbud/Others/Soundbar/Speaker 전체
 SCOPE="${SCOPE:-linked}"

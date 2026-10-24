@@ -41,8 +41,8 @@ check "html2canvas dependency" "grep -q '\"html2canvas\"' package.json"
 check "mail uses sortedModels not filter only" "grep -q 'models={sortedModels}' src/pages/ModelScheduleOverviewPage.tsx"
 
 if [ -d build ]; then
-  if grep -rq 'A~H 메타' build/ 2>/dev/null; then
-    echo "  OK  build/ contains new UI strings"
+  if grep -rq '일정가져오기' build/ 2>/dev/null; then
+    echo "  OK  build/ contains 일정가져오기"
   else
     echo "  NG  build/ is old — run: npm run build"
     FAIL=1
@@ -63,7 +63,8 @@ if [ "$FAIL" -eq 0 ]; then
 else
   echo "❌ 구버전 또는 미배포. 아래 실행:"
   echo "  git fetch github cursor/model-schedule-bar-label-fix-b14b"
-  echo "  sh scripts/apply-model-schedule-overview-fe.sh"
+  echo "  curl -fsSL \"https://raw.githubusercontent.com/ChrisKSM/PM_homework/fdc8161/scripts/patch-fe-overview-portal-sync-from-github.sh\" | REF=fdc8161 sh"
+  echo "  # 또는: sh scripts/apply-model-schedule-overview-fe.sh"
   echo "  npm run build && git push origin master"
 fi
 echo "=== Done ==="

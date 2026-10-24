@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     polarion_verify_ssl: bool = False
     # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
     polarion_list_path: str = "workitems"
+    polarion_prd_project_key: str = ""  # 비우면 polarion_project_key
+    # alm page.js — davis-db-api /alm/workitems/list (선택)
+    davis_db_api_base_url: str = ""
+    davis_db_api_key: str = ""
+    davis_alm_project_id: str = ""
 
     # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
     #  ※ URL/API-key 불필요. SDK가 내부에서 dej 플랫폼 연결을 처리.

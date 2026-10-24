@@ -2,6 +2,7 @@ import client from './client'
 import type { ModelStatusInitiativeIssue } from '../types/modelStatusInitiative'
 import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt'
 import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
+import type { ModelStatusPrdResponse } from '../types/modelStatusPrd'
 import {
   initiativeJiraLabelForModel,
   MODEL_STATUS_INITIATIVE_JIRA_LABEL,
@@ -63,6 +64,13 @@ export const modelStatusApi = {
 
   getReleaseCalendar: () =>
     client.get<ModelReleaseGanttResponse['calendar']>('/model-status/release/calendar').then((r) => r.data),
+
+  getPrd: (model: string, probe = true) =>
+    client
+      .get<ModelStatusPrdResponse>('/model-status/prd', {
+        params: { model, probe: probe ? true : undefined },
+      })
+      .then((r) => r.data),
 
   getStorySpKpi: (model: string) => {
     const label =

@@ -6,6 +6,7 @@ import ModelStatusEventsTable from './ModelStatusEventsTable'
 import ModelStatusMetaCard from './ModelStatusMetaCard'
 import ManagerDashboardBody from './ManagerDashboardBody'
 import ModelStatusInitiativePanel from './ModelStatusInitiativePanel'
+import ModelStatusPrdPanel from './ModelStatusPrdPanel'
 import ModelStatusReleaseEpicGantt from './ModelStatusReleaseEpicGantt'
 import ModelStatusOverviewEventTimeline from './ModelStatusOverviewEventTimeline'
 import {
@@ -319,15 +320,7 @@ export default function ModelIntegratedDashboard({
         />
       )}
 
-      {tab === 'prd' && (
-        <div className="rounded-xl border border-surface-border bg-white p-4">
-          <h3 className="text-sm font-semibold text-gray-800 mb-2">PRD 요구사항</h3>
-          <ul className="text-xs text-gray-600 space-y-2 list-disc pl-4">
-            <li>Closed {issues.prdClosed} / {issues.prdTotal} (검증 일정 Status 기준 proxy)</li>
-            <li>{overview.spec || '스펙 — overview A~H 열'}</li>
-          </ul>
-        </div>
-      )}
+      {tab === 'prd' && <ModelStatusPrdPanel modelCode={modelCode} active={tab === 'prd'} />}
 
       {tab === 'issues' && (
         <div className="rounded-xl border border-surface-border bg-white overflow-hidden">
