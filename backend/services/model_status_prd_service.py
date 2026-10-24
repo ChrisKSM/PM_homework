@@ -299,8 +299,10 @@ def _probe_query_priority(query: str) -> int:
         score += 110
     if "type:" in ql and " and " in ql:
         score += 90
+    if "title:" in ql:
+        score += 75
     if "title:" in ql and ("h7" in ql or "sound" in ql):
-        score += 70
+        score += 85
     if "project_name:" in ql:
         score += 40
     if ql.startswith("type:") and " and " not in ql:
@@ -417,6 +419,30 @@ def _query_needs_client_filter(query: str) -> bool:
     return "title:" in q or q.startswith("(")
 
 
+def _query_is_lucene_model_scoped(query: str, terms: list[str]) -> bool:
+    """title:\"H7 VI\" / applyModel:… 처럼 Lucene이 이미 모델을 좁힌 경우 — BE 재필터 생략."""
+    ql = (query or "").lower()
+    if "applymodel" in ql or "applicationmodel" in ql or "model_name:" in ql:
+        return True
+    if "title:" in ql:
+        for term in terms:
+            t = (term or "").strip()
+            if len(t) >= 4 and t.lower() in ql:
+                return True
+            if "h7" in t.lower() and "h7" in ql:
+                return True
+    return False
+
+
+def _fetch_filter_flags(query: str, terms: list[str]) -> tuple[bool, bool]:
+    """(client_filter, strict_model_scope)"""
+    if _query_is_lucene_model_scoped(query, terms):
+        return False, False
+    if _query_needs_client_filter(query):
+        return True, True
+    return False, False
+
+
 async def _fetch_from_discovery_probes(
     discovery: dict[str, Any],
     project_key: str,
@@ -437,14 +463,15 @@ async def _fetch_from_discovery_probes(
         if _probe_query_priority(q) < 20:
             continue
         lp = pr.get("listPath")
+        cf, strict = _fetch_filter_flags(q, terms)
         items = await _fetch_polarion_items(
             q,
             project_key,
             limit=limit,
             list_path=lp if lp else None,
             terms=terms,
-            client_filter=True,
-            strict_model_scope=True,
+            client_filter=cf,
+            strict_model_scope=strict,
         )
         if items:
             return items, q, lp if lp else None
@@ -453,18 +480,44 @@ async def _fetch_from_discovery_probes(
         if _probe_query_priority(q) >= 20:
             continue
         lp = pr.get("listPath")
+        cf, strict = _fetch_filter_flags(q, terms)
         items = await _fetch_polarion_items(
             q,
             project_key,
             limit=limit,
             list_path=lp if lp else None,
             terms=terms,
-            client_filter=True,
-            strict_model_scope=True,
+            client_filter=cf,
+            strict_model_scope=strict,
         )
         if items:
             return items, q, lp if lp else None
     return [], None, None
+
+
+async def _try_title_term_queries(
+    project_key: str,
+    terms: list[str],
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Polarion hit — title:\"H7 VI\" 등 (probe에서 검증된 패턴)."""
+    ordered = sorted(terms, key=lambda t: len(t or ""), reverse=True)
+    for term in ordered:
+        t = (term or "").strip()
+        if len(t) < 4:
+            continue
+        q = f"title:{_quote_polarion_value(t)}"
+        pr = await _probe_polarion_query(q, project_key)
+        if int(pr.get("count") or 0) <= 0 or pr.get("error"):
+            continue
+        items = await _fetch_polarion_items(
+            q,
+            project_key,
+            limit=PRD_LIST_LIMIT,
+            client_filter=False,
+        )
+        if items:
+            return items, q
+    return [], None
 
 
 async def _try_tight_apply_model_queries(
@@ -683,6 +736,11 @@ async def get_prd_for_model(
                 break
 
     if (settings.polarion_pat or "").strip() and list_mode:
+        items, winning_query = await _try_title_term_queries(proj, terms)
+        if items:
+            source = "polarion+title"
+
+    if (settings.polarion_pat or "").strip() and list_mode and not items:
         items, winning_query = await _try_tight_apply_model_queries(proj, terms, probe_queries)
         if items:
             source = "polarion+applyModel"
@@ -815,8 +873,13 @@ async def get_prd_for_model(
             "source": source,
             "terms": terms,
             "winningQuery": winning_query,
+            "polarionUrl": polarion_workitems_search_url(proj, winning_query) if winning_query else None,
             "listLimit": PRD_LIST_LIMIT,
-            "filterMode": "modelScope" if list_mode else "probe",
+            "filterMode": (
+                "luceneOnly"
+                if winning_query and _query_is_lucene_model_scoped(str(winning_query), terms)
+                else ("modelScope" if list_mode else "probe")
+            ),
             "discoveryHits": (discovery or {}).get("hits") if discovery else None,
             "total": len(items),
             "polarionConfigured": bool((settings.polarion_pat or "").strip()),

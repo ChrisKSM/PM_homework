@@ -294,12 +294,19 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
           {meta?.listLimit ? ` · max ${meta.listLimit}` : ''})
         </span>
         {meta?.winningQuery ? (
-          <span
-            className="block w-full text-[10px] text-gray-400 truncate max-w-4xl"
-            title={meta.winningQuery}
-          >
+          <span className="block w-full text-[10px] text-gray-400 truncate max-w-4xl" title={meta.winningQuery}>
             query: {meta.winningQuery}
           </span>
+        ) : null}
+        {meta?.polarionUrl ? (
+          <a
+            href={meta.polarionUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="block text-[10px] text-blue-600 hover:underline truncate max-w-4xl"
+          >
+            Polarion에서 같은 검색 열기
+          </a>
         ) : null}
         <button
           type="button"
