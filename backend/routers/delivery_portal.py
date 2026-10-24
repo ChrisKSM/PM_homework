@@ -1,10 +1,10 @@
 """Delivery Portal — all_deliveries_data / program-report 프록시 (토큰은 BE .env)."""
 from __future__ import annotations
 
-import httpx
 from fastapi import APIRouter, HTTPException, Request
 
 from config import settings
+from services.delivery_portal_client import fetch_all_deliveries_data
 
 router = APIRouter(prefix="/api/delivery-portal", tags=["delivery-portal"])
 
@@ -31,6 +31,8 @@ async def delivery_ping():
 
 async def _portal_get(path: str, *, params: dict | None = None) -> object:
     """GET /api/v1/{path} — Bearer DELIVERY_PORTAL_API_TOKEN."""
+    import httpx
+
     base = settings.delivery_portal_base_url.rstrip("/")
     segment = path.strip("/")
     url = f"{base}/api/v1/{segment}/"
@@ -55,7 +57,7 @@ async def _portal_get(path: str, *, params: dict | None = None) -> object:
 @router.get("/all-deliveries")
 async def all_deliveries():
     """Davis MilestonePage — GET /api/v1/all_deliveries_data/"""
-    return await _portal_get("all_deliveries_data")
+    return await fetch_all_deliveries_data()
 
 
 @router.get("/program-report")

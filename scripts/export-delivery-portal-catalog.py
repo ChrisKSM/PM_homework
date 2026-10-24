@@ -269,6 +269,21 @@ def main() -> None:
     ap.add_argument("all_deliveries_json", nargs="?", help="Path to all_deliveries JSON")
     ap.add_argument("program_report_json", nargs="?", help="Path to program-report JSON")
     ap.add_argument("--fetch", action="store_true", help="Fetch from DELIVERY_PORTAL_* env")
+    ap.add_argument(
+        "--department",
+        metavar="NAME",
+        help="Print/write only this department (e.g. Audio). Skips 20-platform summary.",
+    )
+    ap.add_argument(
+        "--platform",
+        metavar="NAME",
+        help="With --department, filter to one platform (e.g. webOS26)",
+    )
+    ap.add_argument(
+        "--schedules",
+        action="store_true",
+        help="With --department, also write *-schedules.tsv (one row per test bar)",
+    )
     args = ap.parse_args()
 
     all_data = None
@@ -292,8 +307,16 @@ def main() -> None:
             sys.exit(1)
 
     if isinstance(all_data, dict):
-        catalog_all_deliveries(all_data)
-    if report_data is not None:
+        if args.department:
+            export_department_details(
+                all_data,
+                args.department,
+                platform_filter=args.platform or None,
+                include_schedules=args.schedules,
+            )
+        else:
+            catalog_all_deliveries(all_data)
+    if report_data is not None and not args.department:
         catalog_program_report(report_data)
 
 
