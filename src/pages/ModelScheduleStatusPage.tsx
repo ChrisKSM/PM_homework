@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import Header from '../components/layout/Header'
 import ModelIntegratedDashboard from '../components/modelStatus/ModelIntegratedDashboard'
@@ -13,8 +14,10 @@ import { isModelStatusModelDisabled } from '../utils/modelStatusDisabled'
 import type { OverviewModel } from '../types/modelScheduleOverview'
 import type { ModelRow } from '../utils/modelScheduleRows'
 import { prepareOverviewModels } from '../utils/modelScheduleOverviewRows'
+import { canonicalModelName } from '../utils/modelScheduleRows'
 
 export default function ModelScheduleStatusPage() {
+  const [searchParams] = useSearchParams()
   const [overviewModels, setOverviewModels] = useState<OverviewModel[]>(() =>
     prepareOverviewModels(OVERVIEW_MOCK_MODELS),
   )
@@ -60,15 +63,28 @@ export default function ModelScheduleStatusPage() {
   )
 
   useEffect(() => {
+    const qGroup = searchParams.get('group') as ModelStatusProductGroupId | null
+    const qModel = searchParams.get('model')
+    if (qGroup && MODEL_STATUS_PRODUCT_GROUPS.some((g) => g.id === qGroup)) {
+      setProductGroupId(qGroup)
+    }
+    if (qModel) {
+      const decoded = decodeURIComponent(qModel).trim()
+      setModelCode(decoded.includes('_') ? decoded : canonicalModelName(decoded))
+    }
+  }, [searchParams])
+
+  useEffect(() => {
     const list = group.models.length
       ? group.models
       : overviewModels.filter((m) => m.category.includes(group.label)).map((m) => m.model)
     const enabled = list.filter((m) => !isModelStatusModelDisabled(m))
     const pick = enabled[0] ?? list[0]
     if (pick && (!list.includes(modelCode) || isModelStatusModelDisabled(modelCode))) {
-      setModelCode(pick)
+      const qModel = searchParams.get('model')
+      if (!qModel) setModelCode(pick)
     }
-  }, [group, modelCode, overviewModels])
+  }, [group, modelCode, overviewModels, searchParams])
 
   const handleProductGroupChange = (id: ModelStatusProductGroupId) => {
     setProductGroupId(id)

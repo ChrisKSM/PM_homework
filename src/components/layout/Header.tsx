@@ -7,17 +7,35 @@ import { useDashboardStore } from '../../store/dashboardStore'
 interface HeaderProps {
   title: string
   subtitle?: string
+  /** 기본 새로고침 대신 사용 (예: Delivery Portal sync) */
+  onRefresh?: () => void | Promise<void>
+  refreshLabel?: string
+  /** false면 우측 버튼 숨김 */
+  showRefresh?: boolean
 }
 
-export default function Header({ title, subtitle }: HeaderProps) {
+export default function Header({
+  title,
+  subtitle,
+  onRefresh,
+  refreshLabel = '새로고침',
+  showRefresh = true,
+}: HeaderProps) {
   const queryClient = useQueryClient()
   const { sidebarOpen } = useDashboardStore()
   const [refreshing, setRefreshing] = useState(false)
 
   const handleRefresh = async () => {
     setRefreshing(true)
-    await queryClient.invalidateQueries()
-    setTimeout(() => setRefreshing(false), 800)
+    try {
+      if (onRefresh) {
+        await onRefresh()
+      } else {
+        await queryClient.invalidateQueries()
+      }
+    } finally {
+      setTimeout(() => setRefreshing(false), 400)
+    }
   }
 
   return (
@@ -38,14 +56,17 @@ export default function Header({ title, subtitle }: HeaderProps) {
         <span className="text-xs text-gray-500 hidden sm:block font-medium">
           마지막 업데이트: {new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
         </span>
-        <button
-          onClick={handleRefresh}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-surface-page border border-surface-border transition-colors"
-          disabled={refreshing}
-        >
-          <RefreshCw size={13} className={clsx(refreshing && 'animate-spin')} />
-          새로고침
-        </button>
+        {showRefresh ? (
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-700 bg-white hover:bg-surface-page border border-surface-border transition-colors disabled:opacity-60"
+            disabled={refreshing}
+          >
+            <RefreshCw size={13} className={clsx(refreshing && 'animate-spin')} />
+            {refreshLabel}
+          </button>
+        ) : null}
       </div>
     </header>
   )

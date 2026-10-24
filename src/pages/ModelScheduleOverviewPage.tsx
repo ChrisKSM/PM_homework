@@ -1,10 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import {
   Camera,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Filter,
   Loader2,
@@ -32,6 +30,13 @@ import {
   type OverviewMetaKey,
 } from '../utils/modelScheduleOverviewRows'
 import { HW_BAR_STYLE, SW_BAR_STYLE } from '../utils/overviewBarStyles'
+import { buildModelStatusUrl } from '../utils/overviewModelStatusLink'
+import {
+  buildOverviewTimelineDates,
+  dayStart as timelineDayStart,
+  overviewTimelinePeriodLabel,
+  toISO as timelineToISO,
+} from '../utils/overviewTimelineRange'
 
 function addDays(d: Date, n: number) {
   const r = new Date(d)
@@ -58,13 +63,6 @@ function normDate(s: string) {
 }
 function diffD(a: Date, b: Date) {
   return Math.round((b.getTime() - a.getTime()) / 86400000)
-}
-function daysInMonth(year: number, month: number) {
-  return new Date(year, month + 1, 0).getDate()
-}
-function monthLabel(year: number, month: number) {
-  const last = daysInMonth(year, month)
-  return `${month + 1}/1 ~ ${month + 1}/${last}`
 }
 function uniqSorted(values: string[]) {
   return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b, 'ko'))
@@ -170,10 +168,7 @@ export default function ModelScheduleOverviewPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'warn'; text: string } | null>(null)
   const [dataSource, setDataSource] = useState<'mongo' | 'local' | 'mock'>('mock')
-  const [viewMonth, setViewMonth] = useState(() => {
-    const t = new Date()
-    return { year: t.getFullYear(), month: t.getMonth() }
-  })
+  const [syncingPortal, setSyncingPortal] = useState(false)
   const [fCat, setFCat] = useState('')
   const [fModel, setFModel] = useState('')
   const [addCategory, setAddCategory] = useState('Sound Suite')
@@ -187,6 +182,20 @@ export default function ModelScheduleOverviewPage() {
     draft: OverviewEventDraft
     isNew: boolean
   } | null>(null)
+
+  const reloadOverviewFromApi = useCallback(async () => {
+    const res = await modelScheduleApi.loadOverview()
+    if (res.models.length > 0) {
+      setModels(prepareOverviewModels(res.models as OverviewModel[]))
+      setDataSource(res.source === 'default' ? 'mock' : res.source)
+      setLoadError(null)
+    } else {
+      setModels(prepareOverviewModels(OVERVIEW_MOCK_MODELS))
+      setDataSource('mock')
+      setLoadError('DB/API 데이터 없음 — mock 데이터 표시')
+    }
+    return res
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -202,20 +211,7 @@ export default function ModelScheduleOverviewPage() {
       }
     }
 
-    modelScheduleApi
-      .loadOverview()
-      .then((res) => {
-        if (cancelled) return
-        if (res.models.length > 0) {
-          setModels(prepareOverviewModels(res.models as OverviewModel[]))
-          setDataSource(res.source === 'default' ? 'mock' : res.source)
-          setLoadError(null)
-        } else {
-          setModels(prepareOverviewModels(OVERVIEW_MOCK_MODELS))
-          setDataSource('mock')
-          setLoadError('DB/API 데이터 없음 — mock 데이터 표시')
-        }
-      })
+    reloadOverviewFromApi()
       .catch(() => {
         if (cancelled) return
         setModels(prepareOverviewModels(OVERVIEW_MOCK_MODELS))
@@ -228,7 +224,36 @@ export default function ModelScheduleOverviewPage() {
     return () => {
       cancelled = true
     }
-  }, [location.pathname, location.search, mockPreview])
+  }, [location.pathname, location.search, mockPreview, reloadOverviewFromApi])
+
+  const fetchScheduleFromDeliveryPortal = useCallback(async () => {
+    if (mockPreview) {
+      setSaveMessage({ type: 'warn', text: 'Mock 미리보기 — Delivery Portal 동기화 불가' })
+      return
+    }
+    if (editing) {
+      setSaveMessage({ type: 'warn', text: '편집 중에는 일정가져오기를 할 수 없습니다.' })
+      return
+    }
+    setSyncingPortal(true)
+    setSaveMessage(null)
+    try {
+      const summary = await modelScheduleApi.syncOverviewFromDeliveryPortal({ scope: 'audio_products' })
+      await reloadOverviewFromApi()
+      const n = Number(summary.model_count ?? summary.portal_program_count ?? 0)
+      setSaveMessage({
+        type: 'success',
+        text: `Delivery Portal 반영 완료 (모델 ${n}건)`,
+      })
+    } catch (e: unknown) {
+      const detail =
+        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ||
+        (e instanceof Error ? e.message : 'unknown')
+      setSaveMessage({ type: 'warn', text: `일정가져오기 실패: ${detail}` })
+    } finally {
+      setSyncingPortal(false)
+    }
+  }, [mockPreview, editing, reloadOverviewFromApi])
 
   const sortedModels = useMemo(() => prepareOverviewModels(models), [models])
   const categoryOptions = useMemo(() => uniqSorted(sortedModels.map((m) => m.category)), [sortedModels])
@@ -257,31 +282,16 @@ export default function ModelScheduleOverviewPage() {
       }),
     [sortedModels, fCat, fModel],
   )
-  const viewStart = useMemo(
-    () => dayStart(new Date(viewMonth.year, viewMonth.month, 1)),
-    [viewMonth],
-  )
-  const monthDays = useMemo(() => daysInMonth(viewMonth.year, viewMonth.month), [viewMonth])
-  const dates = useMemo(
-    () =>
-      Array.from({ length: monthDays }, (_, i) =>
-        dayStart(new Date(viewMonth.year, viewMonth.month, i + 1)),
-      ),
-    [viewMonth, monthDays],
-  )
-  const today = dayStart(new Date())
+  const dates = useMemo(() => buildOverviewTimelineDates(new Date()), [])
+  const viewStart = useMemo(() => (dates[0] ? timelineDayStart(dates[0]) : timelineDayStart(new Date())), [dates])
+  const timelineLabel = useMemo(() => overviewTimelinePeriodLabel(dates), [dates])
+  const today = timelineDayStart(new Date())
   const todayOff = useMemo(() => {
-    if (today.getFullYear() !== viewMonth.year || today.getMonth() !== viewMonth.month) return -1
-    return today.getDate() - 1
-  }, [today, viewMonth])
+    const iso = timelineToISO(today)
+    return dates.findIndex((d) => timelineToISO(d) === iso)
+  }, [dates, today])
   const displayRows = useMemo(() => expandOverviewToDisplayRows(filteredModels), [filteredModels])
   const hasFilter = Boolean(fCat || fModel)
-  const shiftMonth = (delta: number) => {
-    setViewMonth((prev) => {
-      const d = new Date(prev.year, prev.month + delta, 1)
-      return { year: d.getFullYear(), month: d.getMonth() }
-    })
-  }
 
   const updateModel = (modelId: string, field: OverviewMetaKey, value: string) => {
     setModels((p) => p.map((m) => (m.id === modelId ? { ...m, [field]: value } : m)))
@@ -444,6 +454,19 @@ export default function ModelScheduleOverviewPage() {
       if (!model) return null
       const val = model[key]
       if (!editing) {
+        if (key === 'model') {
+          const label = String(val ?? '')
+          const href = buildModelStatusUrl(label, model.category)
+          return (
+            <Link
+              to={href}
+              className="text-[11px] font-semibold text-gray-900 hover:text-blue-600 hover:underline cursor-pointer"
+              title="모델현황으로 이동"
+            >
+              {label}
+            </Link>
+          )
+        }
         if (key === 'spec' || key === 'swPm') {
           return <MetaTooltipCell value={String(val ?? '')} className="text-[9px] leading-snug" maxWidth={100} />
         }
@@ -469,7 +492,14 @@ export default function ModelScheduleOverviewPage() {
     <>
       <Header
         title="전 모델 일정"
-        subtitle={mockPreview ? 'Mock 미리보기 · JSON import 데이터 (DB 미반영)' : 'A~H 메타 · HW/SW Event 타임라인'}
+        subtitle={
+          mockPreview
+            ? 'Mock 미리보기 · JSON import 데이터 (DB 미반영)'
+            : `Mongo ${dataSource} · ${timelineLabel} (오늘 기준 2주 전~3개월)`
+        }
+        refreshLabel="일정가져오기"
+        onRefresh={fetchScheduleFromDeliveryPortal}
+        showRefresh={!mockPreview}
       />
       <div className="pt-16 p-4">
         {mockPreview && (
@@ -479,15 +509,15 @@ export default function ModelScheduleOverviewPage() {
           </p>
         )}
         <div className="flex items-center gap-2 mb-3 flex-wrap">
-          <button type="button" onClick={() => shiftMonth(-1)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page" title="이전 달">
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-sm font-medium text-gray-700 min-w-[72px] text-center">
-            {viewMonth.year % 100}/{viewMonth.month + 1}월
+          <span className="text-sm font-medium text-gray-700 px-2 py-1 rounded-lg bg-surface-page border border-surface-border">
+            {timelineLabel}
           </span>
-          <button type="button" onClick={() => shiftMonth(1)} className="p-1.5 rounded-lg border border-surface-border hover:bg-surface-page" title="다음 달">
-            <ChevronRight size={16} />
-          </button>
+          {syncingPortal && (
+            <span className="text-[10px] text-gray-500 flex items-center gap-1">
+              <Loader2 size={12} className="animate-spin" />
+              Delivery Portal 동기화…
+            </span>
+          )}
           <div className="w-px h-6 bg-gray-200 mx-1" />
           <div className="flex items-center gap-3 flex-wrap text-[10px] font-medium">
             <span className="text-gray-500 font-semibold">HW</span>
@@ -665,7 +695,9 @@ export default function ModelScheduleOverviewPage() {
             </div>
           </div>
         )}
-        <p className="text-[10px] text-gray-400 mt-2 text-right">빨간 세로선 = 오늘 ({fmt(today)})</p>
+        <p className="text-[10px] text-gray-400 mt-2 text-right">
+          빨간 세로선 = 오늘 ({fmt(today)}) · 가로 스크롤로 {dates.length}일 표시
+        </p>
       </div>
 
       {picker && (
@@ -687,7 +719,7 @@ export default function ModelScheduleOverviewPage() {
         filterActive={hasFilter}
         filteredCount={filteredModels.length}
         dates={dates}
-        periodLabel={`${viewMonth.year % 100}/${viewMonth.month + 1}월`}
+        periodLabel={timelineLabel}
         today={today}
         viewStart={viewStart}
         todayOff={todayOff}

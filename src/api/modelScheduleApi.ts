@@ -176,6 +176,19 @@ export const modelScheduleApi = {
     return { models: [], count: 0, source: 'default' }
   },
 
+  syncOverviewFromDeliveryPortal: async (opts?: {
+    dryRun?: boolean
+    scope?: 'linked' | 'audio_products'
+  }): Promise<Record<string, unknown>> => {
+    const params: Record<string, string | boolean> = {}
+    if (opts?.dryRun) params.dry_run = true
+    if (opts?.scope) params.scope = opts.scope
+    const res = await client
+      .post<Record<string, unknown>>('/model-schedule/overview/sync-delivery-portal', null, { params })
+      .then((r) => r.data)
+    return res
+  },
+
   saveOverview: async (models: any[]): Promise<{ saved: number; message: string; source: 'mongo' | 'local' }> => {
     try {
       const res = await client
