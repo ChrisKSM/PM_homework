@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 
@@ -276,6 +277,16 @@ def workitem_matches_model_scope(flat: dict[str, Any], terms: list[str]) -> bool
         if "h7" in apply:
             return True
     return False
+
+
+POLARION_UI_BASE = "https://alm-lge-hlm.singlex.com/polarion/#/project"
+
+
+def polarion_workitems_search_url(project_key: str, query: str) -> str:
+    """Polarion UI — workitems Lucene 검색 URL (브라우저에 붙여넣기)."""
+    key = (project_key or settings.polarion_project_key).strip()
+    enc = quote(query, safe="")
+    return f"{POLARION_UI_BASE}/{key}/workitems?query={enc}"
 
 
 def _probe_query_priority(query: str) -> int:
@@ -579,6 +590,68 @@ async def _fetch_davis_alm(query: str, project_id: str, alm_type: str) -> tuple[
     return normalized, "davis-db-api"
 
 
+async def get_prd_query_catalog(
+    model: str | None,
+    *,
+    project_key: str | None = None,
+    max_queries: int = 50,
+) -> dict[str, Any]:
+    """
+    Polarion Lucene 후보 전부 probe — count + UI URL.
+    BE pod / 브라우저에서 query 확인용.
+    """
+    proj = (project_key or getattr(settings, "polarion_prd_project_key", "") or settings.polarion_project_key).strip()
+    terms = apply_model_search_terms(model)
+    probe_queries = build_prd_probe_queries(terms)
+    discovery_queries = build_prd_discovery_queries(terms)
+    all_queries = _dedupe_queries(probe_queries + discovery_queries, limit=max_queries)
+
+    catalog: list[dict[str, Any]] = []
+    if not (settings.polarion_pat or "").strip():
+        return {
+            "meta": {
+                "model": model,
+                "projectKey": proj,
+                "terms": terms,
+                "polarionConfigured": False,
+                "error": "POLARION_PAT not configured",
+            },
+            "queryCatalog": [],
+            "recommended": [],
+        }
+
+    for q in all_queries:
+        pr = await _probe_polarion_query(q, proj)
+        count = int(pr.get("count") or 0)
+        catalog.append(
+            {
+                "query": q,
+                "count": count,
+                "error": pr.get("error"),
+                "priority": _probe_query_priority(q),
+                "polarionUrl": polarion_workitems_search_url(proj, q),
+            }
+        )
+
+    catalog.sort(key=lambda row: (-int(row.get("priority") or 0), -int(row.get("count") or 0)))
+    hits = [row for row in catalog if row.get("count") and not row.get("error")]
+    recommended = hits[:8] if hits else catalog[:12]
+
+    return {
+        "meta": {
+            "model": model,
+            "projectKey": proj,
+            "terms": terms,
+            "polarionConfigured": True,
+            "probed": len(catalog),
+            "hitCount": len(hits),
+            "hint": "recommended[].polarionUrl 을 브라우저에서 열어 hit 쿼리 확인",
+        },
+        "queryCatalog": catalog,
+        "recommended": recommended,
+    }
+
+
 async def get_prd_for_model(
     model: str | None,
     *,
@@ -687,6 +760,27 @@ async def get_prd_for_model(
             except Exception:
                 continue
 
+    if list_mode and not items and (settings.polarion_pat or "").strip():
+        cat = await get_prd_query_catalog(model, project_key=proj, max_queries=24)
+        rec = cat.get("recommended") or []
+        if rec:
+            for row in rec:
+                if not row.get("count"):
+                    continue
+                q = str(row["query"])
+                items = await _fetch_polarion_items(
+                    q,
+                    proj,
+                    limit=PRD_LIST_LIMIT,
+                    terms=terms,
+                    client_filter=True,
+                    strict_model_scope=False,
+                )
+                if items:
+                    winning_query = q
+                    source = "polarion+relaxedFilter"
+                    break
+
     if not items:
         davis_project = (getattr(settings, "davis_alm_project_id", "") or proj).strip()
         for q in probe_queries[:8]:
@@ -731,6 +825,11 @@ async def get_prd_for_model(
                 and (getattr(settings, "davis_db_api_key", "") or "").strip()
             ),
             "labelStore": label_meta,
+            "queryCatalogHint": (
+                f"/api/model-status/prd/query-catalog?model={model or ''}"
+                if list_mode and not items
+                else None
+            ),
         },
         "workflowColumns": [{"id": c["id"], "label": c["label"], "order": c["order"]} for c in PRD_WORKFLOW_COLUMNS],
         "probe": probe_results if probe else [],

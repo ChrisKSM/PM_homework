@@ -38,6 +38,8 @@ fetch backend/config.py config.py
 fetch backend/polarion_client.py polarion_client.py
 fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.sh
 fetch scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-prd-fetch.sh
+fetch scripts/print-prd-polarion-query-urls.sh scripts/print-prd-polarion-query-urls.sh
+chmod +x scripts/print-prd-polarion-query-urls.sh 2>/dev/null || true
 chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh 2>/dev/null || true
 
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then

@@ -1,5 +1,6 @@
 from services.model_status_prd_service import (
     _probe_query_priority,
+    polarion_workitems_search_url,
     apply_model_search_terms,
     build_prd_discovery_queries,
     build_prd_probe_queries,
@@ -30,6 +31,12 @@ def test_discovery_includes_title_and_model_name():
 def test_client_filter_apply_terms():
     flat = {"title": "foo", "customApplyModel": "Sound suite_H7"}
     assert workitem_matches_apply_terms(flat, ["Sound Suite H7"])
+
+
+def test_polarion_ui_url_encodes_query():
+    url = polarion_workitems_search_url("AVSWRelProjMgmt", 'type:PRD AND applyModel:"Sound Suite H7"')
+    assert "AVSWRelProjMgmt/workitems?query=" in url
+    assert "applyModel" in url
 
 
 def test_probe_priority_prefers_apply_model():
