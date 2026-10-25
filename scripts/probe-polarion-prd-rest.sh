@@ -193,7 +193,14 @@ for rest_path in rest_paths:
         http = http.strip()
         if http != "200":
             print(f"HTTP {http}  query={q}")
-            print(body[:200])
+            try:
+                err = json.loads(body).get("errors") or []
+                for e in err:
+                    print("  ", e.get("status"), e.get("detail") or e.get("title"))
+            except json.JSONDecodeError:
+                print(body[:200])
+            if http == "403":
+                print("  → 쿼리 문제 아님: PAT/프로젝트 권한. sh scripts/diagnose-polarion-pat.sh")
             continue
         try:
             data = json.loads(body)
