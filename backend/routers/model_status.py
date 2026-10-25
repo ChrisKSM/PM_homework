@@ -8,6 +8,15 @@ from config import settings
 from services import model_status_initiative_service
 
 
+def _sprint_story_label_models() -> set[str]:
+    try:
+        from services.model_status_sprint_service import SPRINT_STORY_LABEL_BY_MODEL
+
+        return set(SPRINT_STORY_LABEL_BY_MODEL.keys())
+    except ImportError:
+        return set()
+
+
 def _release_gantt_service():
     """Pod에 router만 있고 service 파일이 없을 때 uvicorn 기동은 유지."""
     try:
@@ -92,7 +101,11 @@ async def initiatives_ping():
     return {
         "ok": True,
         "service": "model-status-initiatives",
-        "models": list(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
+        "models": sorted(
+            set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
+            | set(_sprint_story_label_models())
+        ),
+        "sprintModels": sorted(_sprint_story_label_models()),
         "tvjira": {
             "baseUrl": settings.tvjira_base_url.rstrip("/"),
             "tokenSource": source,
@@ -397,6 +410,41 @@ async def model_status_prd_query_catalog(
         return await get_prd_query_catalog(model, project_key=project_key, max_queries=max_queries)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"PRD query catalog 오류: {e}") from e
+
+
+@router.get("/sprint/dashboard")
+async def model_status_sprint_dashboard(
+    model: str | None = Query(None, description="UI model e.g. S80C, H7_VI"),
+    label: str | None = Query(None, description='Jira Story label e.g. S80C, SoundSuite_H7(VI)'),
+):
+    """Harmony Jira board — 현재 sprint Story 를 model label 로 필터 (burndown/velocity/workload)."""
+    from services.model_status_sprint_service import (
+        SPRINT_STORY_LABEL_BY_MODEL,
+        get_sprint_dashboard_for_model,
+        resolve_sprint_story_label,
+    )
+
+    if not (label and label.strip()) and model:
+        auto = resolve_sprint_story_label(model, None)
+        if auto:
+            label = auto
+
+    try:
+        return await get_sprint_dashboard_for_model(model=model, label=label)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(e),
+                "knownModels": sorted(SPRINT_STORY_LABEL_BY_MODEL.keys()),
+                "hint": "label= 쿼리 또는 model=S80C 등 등록 모델",
+            },
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Jira sprint 조회 오류: {e} — JIRA_API_TOKEN · board_id · GET /api/jira/diagnose",
+        ) from e
 
 
 @router.get("/prd")

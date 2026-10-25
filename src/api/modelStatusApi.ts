@@ -3,6 +3,8 @@ import type { ModelStatusInitiativeIssue } from '../types/modelStatusInitiative'
 import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt'
 import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
 import type { ModelStatusPrdLabelSaveBody, ModelStatusPrdResponse } from '../types/modelStatusPrd'
+import type { ModelStatusSprintResponse } from '../types/modelStatusSprint'
+import { sprintJiraLabelForModel } from '../data/modelStatusSprintJiraLabels'
 import {
   initiativeJiraLabelForModel,
   MODEL_STATUS_INITIATIVE_JIRA_LABEL,
@@ -75,6 +77,15 @@ export const modelStatusApi = {
   savePrdReviewLabel: (body: ModelStatusPrdLabelSaveBody) =>
     client.put<{ ok: boolean }>('/model-status/prd/labels', body).then((r) => r.data),
 
+  getSprintDashboard: (model: string) => {
+    const label = sprintJiraLabelForModel(model)
+    const params: { model: string; label?: string } = { model }
+    if (label) params.label = label
+    return client
+      .get<ModelStatusSprintResponse>('/model-status/sprint/dashboard', { params })
+      .then((r) => r.data)
+  },
+
   getStorySpKpi: (model: string) => {
     const label =
       initiativeJiraLabelForModel(model) ??
@@ -89,3 +100,7 @@ export const modelStatusApi = {
 
 /** BE Jira label 매핑 (없으면 mock 유지) */
 export const MODEL_INITIATIVE_JIRA_MODELS = new Set(Object.keys(MODEL_STATUS_INITIATIVE_JIRA_LABEL))
+
+/** Harmony board sprint — model label 매핑 (Initiative TV Jira 와 별도) */
+export { MODEL_SPRINT_JIRA_MODELS, sprintJiraLabelForModel } from '../data/modelStatusSprintJiraLabels'
+
