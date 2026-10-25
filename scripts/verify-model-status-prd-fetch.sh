@@ -36,8 +36,12 @@ print("=== UI list ===")
 print("prdFetchVersion:", meta.get("prdFetchVersion"))
 print("source:", meta.get("source"))
 print("projectKey:", meta.get("projectKey"))
-print("listPath:", meta.get("listPath"))
+print("listPath (UI):", meta.get("listPath"))
+print("restListPath:", meta.get("restListPath"))
 print("winningQuery:", meta.get("winningQuery"))
+attempts = meta.get("polarionFetchAttempts") or []
+for a in attempts[:6]:
+    print("  try", a.get("restPath"), "total=", a.get("polarionTotal"), "listed=", a.get("listed"), a.get("error") or "")
 print("filterMode:", meta.get("filterMode"))
 print("items:", len(items))
 if meta.get("polarionUrl"):
@@ -45,7 +49,7 @@ if meta.get("polarionUrl"):
 wq = meta.get("winningQuery") or ""
 if "components:" not in wq:
     print("WARN: winningQuery에 components: 없음 — BE 패치/재시작 확인")
-if meta.get("prdFetchVersion") != "components-or-merge-v4":
+if meta.get("prdFetchVersion") != "components-ui-space-v6":
     print("WARN: 구버전 BE — curl ...patch-be-model-status-prd-from-github.sh | REF=최신 sh")
 if len(items) < 1:
     print("WARN: 0건 — Polarion PAT / AVSWReqMgmt / workitems/PRD 확인")

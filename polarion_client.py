@@ -79,6 +79,38 @@ def _safe_text(attrs: dict, key: str) -> str:
     return str(val).strip()
 
 
+def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
+    """Polarion customs list JSON → (workitems, totalCount)."""
+    obj: dict[str, Any] | None = None
+    if isinstance(data, dict) and "data" in data:
+        inner = data["data"]
+        if isinstance(inner, list) and inner:
+            obj = inner[0] if isinstance(inner[0], dict) else None
+        elif isinstance(inner, dict):
+            obj = inner
+    elif isinstance(data, list) and data and isinstance(data[0], dict):
+        obj = data[0]
+    elif isinstance(data, dict):
+        obj = data
+
+    if not obj:
+        return [], 0
+
+    workitems: list[dict[str, Any]] = []
+    for key in ("workitems", "workItems", "items", "Workitems", "WorkItems"):
+        raw = obj.get(key)
+        if isinstance(raw, list):
+            workitems = raw
+            break
+
+    total_raw = obj.get("totalCount", obj.get("total", obj.get("totalItems")))
+    try:
+        total_count = int(total_raw) if total_raw is not None else len(workitems)
+    except (TypeError, ValueError):
+        total_count = len(workitems)
+    return workitems, total_count
+
+
 async def fetch_list_page(
     page: int = 1,
     query: str = "type:testDefect",
@@ -93,27 +125,7 @@ async def fetch_list_page(
         "pageSize": page_size,
     }
     resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
-    data = resp.json()
-
-    # 응답 구조: {"data": [{"page":1, "totalCount":N, "workitems":[...]}]}
-    #         또는 [{"page":1, ...}]
-    #         또는 {"workitems":[...]}
-    if isinstance(data, dict) and "data" in data:
-        inner = data["data"]
-        obj = inner[0] if isinstance(inner, list) and inner else inner
-    elif isinstance(data, list) and data and isinstance(data[0], dict):
-        obj = data[0]
-    elif isinstance(data, dict):
-        obj = data
-    else:
-        return [], 0
-
-    if not isinstance(obj, dict):
-        return [], 0
-
-    workitems = obj.get("workitems", [])
-    total_count = obj.get("totalCount", len(workitems))
-    return workitems, total_count
+    return _parse_polarion_list_page(resp.json())
 
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:

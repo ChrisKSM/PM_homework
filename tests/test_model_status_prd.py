@@ -6,6 +6,7 @@ from services.model_status_prd_service import (
     build_components_query,
     polarion_component_for_model,
     polarion_component_values_for_model,
+    encode_polarion_ui_lucene_query,
     polarion_workitems_search_url,
     apply_model_search_terms,
     build_prd_discovery_queries,
@@ -28,18 +29,19 @@ def test_h7_polarion_component_and_query():
         "H7_VI",
     ]
     assert polarion_component_for_model("H7_VI") == "SoundSuite_H7(VI) | H7_VI"
-    assert build_components_query("SoundSuite_H7(VI)") == 'components:("SoundSuite_H7(VI)")'
+    assert build_components_query("SoundSuite_H7(VI)") == r'components:(SoundSuite_H7\(VI\))'
     assert build_components_query(["SoundSuite_H7(VI)", "H7_VI"]) == (
-        'components:("SoundSuite_H7(VI)" OR H7_VI)'
+        r'components:(SoundSuite_H7\(VI\) H7_VI)'
     )
     lucene = build_components_lucene_queries(["SoundSuite_H7(VI)", "H7_VI"])
-    assert lucene[0] == 'components:("SoundSuite_H7(VI)" OR H7_VI)'
+    assert lucene[0] == r'components:(SoundSuite_H7\(VI\) H7_VI)'
+    assert "components:(SoundSuite_H7(VI) H7_VI)" in lucene
     assert 'components:(H7_VI)' in lucene
 
 
 def test_build_prd_queries_contains_components():
     qs = build_prd_probe_queries(["Sound Suite H7"], model="H7_VI")
-    assert qs[0] == 'components:("SoundSuite_H7(VI)" OR H7_VI)'
+    assert qs[0] == r'components:(SoundSuite_H7\(VI\) H7_VI)'
     assert not any(q.startswith("title:") for q in qs)
 
 
@@ -71,10 +73,16 @@ def test_lucene_components_query_skips_refilter():
 
 
 def test_polarion_ui_url_encodes_query():
-    q = build_components_query("SoundSuite_H7(VI)")
+    q = build_components_query(["SoundSuite_H7(VI)", "H7_VI"])
+    enc = encode_polarion_ui_lucene_query(q)
+    assert enc == "components%3A(SoundSuite_H7%5C(VI%5C)%20H7_VI)"
     url = polarion_workitems_search_url("AVSWReqMgmt", q, list_path="workitems/PRD")
-    assert "AVSWReqMgmt/workitems/PRD?query=" in url
-    assert "components" in url
+    assert url.endswith("?query=" + enc)
+    assert (
+        url
+        == "https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD?query="
+        + enc
+    )
 
 
 def test_probe_priority_prefers_components():
