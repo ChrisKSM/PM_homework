@@ -116,8 +116,12 @@ class Settings(BaseSettings):
     # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
     polarion_list_path: str = "workitems"
     polarion_prd_project_key: str = "AVSWReqMgmt"  # PRD workitem 목록 프로젝트
+    # PRD 목록 — UI hash vs REST (customs v1) 분리
+    #   UI:  .../#/project/AVSWReqMgmt/workitems/PRD?query=<lucene>
+    #   REST: .../projects/AVSWReqMgmt/workitems?query=<lucene>&page=&pageSize=
+    # REST 에 별도 ?prd= 파라미터 없음. PRD 범위는 UI path `workitems/PRD` 또는 Lucene(type:PRD 등).
     polarion_prd_ui_list_path: str = "workitems/PRD"  # Polarion UI hash 경로
-    polarion_prd_rest_list_path: str = "workitems"  # REST customs API (UI의 /PRD 와 다름)
+    polarion_prd_rest_list_path: str = "workitems"  # REST path segment (not workitems/PRD on many gateways)
     polarion_prd_list_path: str = "workitems/PRD"  # 하위 호환 → UI 경로 alias
     # alm page.js — davis-db-api /alm/workitems/list (선택)
     davis_db_api_base_url: str = ""

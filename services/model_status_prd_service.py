@@ -531,6 +531,37 @@ def analyze_workitems_for_apply_fields(
     }
 
 
+def _summarize_polarion_fetch_attempts(
+    attempts: list[dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """REST 403 등 — UI 와 query 가 맞아도 items 0 인 경우 meta 힌트."""
+    if not attempts:
+        return None
+    errors = [str(a.get("error") or "") for a in attempts if a.get("error")]
+    if not errors:
+        zeros = [a for a in attempts if not a.get("error") and int(a.get("polarionTotal") or 0) == 0]
+        if zeros and len(zeros) == len(attempts):
+            return {
+                "polarionRestHint": (
+                    "Polarion REST 200 이지만 total 0 — Lucene query/path 점검 "
+                    "(sh scripts/curl-polarion-prd-verbose.sh)."
+                ),
+            }
+        return None
+    blob = " ".join(errors).lower()
+    if "403" in blob or "forbidden" in blob or "administration" in blob:
+        return {
+            "polarionRestBlocked": True,
+            "polarionRestHint": (
+                "AVSWReqMgmt REST customs API 403 — query 문제 아님. "
+                "Polarion PAT 계정에 ReqMgmt 프로젝트 Reader(및 REST) 권한 요청. "
+                "브라우저 UI SSO 와 Bearer PAT 역할이 다를 수 있음."
+            ),
+            "polarionRestSampleError": errors[0][:220],
+        }
+    return {"polarionRestSampleError": errors[0][:220]}
+
+
 async def _probe_polarion_query(
     query: str,
     project_key: str,
@@ -1260,6 +1291,10 @@ async def get_prd_for_model(
                 f"/api/model-status/prd/query-catalog?model={model or ''}"
                 if list_mode and not items
                 else None
+            ),
+            **(
+                _summarize_polarion_fetch_attempts(polarion_fetch_attempts)
+                or {}
             ),
         },
         "workflowColumns": [{"id": c["id"], "label": c["label"], "order": c["order"]} for c in PRD_WORKFLOW_COLUMNS],
