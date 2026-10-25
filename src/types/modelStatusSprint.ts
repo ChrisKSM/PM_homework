@@ -10,17 +10,32 @@ export interface ModelStatusSprintResponse {
   meta: {
     model?: string
     label: string
-    boardId?: number
-    sprintId?: number
-    scope?: string
-    matchedStories?: number
-    totalInSprint?: number
+    projectKey?: string
+    source?: 'tvjira' | string
+    currentSp?: number | null
+    currentSprintLabel?: string
+    initiativeCount?: number
+    epicCount?: number
+    milestoneRows?: number
+    milestoneDone?: number
     asOf?: string
+    hint?: string
   }
-  summary: SprintSummary
+  summary: SprintSummary & {
+    plannedSpTotal?: number
+    consumptionPct?: number | null
+    currentSp?: number | null
+  }
   burndown: BurndownData
   velocity: SprintVelocity[]
   workload: MemberWorkload[]
   issues: SprintIssue[]
   alerts: string[]
+  kpi?: {
+    plannedSpTotal?: number
+    effectiveSpConsumed?: number
+    consumptionPct?: number | null
+    completionPct?: number | null
+    byInitiative?: unknown[]
+  }
 }

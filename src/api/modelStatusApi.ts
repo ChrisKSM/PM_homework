@@ -101,6 +101,6 @@ export const modelStatusApi = {
 /** BE Jira label 매핑 (없으면 mock 유지) */
 export const MODEL_INITIATIVE_JIRA_MODELS = new Set(Object.keys(MODEL_STATUS_INITIATIVE_JIRA_LABEL))
 
-/** Harmony board sprint — model label 매핑 (Initiative TV Jira 와 별도) */
+/** TV Jira sprint — Initiative / 릴리즈·Epic 과 동일 label 매핑 */
 export { MODEL_SPRINT_JIRA_MODELS, sprintJiraLabelForModel } from '../data/modelStatusSprintJiraLabels'
 

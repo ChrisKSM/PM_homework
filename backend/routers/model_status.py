@@ -9,12 +9,7 @@ from services import model_status_initiative_service
 
 
 def _sprint_story_label_models() -> set[str]:
-    try:
-        from services.model_status_sprint_service import SPRINT_STORY_LABEL_BY_MODEL
-
-        return set(SPRINT_STORY_LABEL_BY_MODEL.keys())
-    except ImportError:
-        return set()
+    return set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
 
 
 def _release_gantt_service():
@@ -414,36 +409,41 @@ async def model_status_prd_query_catalog(
 
 @router.get("/sprint/dashboard")
 async def model_status_sprint_dashboard(
-    model: str | None = Query(None, description="UI model e.g. S80C, H7_VI"),
-    label: str | None = Query(None, description='Jira Story label e.g. S80C, SoundSuite_H7(VI)'),
+    model: str | None = Query(None, description="UI model e.g. H7_VI"),
+    label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
+    project: str = Query("TVPLAT", description="Jira project key"),
 ):
-    """Harmony Jira board — 현재 sprint Story 를 model label 로 필터 (burndown/velocity/workload)."""
+    """
+    TV Jira (TVPLAT) — Initiative Description 마일스톤 + release/gantt Epic Milestone.
+    Harmony 보드 / S80C 스프린트와 무관. H7_VI 등 Initiative label 매핑 모델.
+    """
     from services.model_status_sprint_service import (
-        SPRINT_STORY_LABEL_BY_MODEL,
         get_sprint_dashboard_for_model,
-        resolve_sprint_story_label,
+        resolve_sprint_model_label,
     )
 
     if not (label and label.strip()) and model:
-        auto = resolve_sprint_story_label(model, None)
+        auto = resolve_sprint_model_label(model, None)
         if auto:
             label = auto
+        elif model.strip().upper().replace("-", "_").replace(" ", "_") == "H7_VI":
+            label = "SoundSuite_H7(VI)"
 
     try:
-        return await get_sprint_dashboard_for_model(model=model, label=label)
+        return await get_sprint_dashboard_for_model(model=model, label=label, project_key=project)
     except ValueError as e:
         raise HTTPException(
             status_code=400,
             detail={
                 "message": str(e),
-                "knownModels": sorted(SPRINT_STORY_LABEL_BY_MODEL.keys()),
-                "hint": "label= 쿼리 또는 model=S80C 등 등록 모델",
+                "knownModels": sorted(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
+                "hint": "model=H7_VI & label=SoundSuite_H7(VI) — Initiative/릴리즈 탭과 동일",
             },
         ) from e
     except Exception as e:
         raise HTTPException(
             status_code=502,
-            detail=f"Jira sprint 조회 오류: {e} — JIRA_API_TOKEN · board_id · GET /api/jira/diagnose",
+            detail=f"TV Jira sprint 집계 오류: {e} — TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
         ) from e
 
 

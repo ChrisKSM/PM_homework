@@ -1,15 +1,11 @@
-import { Link } from 'react-router-dom'
-import { AlertTriangle, Flame, Target, Zap } from 'lucide-react'
+import { AlertTriangle, Flame, Target, TrendingUp } from 'lucide-react'
 import KpiCard from '../cards/KpiCard'
 import SectionCard from '../cards/SectionCard'
 import IssueTable from '../cards/IssueTable'
 import BurndownChart from '../charts/BurndownChart'
 import VelocityChart from '../charts/VelocityChart'
-import WorkloadChart from '../charts/WorkloadChart'
-import JiraDegradedBanner from '../jira/JiraDegradedBanner'
 import { useModelStatusSprint } from '../../hooks/useModelStatusSprint'
 import { MODEL_SPRINT_JIRA_MODELS } from '../../api/modelStatusApi'
-import { useJiraDegraded } from '../../hooks/useJiraDegraded'
 import { canonicalModelName } from '../../utils/modelScheduleRows'
 
 function LoadingSpinner() {
@@ -27,9 +23,8 @@ export interface ModelStatusSprintPanelProps {
 
 export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatusSprintPanelProps) {
   const norm = canonicalModelName(modelCode)
-  const jiraLive = MODEL_SPRINT_JIRA_MODELS.has(norm)
+  const tvLive = MODEL_SPRINT_JIRA_MODELS.has(norm)
   const { data, isLoading, isFetching } = useModelStatusSprint(modelCode, active)
-  const jiraDegraded = useJiraDegraded()
 
   if (!active) return null
 
@@ -37,46 +32,29 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
   const summary = data?.summary
   const burndown = data?.burndown
   const velocity = data?.velocity
-  const workload = data?.workload
   const issues = data?.issues
   const alerts = data?.alerts ?? []
+  const kpi = data?.kpi
 
   return (
     <div className="space-y-5" data-testid="model-status-sprint-panel">
-      <div className="rounded-xl border border-violet-100 bg-violet-50/60 px-4 py-3 text-[11px] text-violet-950">
+      <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-[11px] text-blue-950">
         <span className="font-semibold">{modelCode.replace(/_/g, ' ')}</span>
-        {jiraLive ? (
+        {tvLive ? (
           <>
             {' '}
-            · <code className="text-[10px]">GET /api/model-status/sprint/dashboard</code>
-            {meta?.label ? (
-              <>
-                {' '}
-                · label <b>{meta.label}</b>
-              </>
-            ) : null}
-            {meta?.matchedStories != null ? (
-              <>
-                {' '}
-                · Story {meta.matchedStories}건 / sprint 전체 {meta.totalInSprint ?? '—'}건
-              </>
-            ) : null}
+            · TV Jira (TVPLAT) — Initiative · 릴리즈·Epic · story-sp-kpi 와 <b>동일 모델 label</b>
+            {meta?.label ? <> · {meta.label}</> : null}
+            {meta?.currentSprintLabel ? <> · 현재 {meta.currentSprintLabel}</> : null}
           </>
         ) : (
           <>
             {' '}
-            · sprint label 미등록 — mock 미리보기. 매핑 추가 또는{' '}
-            <Link to="/model-schedule/status?group=bt-soundbar&model=S80C&tab=sprint" className="underline">
-              S80C
-            </Link>
+            · TV sprint label 미등록 (현재 live: H7 VI). Sound Suite → H7_VI 선택.
           </>
         )}
-        {isFetching && !isLoading ? (
-          <span className="ml-2 text-violet-600">갱신 중…</span>
-        ) : null}
+        {isFetching && !isLoading ? <span className="ml-2 text-blue-600">갱신 중…</span> : null}
       </div>
-
-      {jiraDegraded ? <JiraDegradedBanner /> : null}
 
       {isLoading ? (
         <LoadingSpinner />
@@ -86,7 +64,7 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-xs font-bold text-amber-950 flex items-center gap-2 mb-2">
                 <AlertTriangle size={14} />
-                스프린트 · Velocity 리스크 (모델 스코프)
+                IR/SP · Milestone 리스크 (모델 스코프)
               </p>
               <ul className="space-y-1 text-[11px] text-amber-900">
                 {alerts.map((line) => (
@@ -99,64 +77,69 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
             </div>
           ) : (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-4 py-2 text-[11px] text-emerald-900">
-              자동 감지 리스크 없음 (모델 label 기준 Story · burndown · velocity)
+              자동 감지 리스크 없음 (소진율 · Story 완료 · 현재 SP Milestone 기준)
             </div>
           )}
 
           {summary ? (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <KpiCard
-                label="현재 스프린트"
+                label="현재 IR/SP"
                 value={summary.sprintName}
-                sub={`종료 ${summary.endDate} · D-${summary.daysLeft}`}
+                sub={meta?.currentSp ? `SP${meta.currentSp}` : '2026 캘린더'}
                 icon={<Flame size={16} />}
               />
               <KpiCard
-                label="남은 Story Points"
+                label="계획 SP 잔여"
                 value={`${summary.remainingPoints} SP`}
-                sub="선택 모델 Story 합산"
+                sub={`계획 ${kpi?.plannedSpTotal ?? '—'} · 소진 ${kpi?.effectiveSpConsumed ?? '—'}`}
                 tone="warning"
                 icon={<Target size={16} />}
               />
               <KpiCard
-                label="완료율"
+                label="Story 완료율"
                 value={`${summary.completionRate}%`}
-                sub="모델 스코프 SP"
+                sub="Epic 하위 Story (TV Jira)"
                 tone={summary.completionRate >= 70 ? 'success' : 'warning'}
-                icon={<Zap size={16} />}
+                icon={<TrendingUp size={16} />}
               />
               <KpiCard
-                label="블로커"
-                value={summary.blockerCount}
-                sub="P0 · label JQL"
-                tone={summary.blockerCount > 0 ? 'danger' : 'success'}
+                label="SP 소진율"
+                value={kpi?.consumptionPct != null ? `${kpi.consumptionPct}%` : '—'}
+                sub="Initiative Description KPI-1"
+                tone={
+                  kpi?.consumptionPct != null && kpi.consumptionPct >= 70 ? 'success' : 'info'
+                }
                 icon={<AlertTriangle size={16} />}
               />
             </div>
           ) : null}
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <SectionCard title="Burn Down" subtitle={summary?.sprintName ?? '현재 스프린트 · 모델 Story'}>
-              {burndown?.points?.length ? <BurndownChart data={burndown} /> : (
-                <p className="text-sm text-gray-500 py-8 text-center">모델 Story SP 없음</p>
-              )}
-            </SectionCard>
-            <SectionCard title="팀 워크로드 (SP)" subtitle="모델 스코프 담당자별">
-              {workload?.length ? <WorkloadChart data={workload} /> : (
-                <p className="text-sm text-gray-500 py-8 text-center">—</p>
-              )}
-            </SectionCard>
-          </div>
+          <SectionCard
+            title="Milestone Burn Down (IR/SP)"
+            subtitle="Target Sprint별 계획 SP 누적 vs 완료 — release/gantt · Description 표"
+          >
+            {burndown?.points?.length ? (
+              <BurndownChart data={burndown} />
+            ) : (
+              <p className="text-sm text-gray-500 py-8 text-center">마일스톤 SP 데이터 없음</p>
+            )}
+          </SectionCard>
 
-          <SectionCard title="Velocity" subtitle="모델 Story — committed vs done SP">
-            {velocity?.length ? <VelocityChart data={velocity} /> : (
+          <SectionCard
+            title="Velocity (SP01–SP26)"
+            subtitle="Target Sprint별 Milestone 계획 SP vs 완료 SP"
+          >
+            {velocity?.some((v) => v.committed > 0) ? (
+              <VelocityChart data={velocity} />
+            ) : (
               <p className="text-sm text-gray-500 py-8 text-center">—</p>
             )}
           </SectionCard>
 
-          <SectionCard title="현재 스프린트 이슈" subtitle="labels/components 매칭">
+          <SectionCard title="미완료 Milestone" subtitle="Initiative 표 + Jira Milestone">
             {issues?.length ? <IssueTable issues={issues} /> : (
-              <p className="text-sm text-gray-500 py-8 text-center">매칭 이슈 없음 — Jira label 확인</p>
+              <p className="text-sm text-gray-500 py-8 text-center">미완료 Milestone 없음</p>
             )}
           </SectionCard>
         </>
