@@ -50,6 +50,8 @@ grep -q ModelStatusPrdPanel src/components/modelStatus/ModelIntegratedDashboard.
   && echo "  OK  ModelIntegratedDashboard → PRD tab"
 grep -q ModelStatusLlmSummaryPanel src/components/modelStatus/ModelIntegratedDashboard.tsx \
   && echo "  OK  LLM summary shell + timeline"
+grep -q model-status-sprint-panel src/components/modelStatus/ModelStatusSprintPanel.tsx \
+  && echo "  OK  스프린트 · Velocity tab (TV worklog UI)"
 
 if [ "${RUN_BUILD:-1}" = "1" ] && command -v npm >/dev/null 2>&1; then
   echo ""

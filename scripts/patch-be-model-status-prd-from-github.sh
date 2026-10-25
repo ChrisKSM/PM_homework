@@ -28,11 +28,14 @@ fetch() {
   echo "  + $2"
 }
 
-echo "=== model-status PRD @ $REF (flat pod paths) ==="
+echo "=== model-status PRD + sprint (TV worklog) @ $REF (flat pod paths) ==="
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
 fetch backend/services/model_status_prd_labels.py services/model_status_prd_labels.py
 fetch backend/services/model_status_prd_status.py services/model_status_prd_status.py
 fetch backend/services/model_status_sprint_service.py services/model_status_sprint_service.py
+fetch backend/services/model_status_sprint_worklog.py services/model_status_sprint_worklog.py
+fetch backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
+fetch backend/tvjira_client.py tvjira_client.py
 fetch backend/tests/test_model_status_sprint.py tests/test_model_status_sprint.py
 fetch backend/tests/test_model_status_prd.py tests/test_model_status_prd.py
 fetch backend/routers/model_status.py routers/model_status.py
@@ -40,6 +43,7 @@ fetch backend/config.py config.py
 fetch backend/polarion_client.py polarion_client.py
 fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.sh
 fetch scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-prd-fetch.sh
+fetch scripts/verify-model-status-sprint-be.sh scripts/verify-model-status-sprint-be.sh
 fetch scripts/print-prd-polarion-query-urls.sh scripts/print-prd-polarion-query-urls.sh
 fetch scripts/probe-polarion-prd-rest.sh scripts/probe-polarion-prd-rest.sh
 fetch scripts/diagnose-polarion-pat.sh scripts/diagnose-polarion-pat.sh
@@ -47,7 +51,7 @@ fetch scripts/curl-polarion-prd-verbose.sh scripts/curl-polarion-prd-verbose.sh
 fetch scripts/fetch-polarion-diagnose-scripts.sh scripts/fetch-polarion-diagnose-scripts.sh
 fetch scripts/patch-model-status-be-fe.sh scripts/patch-model-status-be-fe.sh
 chmod +x scripts/print-prd-polarion-query-urls.sh scripts/probe-polarion-prd-rest.sh scripts/diagnose-polarion-pat.sh scripts/curl-polarion-prd-verbose.sh scripts/fetch-polarion-diagnose-scripts.sh scripts/patch-model-status-be-fe.sh 2>/dev/null || true
-chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh 2>/dev/null || true
+chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-sprint-be.sh 2>/dev/null || true
 
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then
   echo "ERROR: routers/model_status.py 에 /prd 라우트 없음" >&2
@@ -78,5 +82,8 @@ fi
 echo "=== probe H7_VI ==="
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 sh scripts/verify-model-status-prd-fetch.sh || true
+
+echo "=== sprint dashboard H7_VI (worklog · velocity · burndown) ==="
+sh scripts/verify-model-status-sprint-be.sh || true
 
 echo "=== patch-be-model-status-prd done ==="
