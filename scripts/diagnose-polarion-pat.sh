@@ -77,9 +77,14 @@ probe "MR default (RelProj testDefect)" \
   "type:testDefect"
 
 # PRD 프로젝트 (ReqMgmt workitems — 여기서 403이면 프로젝트/역할 이슈)
-probe "PRD (ReqMgmt workitems)" \
+probe "PRD REST default (ReqMgmt/workitems)" \
   "${POLARION_PRD_PROJECT_KEY:-AVSWReqMgmt}" \
   "${POLARION_PRD_REST_LIST_PATH:-workitems}" \
+  "components:(H7_VI)"
+
+probe "PRD REST alt path (ReqMgmt/workitems/PRD)" \
+  "${POLARION_PRD_PROJECT_KEY:-AVSWReqMgmt}" \
+  "workitems/PRD" \
   "components:(H7_VI)"
 
 echo "=== 해석 ==="
