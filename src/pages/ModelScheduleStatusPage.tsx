@@ -32,7 +32,7 @@ export default function ModelScheduleStatusPage() {
   const parseTab = (raw: string | null): ModelStatusTabId | null => {
     if (!raw) return null
     const t = raw.trim().toLowerCase()
-    const ids: ModelStatusTabId[] = ['summary', 'release', 'initiative', 'prd', 'issues']
+    const ids: ModelStatusTabId[] = ['summary', 'release', 'initiative', 'prd', 'sprint', 'issues']
     return ids.includes(t as ModelStatusTabId) ? (t as ModelStatusTabId) : null
   }
 

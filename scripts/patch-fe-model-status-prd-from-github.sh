@@ -34,6 +34,7 @@ fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelSta
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/components/modelStatus/ModelStatusOverviewEventTimeline.tsx src/components/modelStatus/ModelStatusOverviewEventTimeline.tsx
 fetch src/components/modelStatus/ModelStatusLlmSummaryPanel.tsx src/components/modelStatus/ModelStatusLlmSummaryPanel.tsx
+fetch src/components/modelStatus/ModelStatusSprintPanel.tsx src/components/modelStatus/ModelStatusSprintPanel.tsx
 fetch src/components/ErrorBoundary.tsx src/components/ErrorBoundary.tsx
 fetch src/utils/modelStatusPrdWorkflow.ts src/utils/modelStatusPrdWorkflow.ts
 fetch scripts/verify-model-status-prd-fe-deployed.sh scripts/verify-model-status-prd-fe-deployed.sh

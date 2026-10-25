@@ -7,6 +7,7 @@ import ModelStatusMetaCard from './ModelStatusMetaCard'
 import ManagerDashboardBody from './ManagerDashboardBody'
 import ModelStatusInitiativePanel from './ModelStatusInitiativePanel'
 import ModelStatusPrdPanel from './ModelStatusPrdPanel'
+import ModelStatusSprintPanel from './ModelStatusSprintPanel'
 import ErrorBoundary from '../ErrorBoundary'
 import ModelStatusReleaseEpicGantt from './ModelStatusReleaseEpicGantt'
 import ModelStatusOverviewEventTimeline from './ModelStatusOverviewEventTimeline'
@@ -341,6 +342,12 @@ export default function ModelIntegratedDashboard({
             <ModelStatusPrdPanel modelCode={modelCode} />
           </ErrorBoundary>
         </section>
+      )}
+
+      {tab === 'sprint' && (
+        <ErrorBoundary title="스프린트 탭 오류">
+          <ModelStatusSprintPanel modelCode={modelCode} active={tab === 'sprint'} />
+        </ErrorBoundary>
       )}
 
       {tab === 'issues' && (
