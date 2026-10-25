@@ -82,9 +82,9 @@ except json.JSONDecodeError:
 }
 
 # MR 품질 기본 프로젝트 (보통 testDefect — 이게 200이면 토큰 자체는 유효)
-probe "MR default (RelProj testDefect)" \
+probe "MR default (RelProj/workitems + type:testDefect)" \
   "${POLARION_PROJECT_KEY:-AVSWRelProjMgmt}" \
-  "${POLARION_LIST_PATH:-testDefect}" \
+  "${POLARION_LIST_PATH:-workitems}" \
   "type:testDefect"
 
 # PRD 프로젝트 (ReqMgmt workitems — 여기서 403이면 프로젝트/역할 이슈)
