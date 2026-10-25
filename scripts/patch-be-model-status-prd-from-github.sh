@@ -41,7 +41,8 @@ fetch scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-prd-f
 fetch scripts/print-prd-polarion-query-urls.sh scripts/print-prd-polarion-query-urls.sh
 fetch scripts/probe-polarion-prd-rest.sh scripts/probe-polarion-prd-rest.sh
 fetch scripts/diagnose-polarion-pat.sh scripts/diagnose-polarion-pat.sh
-chmod +x scripts/print-prd-polarion-query-urls.sh scripts/probe-polarion-prd-rest.sh scripts/diagnose-polarion-pat.sh 2>/dev/null || true
+fetch scripts/curl-polarion-prd-verbose.sh scripts/curl-polarion-prd-verbose.sh
+chmod +x scripts/print-prd-polarion-query-urls.sh scripts/probe-polarion-prd-rest.sh scripts/diagnose-polarion-pat.sh scripts/curl-polarion-prd-verbose.sh 2>/dev/null || true
 chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh 2>/dev/null || true
 
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then

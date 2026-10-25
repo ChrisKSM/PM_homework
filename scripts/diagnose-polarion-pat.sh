@@ -48,13 +48,24 @@ probe() {
   echo "--- $LABEL ---"
   echo "GET .../projects/${PROJECT}/${PATH}"
   echo "query: ${QUERY}"
-  echo "HTTP: ${HTTP}"
+  BODY_LEN=$(printf '%s' "$BODY" | wc -c | tr -d ' ')
+  echo "HTTP: ${HTTP}  body_bytes: ${BODY_LEN}"
+  if [ "$BODY_LEN" -eq 0 ]; then
+    echo "(empty body — \$POLARION_PAT 미설정이거나 게이트웨이가 본문 없이 끊음)"
+    echo "  → set -a && . ./.env && set +a  후 sh scripts/curl-polarion-prd-verbose.sh"
+    echo ""
+    return 0
+  fi
   if [ "$HTTP" = "200" ]; then
     echo "$BODY" | python3 -c "
 import json, sys
-d = json.load(sys.stdin)
+raw = sys.stdin.read()
+d = json.loads(raw)
 print('OK JSON keys:', list(d.keys())[:8])
-" 2>/dev/null || echo "(JSON parse ok)"
+if 'errors' in d:
+    for e in d.get('errors') or []:
+        print('error:', e.get('status'), e.get('detail'))
+" 2>/dev/null || echo "(non-JSON body)" && printf '%s' "$BODY" | head -c 200 && echo ""
   else
     echo "$BODY" | python3 -c "
 import json, sys
