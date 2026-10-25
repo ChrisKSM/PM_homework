@@ -266,10 +266,17 @@ export default function ModelStatusPrdPanel({ modelCode }: ModelStatusPrdPanelPr
 
       {items.length === 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-          Polarion에서 PRD 0건입니다.
-          {meta?.discoveryHits != null && meta.discoveryHits > 0
-            ? ` (discovery hit ${meta.discoveryHits} — BE pod PRD service 최신 패치 확인)`
-            : ' discovery hit도 없으면 POLARION_PRD_PROJECT_KEY·workitem type 확인.'}
+          Polarion에서 PRD 0건입니다. BE{' '}
+          <code className="text-[10px]">prdFetchVersion</code>이{' '}
+          <code className="text-[10px]">components-ui-space-v6</code>인지, Polarion UI와{' '}
+          {meta?.polarionUrl ? (
+            <a href={meta.polarionUrl} target="_blank" rel="noreferrer" className="underline text-amber-950">
+              polarionUrl
+            </a>
+          ) : (
+            'polarionUrl'
+          )}{' '}
+          쿼리가 같은지 확인하세요.
           {meta?.winningQuery ? (
             <span className="block text-[10px] text-amber-800/80 mt-1 truncate" title={meta.winningQuery}>
               query: {meta.winningQuery}

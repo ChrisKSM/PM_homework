@@ -6,6 +6,7 @@ from services.model_status_prd_service import (
     build_components_query,
     polarion_component_for_model,
     polarion_component_values_for_model,
+    encode_polarion_ui_lucene_query,
     polarion_workitems_search_url,
     apply_model_search_terms,
     build_prd_discovery_queries,
@@ -72,10 +73,16 @@ def test_lucene_components_query_skips_refilter():
 
 
 def test_polarion_ui_url_encodes_query():
-    q = build_components_query("SoundSuite_H7(VI)")
+    q = build_components_query(["SoundSuite_H7(VI)", "H7_VI"])
+    enc = encode_polarion_ui_lucene_query(q)
+    assert enc == "components%3A(SoundSuite_H7%5C(VI%5C)%20H7_VI)"
     url = polarion_workitems_search_url("AVSWReqMgmt", q, list_path="workitems/PRD")
-    assert "AVSWReqMgmt/workitems/PRD?query=" in url
-    assert "components" in url
+    assert url.endswith("?query=" + enc)
+    assert (
+        url
+        == "https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD?query="
+        + enc
+    )
 
 
 def test_probe_priority_prefers_components():

@@ -425,6 +425,39 @@ def workitem_matches_model_scope(flat: dict[str, Any], terms: list[str]) -> bool
 POLARION_UI_BASE = "https://alm-lge-hlm.singlex.com/polarion/#/project"
 
 
+def encode_polarion_ui_lucene_query(query: str) -> str:
+    """
+    Polarion hash URL query — 브라우저 주소창과 동일.
+    예: components:(SoundSuite_H7\\(VI\\) H7_VI)
+      → components%3A(SoundSuite_H7%5C(VI%5C)%20H7_VI)
+    (바깥 괄호는 그대로, \\(\\) 만 %5C( %5C), 공백은 %20)
+    """
+    q = (query or "").strip()
+    if not q.startswith("components:(") or not q.endswith(")"):
+        return quote(q, safe="")
+    inner = q[len("components:(") : -1]
+    parts: list[str] = ["components%3A("]
+    i = 0
+    while i < len(inner):
+        if inner[i : i + 2] == r"\(":
+            parts.append("%5C(")
+            i += 2
+        elif inner[i : i + 2] == r"\)":
+            parts.append("%5C)")
+            i += 2
+        elif inner[i] == " ":
+            parts.append("%20")
+            i += 1
+        elif inner[i] in ":&?#":
+            parts.append(quote(inner[i], safe=""))
+            i += 1
+        else:
+            parts.append(inner[i])
+            i += 1
+    parts.append(")")
+    return "".join(parts)
+
+
 def polarion_workitems_search_url(
     project_key: str,
     query: str,
@@ -436,7 +469,7 @@ def polarion_workitems_search_url(
     path = (list_path or getattr(settings, "polarion_prd_list_path", "") or "workitems/PRD").strip(
         "/"
     )
-    enc = quote(query, safe="")
+    enc = encode_polarion_ui_lucene_query(query)
     return f"{POLARION_UI_BASE}/{key}/{path}?query={enc}"
 
 
