@@ -35,6 +35,8 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
   const issues = data?.issues
   const alerts = data?.alerts ?? []
   const kpi = data?.kpi
+  const worklog = data?.worklog
+  const workload = data?.workload ?? []
 
   return (
     <div className="space-y-5" data-testid="model-status-sprint-panel">
@@ -43,7 +45,7 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
         {tvLive ? (
           <>
             {' '}
-            · TV Jira (TVPLAT) — Initiative · 릴리즈·Epic · story-sp-kpi 와 <b>동일 모델 label</b>
+            · TV Jira (TVPLAT) — Initiative · 릴리즈·Epic · Epic Story <b>worklog</b> (IR/SP 캘린더)
             {meta?.label ? <> · {meta.label}</> : null}
             {meta?.currentSprintLabel ? <> · 현재 {meta.currentSprintLabel}</> : null}
           </>
@@ -115,9 +117,26 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
             </div>
           ) : null}
 
+          {worklog ? (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <KpiCard
+                label="Worklog (모델 스코프)"
+                value={`${worklog.totalSpLogged ?? '—'} SP`}
+                sub={`${worklog.issuesWithWorklog ?? 0} issues · ${worklog.entriesCount ?? 0} entries`}
+                icon={<TrendingUp size={16} />}
+              />
+              <KpiCard
+                label="Worklog 시간"
+                value={`${worklog.totalHours ?? '—'} h`}
+                sub={`1 SP = ${worklog.spHoursPerPoint ?? 4}h (WorklogReport)`}
+                icon={<Target size={16} />}
+              />
+            </div>
+          ) : null}
+
           <SectionCard
-            title="Milestone Burn Down (IR/SP)"
-            subtitle="Target Sprint별 계획 SP 누적 vs 완료 — release/gantt · Description 표"
+            title="Burn Down (현재 IR/SP)"
+            subtitle="마일스톤 계획 SP vs 일별 worklog 소진 — 2026 Audio 캘린더"
           >
             {burndown?.points?.length ? (
               <BurndownChart data={burndown} />
@@ -128,14 +147,35 @@ export default function ModelStatusSprintPanel({ modelCode, active }: ModelStatu
 
           <SectionCard
             title="Velocity (SP01–SP26)"
-            subtitle="Target Sprint별 Milestone 계획 SP vs 완료 SP"
+            subtitle="planned = Description·Milestone target SP · completed = worklog SP (started 날짜 → IR/SP)"
           >
-            {velocity?.some((v) => v.committed > 0) ? (
-              <VelocityChart data={velocity} />
+            {velocity?.some((v) => (v.planned ?? v.committed ?? 0) > 0 || (v.completed ?? 0) > 0) ? (
+              <VelocityChart
+                data={velocity.map((v) => ({
+                  sprintName: v.sprintName,
+                  planned: v.planned ?? v.committed ?? 0,
+                  completed: v.completed ?? 0,
+                }))}
+              />
             ) : (
               <p className="text-sm text-gray-500 py-8 text-center">—</p>
             )}
           </SectionCard>
+
+          {workload.length > 0 ? (
+            <SectionCard title="현재 SP 팀 Workload" subtitle="worklog author · SP 환산">
+              <ul className="divide-y divide-gray-100 text-sm">
+                {workload.map((m) => (
+                  <li key={m.name} className="flex justify-between py-2">
+                    <span className="font-medium text-gray-800">{m.name}</span>
+                    <span className="text-gray-600">
+                      {m.storyPoints} SP · {m.issueCount} issues
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          ) : null}
 
           <SectionCard title="미완료 Milestone" subtitle="Initiative 표 + Jira Milestone">
             {issues?.length ? <IssueTable issues={issues} /> : (

@@ -1,8 +1,15 @@
+from datetime import date
+
 from services.model_status_sprint_service import (
     build_sp_burndown,
     build_sp_velocity,
     parse_sp_number,
     resolve_sprint_model_label,
+)
+from services.model_status_sprint_worklog import (
+    build_current_sprint_burndown,
+    merge_velocity_with_worklog,
+    worklog_started_date,
 )
 
 
@@ -31,3 +38,23 @@ def test_burndown_points():
     bd = build_sp_burndown(vel)
     assert bd["totalPoints"] == 10
     assert len(bd["points"]) == 1
+
+
+def test_merge_velocity_worklog():
+    plan = [{"sprintName": "SP03", "committed": 12, "completed": 0}]
+    merged = merge_velocity_with_worklog(plan, {3: 4.5})
+    assert merged[0]["planned"] == 12
+    assert merged[0]["completed"] == 4.5
+
+
+def test_worklog_started_date():
+    assert worklog_started_date("2026-03-05T10:00:00.000+0900") == date(2026, 3, 5)
+
+
+def test_current_sprint_burndown():
+    sprint_def = {"sp": 7, "label": "SP07", "startDate": "2026-03-30", "endDate": "2026-04-10"}
+    daily = {date(2026, 3, 30): 2.0, date(2026, 3, 31): 1.0}
+    bd = build_current_sprint_burndown(sprint_def, 10.0, daily)
+    assert bd["totalPoints"] == 10
+    assert len(bd["points"]) >= 2
+    assert bd["points"][-1]["actual"] == 7.0

@@ -38,4 +38,13 @@ export interface ModelStatusSprintResponse {
     completionPct?: number | null
     byInitiative?: unknown[]
   }
+  worklog?: {
+    spHoursPerPoint?: number
+    issueScopeCount?: number
+    issuesWithWorklog?: number
+    entriesCount?: number
+    totalSpLogged?: number
+    totalHours?: number
+    bySprint?: Array<{ sp: number; sprintName: string; spLogged: number; hours: number }>
+  }
 }
