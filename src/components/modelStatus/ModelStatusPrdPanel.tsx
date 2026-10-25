@@ -277,6 +277,9 @@ export default function ModelStatusPrdPanel({ modelCode }: ModelStatusPrdPanelPr
             'polarionUrl'
           )}{' '}
           쿼리가 같은지 확인하세요.
+          {meta?.polarionRestHint ? (
+            <span className="block text-[10px] text-amber-950 mt-1">{meta.polarionRestHint}</span>
+          ) : null}
           {meta?.winningQuery ? (
             <span className="block text-[10px] text-amber-800/80 mt-1 truncate" title={meta.winningQuery}>
               query: {meta.winningQuery}

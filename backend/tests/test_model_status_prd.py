@@ -1,6 +1,7 @@
 from services.model_status_prd_service import (
     _extract_workitem_title,
     _query_is_lucene_model_scoped,
+    _summarize_polarion_fetch_attempts,
     _probe_query_priority,
     build_components_lucene_queries,
     build_components_query,
@@ -83,6 +84,13 @@ def test_polarion_ui_url_encodes_query():
         == "https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD?query="
         + enc
     )
+
+
+def test_summarize_attempts_detects_403():
+    s = _summarize_polarion_fetch_attempts(
+        [{"error": "403 Forbidden Administration Access Permission"}]
+    )
+    assert s and s.get("polarionRestBlocked") is True
 
 
 def test_probe_priority_prefers_components():
