@@ -45,7 +45,13 @@ function EventRow({
   )
 }
 
-export default function ModelStatusOverviewEventTimeline({ timeline }: { timeline: OverviewEventsTimeline }) {
+export default function ModelStatusOverviewEventTimeline({
+  timeline,
+  overviewSource,
+}: {
+  timeline: OverviewEventsTimeline
+  overviewSource?: 'mongo' | 'local' | 'mock'
+}) {
   const todayLeft = `calc(1rem + (100% - 2rem) * ${timeline.todayRatio})`
   return (
     <div className="relative rounded-2xl border border-surface-border bg-white p-4 overflow-hidden">
@@ -65,7 +71,15 @@ export default function ModelStatusOverviewEventTimeline({ timeline }: { timelin
         오늘
       </div>
       <p className="text-[10px] text-gray-500 pt-3 mt-1 border-t border-gray-100 relative z-10">
-        전 모델 일정(Mongo overview) · {fmtShortDate(timeline.rangeStart)} — {fmtShortDate(timeline.rangeEnd)} ·
+        전 모델 일정(
+        {overviewSource === 'mongo'
+          ? 'Mongo overview'
+          : overviewSource === 'local'
+            ? 'localStorage'
+            : overviewSource === 'mock'
+              ? 'mock seed'
+              : 'Mongo overview'}
+        ) · {fmtShortDate(timeline.rangeStart)} — {fmtShortDate(timeline.rangeEnd)} ·
         가로=기간 비율 · <span className="text-violet-700 font-medium">보라색 선=오늘</span>
         {timeline.activeEventLabel ? (
           <>

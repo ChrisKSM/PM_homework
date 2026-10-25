@@ -17,7 +17,7 @@ import { prepareOverviewModels } from '../utils/modelScheduleOverviewRows'
 import { canonicalModelName } from '../utils/modelScheduleRows'
 
 export default function ModelScheduleStatusPage() {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [overviewModels, setOverviewModels] = useState<OverviewModel[]>(() =>
     prepareOverviewModels(OVERVIEW_MOCK_MODELS),
   )
@@ -95,12 +95,44 @@ export default function ModelScheduleStatusPage() {
     }
   }, [group, modelCode, overviewModels, searchParams])
 
+  const patchStatusUrl = (patch: {
+    group?: ModelStatusProductGroupId
+    model?: string
+    tab?: ModelStatusTabId
+  }) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (patch.group) next.set('group', patch.group)
+        if (patch.model) next.set('model', patch.model)
+        if (patch.tab) next.set('tab', patch.tab)
+        return next
+      },
+      { replace: true },
+    )
+  }
+
   const handleProductGroupChange = (id: ModelStatusProductGroupId) => {
     setProductGroupId(id)
     const g = MODEL_STATUS_PRODUCT_GROUPS.find((x) => x.id === id)!
     const enabled = g.models.filter((m) => !isModelStatusModelDisabled(m))
-    if (enabled[0]) setModelCode(enabled[0])
-    else if (g.models[0]) setModelCode(g.models[0])
+    const nextModel = enabled[0] ?? g.models[0]
+    if (nextModel) {
+      setModelCode(nextModel)
+      patchStatusUrl({ group: id, model: nextModel, tab })
+    } else {
+      patchStatusUrl({ group: id, tab })
+    }
+  }
+
+  const handleModelChange = (code: string) => {
+    setModelCode(code)
+    patchStatusUrl({ model: code })
+  }
+
+  const handleTabChange = (nextTab: ModelStatusTabId) => {
+    setTab(nextTab)
+    patchStatusUrl({ tab: nextTab })
   }
 
   return (
@@ -120,12 +152,13 @@ export default function ModelScheduleStatusPage() {
           <ModelIntegratedDashboard
             overviewModels={overviewModels}
             verificationRows={verificationRows}
+            overviewDataSource={dataSource}
             productGroupId={productGroupId}
             modelCode={modelCode}
             tab={tab}
             onProductGroupChange={handleProductGroupChange}
-            onModelChange={setModelCode}
-            onTabChange={setTab}
+            onModelChange={handleModelChange}
+            onTabChange={handleTabChange}
           />
         )}
       </div>

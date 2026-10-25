@@ -10,6 +10,7 @@ import ModelStatusPrdPanel from './ModelStatusPrdPanel'
 import ErrorBoundary from '../ErrorBoundary'
 import ModelStatusReleaseEpicGantt from './ModelStatusReleaseEpicGantt'
 import ModelStatusOverviewEventTimeline from './ModelStatusOverviewEventTimeline'
+import ModelStatusLlmSummaryPanel from './ModelStatusLlmSummaryPanel'
 import {
   MODEL_STATUS_PRODUCT_GROUPS,
   MODEL_STATUS_TABS,
@@ -86,6 +87,7 @@ function syntheticOverview(modelCode: string, groupId: ModelStatusProductGroupId
 export interface ModelIntegratedDashboardProps {
   overviewModels: OverviewModel[]
   verificationRows: ModelRow[]
+  overviewDataSource?: 'mongo' | 'local' | 'mock'
   productGroupId: ModelStatusProductGroupId
   modelCode: string
   tab: ModelStatusTabId
@@ -97,6 +99,7 @@ export interface ModelIntegratedDashboardProps {
 export default function ModelIntegratedDashboard({
   overviewModels,
   verificationRows,
+  overviewDataSource = 'mock',
   productGroupId,
   modelCode,
   tab,
@@ -211,7 +214,7 @@ export default function ModelIntegratedDashboard({
       </div>
 
       {eventsTimeline ? (
-        <ModelStatusOverviewEventTimeline timeline={eventsTimeline} />
+        <ModelStatusOverviewEventTimeline timeline={eventsTimeline} overviewSource={overviewDataSource} />
       ) : (overview.events?.length ?? 0) > 0 ? (
         <div className="space-y-3">
           <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900">
@@ -221,9 +224,20 @@ export default function ModelIntegratedDashboard({
         </div>
       ) : (
         <div className="rounded-2xl border border-surface-border bg-white p-4 text-[11px] text-gray-500">
-          overview HW/SW Event 없음 — 전 모델 일정(Mongo) seed 확인
+          overview HW/SW Event 없음 — 전 모델 일정(
+          {overviewDataSource === 'mongo' ? 'Mongo' : overviewDataSource}) seed · 모델 {modelCode} events 확인
         </div>
       )}
+
+      <ModelStatusLlmSummaryPanel
+        modelCode={modelCode}
+        signalLabel={signal === 'green' ? 'Green' : signal === 'amber' ? 'Amber' : 'Red'}
+        schedulePct={schedulePct}
+        spPctLabel={spPctLabel}
+        prdLabel={`${issues.prdClosed}/${issues.prdTotal} Closed`}
+        issuesLabel={`${issues.open}/${issues.total || '—'}`}
+        activeEventLabel={eventsTimeline?.activeEventLabel}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
         <div className="bg-white border border-surface-border rounded-xl p-4 border-t-[3px] border-t-emerald-600">
