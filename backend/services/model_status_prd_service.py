@@ -38,7 +38,7 @@ APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
 
 # UI 목록 최대 건수 (Polarion page fetch 상한)
 PRD_LIST_LIMIT = 80
-PRD_FETCH_IMPL_VERSION = "components-rest-workitems-v5"
+PRD_FETCH_IMPL_VERSION = "components-ui-space-v6"
 
 PRD_TYPE_TOKENS: tuple[str, ...] = (
     "PRD",
@@ -122,40 +122,46 @@ def polarion_component_for_model(model: str | None) -> str | None:
     return " | ".join(vals)
 
 
+def _polarion_component_lucene_token(raw: str) -> str:
+    """Polarion UI Lucene — 괄호 이스케이프, 따옴표 없음."""
+    s = (raw or "").strip()
+    return s.replace("(", r"\(").replace(")", r"\)")
+
+
 def build_components_query(components: str | list[str]) -> str:
     """
-    Polarion UI — components:(…) 필드만 사용 (title 아님).
-    H7_VI canonical: components:(\"SoundSuite_H7(VI)\" OR H7_VI)
+    Polarion UI 와 동일 — components:(SoundSuite_H7\\(VI\\) H7_VI)
+    (공백 구분, OR 키워드·따옴표 없음)
     """
     if isinstance(components, str):
         raw = [components]
     else:
         raw = list(components)
-    parts = [_quote_polarion_value(c.strip()) for c in raw if (c or "").strip()]
-    if not parts:
+    tokens = [_polarion_component_lucene_token(c) for c in raw if (c or "").strip()]
+    if not tokens:
         return "components:(*)"
-    if len(parts) == 1:
-        return f"components:({parts[0]})"
-    return f"components:({' OR '.join(parts)})"
+    return f"components:({' '.join(tokens)})"
 
 
 def build_components_lucene_queries(comps: list[str]) -> list[str]:
-    """components 후보 — UI 한 줄 OR + 필드별 OR + 단일 값."""
-    parts = [_quote_polarion_value(c.strip()) for c in comps if (c or "").strip()]
-    if not parts:
+    """canonical UI 쿼리 우선 + REST/legacy 변형."""
+    cleaned = [(c or "").strip() for c in comps if (c or "").strip()]
+    if not cleaned:
         return []
-    queries: list[str] = []
-    if len(parts) == 1:
-        queries.append(f"components:({parts[0]})")
-        return queries
-    queries.append(f"components:({' OR '.join(parts)})")
-    queries.append(f"({' OR '.join(f'components:({p})' for p in parts)})")
-    for p in parts:
-        queries.append(f"components:({p})")
+    queries: list[str] = [build_components_query(cleaned)]
+    raw_spaced = " ".join(cleaned)
+    queries.append(f"components:({raw_spaced})")
+    quoted = [_quote_polarion_value(c) for c in cleaned]
+    if len(quoted) > 1:
+        queries.append(f"components:({' OR '.join(quoted)})")
+        queries.append(f"({' OR '.join(f'components:({p})' for p in quoted)})")
+    for c in cleaned:
+        queries.append(build_components_query([c]))
+        queries.append(f"components:({_quote_polarion_value(c)})")
     typed: list[str] = []
-    for q in queries[:4]:
+    for q in queries[:5]:
         typed.append(f"type:PRD AND {q}")
-    return _dedupe_queries(queries + typed, limit=14)
+    return _dedupe_queries(queries + typed, limit=16)
 
 
 def build_prd_component_queries(model: str | None) -> list[str]:
