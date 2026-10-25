@@ -149,12 +149,21 @@ async def tvjira_get_issue(
 
 async def tvjira_issue_worklog_total_seconds(issue_key: str) -> int:
     """이슈 worklog timeSpentSeconds 합 (paginated — search fields.worklog 은 20건 제한)."""
+    entries = await tvjira_issue_worklog_entries(issue_key)
+    return sum(int(e.get("seconds") or 0) for e in entries)
+
+
+async def tvjira_issue_worklog_entries(issue_key: str) -> list[dict]:
+    """
+    이슈 worklog 목록 — started · author · seconds (paginated).
+    모델현황 IR/SP velocity · burndown 집계용.
+    """
     key = issue_key.strip()
     if not key:
-        return 0
+        return []
     url = f"{TvJiraClient().base_url}/rest/api/2/issue/{key}/worklog"
     token = resolve_tvjira_token()
-    total_sec = 0
+    out: list[dict] = []
     start_at = 0
     page = 100
     async with _make_authed_client(token, settings.tvjira_verify_ssl) as client:
@@ -163,14 +172,23 @@ async def tvjira_issue_worklog_total_seconds(issue_key: str) -> int:
             resp.raise_for_status()
             data = resp.json()
             for wl in data.get("worklogs") or []:
-                if isinstance(wl, dict):
-                    total_sec += int(wl.get("timeSpentSeconds") or 0)
+                if not isinstance(wl, dict):
+                    continue
+                author = wl.get("author") or {}
+                out.append(
+                    {
+                        "issueKey": key,
+                        "started": wl.get("started") or wl.get("created") or "",
+                        "author": author.get("displayName") or author.get("name") or "미배정",
+                        "seconds": int(wl.get("timeSpentSeconds") or 0),
+                    }
+                )
             fetched = len(data.get("worklogs") or [])
             reported = int(data.get("total") or 0)
             start_at += fetched
             if fetched == 0 or start_at >= reported:
                 break
-    return total_sec
+    return out
 
 
 async def tvjira_search_all(jql: str, fields: list[str]) -> list[dict]:

@@ -834,7 +834,7 @@ async def preview_story_sp_kpi(
             "consumptionPctSource": "worklogSp | jiraStorySp | descriptionConsumedSp",
             "completionPct": "완료 이슈 worklog SP(또는 Story SP) / plannedSpTotal (참고)",
             "notCalendarSp26": "릴리즈 Gantt SP 캘린더 경과율과 무관",
-            "worklogScope": "전 기간 worklog 누적 (스프린트별 velocity·SP는 추후 분석 탭)",
+            "worklogScope": "전 기간 worklog 누적 · IR/SP별 분해는 model-status/sprint/dashboard",
         },
         "plannedSpTotal": planned_total,
         "worklogSpConsumed": worklog_sp_total,
@@ -871,3 +871,81 @@ async def preview_story_sp_kpi(
             "errorsSample": errors[:8],
         }
     return out
+
+
+async def collect_initiative_scope_issue_done(
+    project_key: str,
+    jira_label: str,
+    *,
+    max_initiatives: int = 12,
+    errors: list[str] | None = None,
+) -> dict[str, bool]:
+    """모델 label 하위 Initiative → Epic → Story/Task 이슈 키 (worklog 스코프)."""
+    errors = errors if errors is not None else []
+    fields = list(initiative_search_field_ids()) + ["summary"]
+    inits = await tvjira_search_all(build_initiative_jql(jira_label, project_key), fields)
+    story_fields = [
+        "summary",
+        "status",
+        "issuetype",
+        "parent",
+        settings.story_points_field,
+        settings.epic_link_field,
+    ]
+    merged: dict[str, bool] = {}
+    for raw in inits[:max_initiatives]:
+        key = raw.get("key") or ""
+        if not key:
+            continue
+        f = raw.get("fields") or {}
+        try:
+            _, _, _, _, _, issue_done = await _collect_initiative_story_sp(
+                project_key,
+                key,
+                story_fields,
+                errors,
+                initiative_summary=(f.get("summary") or ""),
+            )
+            merged.update(issue_done)
+        except Exception as ex:
+            errors.append(f"{key}: {ex}")
+    return merged
+
+
+async def collect_initiative_scope_issue_done(
+    project_key: str,
+    jira_label: str,
+    *,
+    max_initiatives: int = 12,
+    errors: list[str] | None = None,
+) -> dict[str, bool]:
+    """모델 label 하위 Initiative → Epic → Story/Task 이슈 키 (worklog 스코프)."""
+    errors = errors if errors is not None else []
+    fields = list(initiative_search_field_ids()) + ["summary"]
+    inits = await tvjira_search_all(build_initiative_jql(jira_label, project_key), fields)
+    story_fields = [
+        "summary",
+        "status",
+        "issuetype",
+        "parent",
+        settings.story_points_field,
+        settings.epic_link_field,
+    ]
+    merged: dict[str, bool] = {}
+    for raw in inits[:max_initiatives]:
+        key = raw.get("key") or ""
+        if not key:
+            continue
+        f = raw.get("fields") or {}
+        try:
+            _, _, _, _, _, issue_done = await _collect_initiative_story_sp(
+                project_key,
+                key,
+                story_fields,
+                errors,
+                initiative_summary=(f.get("summary") or ""),
+            )
+            merged.update(issue_done)
+        except Exception as ex:
+            errors.append(f"{key}: {ex}")
+    return merged

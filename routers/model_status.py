@@ -8,6 +8,10 @@ from config import settings
 from services import model_status_initiative_service
 
 
+def _sprint_story_label_models() -> set[str]:
+    return set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
+
+
 def _release_gantt_service():
     """Pod에 router만 있고 service 파일이 없을 때 uvicorn 기동은 유지."""
     try:
@@ -92,7 +96,11 @@ async def initiatives_ping():
     return {
         "ok": True,
         "service": "model-status-initiatives",
-        "models": list(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
+        "models": sorted(
+            set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
+            | set(_sprint_story_label_models())
+        ),
+        "sprintModels": sorted(_sprint_story_label_models()),
         "tvjira": {
             "baseUrl": settings.tvjira_base_url.rstrip("/"),
             "tokenSource": source,
@@ -397,6 +405,46 @@ async def model_status_prd_query_catalog(
         return await get_prd_query_catalog(model, project_key=project_key, max_queries=max_queries)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"PRD query catalog 오류: {e}") from e
+
+
+@router.get("/sprint/dashboard")
+async def model_status_sprint_dashboard(
+    model: str | None = Query(None, description="UI model e.g. H7_VI"),
+    label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
+    project: str = Query("TVPLAT", description="Jira project key"),
+):
+    """
+    TV Jira (TVPLAT) — Initiative Description 마일스톤 + release/gantt Epic Milestone.
+    Harmony 보드 / S80C 스프린트와 무관. H7_VI 등 Initiative label 매핑 모델.
+    """
+    from services.model_status_sprint_service import (
+        get_sprint_dashboard_for_model,
+        resolve_sprint_model_label,
+    )
+
+    if not (label and label.strip()) and model:
+        auto = resolve_sprint_model_label(model, None)
+        if auto:
+            label = auto
+        elif model.strip().upper().replace("-", "_").replace(" ", "_") == "H7_VI":
+            label = "SoundSuite_H7(VI)"
+
+    try:
+        return await get_sprint_dashboard_for_model(model=model, label=label, project_key=project)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": str(e),
+                "knownModels": sorted(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
+                "hint": "model=H7_VI & label=SoundSuite_H7(VI) — Initiative/릴리즈 탭과 동일",
+            },
+        ) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"TV Jira sprint 집계 오류: {e} — TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
+        ) from e
 
 
 @router.get("/prd")
