@@ -59,10 +59,9 @@ function matchRow(row: ModelStatusPrdItem, f: RowFilter): boolean {
 
 export interface ModelStatusPrdPanelProps {
   modelCode: string
-  active?: boolean
 }
 
-export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelStatusPrdPanelProps) {
+export default function ModelStatusPrdPanel({ modelCode }: ModelStatusPrdPanelProps) {
   const qc = useQueryClient()
   const [filters, setFilters] = useState<RowFilter>({ ...EMPTY_FILTER })
   const [stageFilter, setStageFilter] = useState<PrdWorkflowStageId | null>(null)
@@ -70,10 +69,7 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
   const [draftLabels, setDraftLabels] = useState<Record<string, string>>({})
 
   const queryKey = ['model-status-prd', modelCode]
-  const { data, isPending, isFetching, isError, error, refetch, fetchStatus } = useModelStatusPrd(
-    modelCode,
-    active,
-  )
+  const { data, isPending, isFetching, isError, error, refetch } = useModelStatusPrd(modelCode)
 
   const saveLabel = useMutation({
     mutationFn: (args: { prdId: string; reviewLabel: string; almLabels: string[] }) =>
@@ -159,10 +155,6 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
     })
   }
 
-  if (!active) {
-    return null
-  }
-
   if (!modelCode?.trim()) {
     return (
       <p className="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-6 text-center">
@@ -171,7 +163,7 @@ export default function ModelStatusPrdPanel({ modelCode, active = true }: ModelS
     )
   }
 
-  if (isPending || (fetchStatus === 'idle' && !data)) {
+  if ((isPending || isFetching) && !data) {
     return (
       <div className="flex items-center gap-2 text-sm text-gray-500 py-8 justify-center">
         <Loader2 size={16} className="animate-spin" />
