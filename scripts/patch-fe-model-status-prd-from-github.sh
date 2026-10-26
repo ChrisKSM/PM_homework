@@ -29,7 +29,9 @@ fetch src/components/layout/Sidebar.tsx src/components/layout/Sidebar.tsx
 fetch src/utils/projectFromPath.ts src/utils/projectFromPath.ts
 fetch src/hooks/useModelStatusPrd.ts src/hooks/useModelStatusPrd.ts
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
+fetch src/api/client.ts src/api/client.ts
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
+fetch public/workspace_env.js public/workspace_env.js
 fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelStatus/ModelStatusPrdPanel.tsx
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/components/modelStatus/ModelStatusOverviewEventTimeline.tsx src/components/modelStatus/ModelStatusOverviewEventTimeline.tsx
@@ -42,7 +44,13 @@ fetch src/components/ErrorBoundary.tsx src/components/ErrorBoundary.tsx
 fetch src/utils/modelStatusPrdWorkflow.ts src/utils/modelStatusPrdWorkflow.ts
 fetch scripts/verify-model-status-prd-fe-deployed.sh scripts/verify-model-status-prd-fe-deployed.sh
 fetch scripts/patch-fe-model-status-prd-from-github.sh scripts/patch-fe-model-status-prd-from-github.sh
-chmod +x scripts/verify-model-status-prd-fe-deployed.sh 2>/dev/null || true
+fetch scripts/patch-fe-be-shared-url.sh scripts/patch-fe-be-shared-url.sh
+fetch scripts/verify-fe-api-base-url.sh scripts/verify-fe-api-base-url.sh
+chmod +x scripts/verify-model-status-prd-fe-deployed.sh scripts/patch-fe-be-shared-url.sh scripts/verify-fe-api-base-url.sh 2>/dev/null || true
+
+echo ""
+echo "=== FE API → 공용 be-audio-test (Worker --8000-- 제거) ==="
+RUN_BUILD=0 sh scripts/patch-fe-be-shared-url.sh
 
 grep -q projectFromPathname src/components/layout/Sidebar.tsx \
   && echo "  OK  Sidebar ↔ route project sync"

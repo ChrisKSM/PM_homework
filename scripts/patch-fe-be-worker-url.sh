@@ -1,5 +1,7 @@
 #!/bin/sh
-# react-audio FE pod — Worker Port BE URL (공용 be-audio-test token 없을 때)
+# react-audio FE pod — Worker Port BE URL (개인 Pod 디버그 전용)
+# ⚠️ 팀 공용 react-audio FE에는 쓰지 마세요 — 503 원인 (노트북/세션 종료).
+#    공용 Route: sh scripts/patch-fe-be-shared-url.sh
 #
 # ⚠️ scripts/ 없으면 (최초 1회):
 #   git remote add github https://github.com/ChrisKSM/PM_homework.git 2>/dev/null || true

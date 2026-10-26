@@ -1,5 +1,6 @@
 import axios from 'axios'
 
+/** 팀 공용 BE Route — react-audio FE 기본 (노트북 Worker Port 아님) */
 export const BE_AXSTUDIO = 'https://be-audio-test.apps.axstudio.lge.com/api'
 export const BE_HEDEJ = 'https://be-audio-test.apps.hedej.lge.com/api'
 
@@ -14,6 +15,21 @@ function isFeHost(host: string, domain: 'axstudio' | 'hedej'): boolean {
   return host.endsWith(suffix) && !host.includes('be-audio-test')
 }
 
+/** AxStudio 개인 Worker Port — 세션/노트북 종료 시 503 */
+export function isWorkerPortBeUrl(url: string | undefined): boolean {
+  if (!url) return false
+  return /--\d+--/i.test(url) && url.includes('be-audio-test')
+}
+
+function allowWorkerBeOverride(): boolean {
+  const env = (window as any).workspace_env ?? {}
+  const flag =
+    env.REACT_APP_ALLOW_WORKER_BE ??
+    env.REACT_APP__ALLOW_WORKER_BE ??
+    process.env.REACT_APP_ALLOW_WORKER_BE
+  return String(flag).toLowerCase() === 'true'
+}
+
 function readApiBaseUrlOverride(): string | undefined {
   const env = (window as any).workspace_env ?? {}
   return (
@@ -23,21 +39,37 @@ function readApiBaseUrlOverride(): string | undefined {
   )
 }
 
+function sanitizeOverride(url: string | undefined, host: string): string | undefined {
+  if (!url?.trim()) return undefined
+  const trimmed = url.trim()
+  if (REACT_AUDIO_HOSTS.has(host) && isWorkerPortBeUrl(trimmed) && !allowWorkerBeOverride()) {
+    console.warn(
+      '[api] Worker BE URL ignored on shared react-audio — using',
+      BE_AXSTUDIO,
+      '(set REACT_APP_ALLOW_WORKER_BE=true to force Worker)',
+    )
+    return undefined
+  }
+  if (isWorkerPortBeUrl(trimmed) && !allowWorkerBeOverride() && host.includes('workspace')) {
+    console.warn('[api] Worker BE URL ignored on workspace — using', BE_AXSTUDIO)
+    return undefined
+  }
+  return trimmed
+}
+
 export function resolveApiBaseUrl(): string {
   const host = window.location.hostname
 
-  // Worker Port / .env — 본인 BE pod (공용 be-audio-test Route 와 분리)
-  const override = readApiBaseUrlOverride()
-  if (override) return override
-
-  // axstudio react-audio 기본 — 공용 BE (운영). 개발은 REACT_APP_API_BASE_URL 로 Worker BE 지정
+  // 공용 react-audio — 항상 공용 Route (503 Worker Port 방지)
   if (host === 'react-audio.apps.axstudio.lge.com') {
     return BE_AXSTUDIO
   }
-
   if (REACT_AUDIO_HOSTS.has(host)) {
     return BE_AXSTUDIO
   }
+
+  const override = sanitizeOverride(readApiBaseUrlOverride(), host)
+  if (override) return override
 
   if (isFeHost(host, 'axstudio')) {
     return BE_AXSTUDIO
@@ -47,8 +79,11 @@ export function resolveApiBaseUrl(): string {
   }
 
   if (host.includes('workspace')) {
+    const allowWorker = allowWorkerBeOverride()
     const m = window.location.pathname.match(/(\/project\/[^/]+\/[^/]+\/proxy\/)\d+/)
-    if (m) return `${window.location.origin}${m[1]}8000/api`
+    if (allowWorker && m) {
+      return `${window.location.origin}${m[1]}8000/api`
+    }
     return BE_AXSTUDIO
   }
 
