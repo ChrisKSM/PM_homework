@@ -1,5 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -16,12 +18,18 @@ def _env_file_paths() -> tuple[str, ...]:
 class Settings(BaseSettings):
     # Harmony Jira — MLCSIXZERO 보드·스프린트 등 (기존 JIRA_* env)
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
-    jira_api_token: str = ""
+    jira_api_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN"),
+    )
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
 
     # TV Jira — TVPLAT Initiative 등 (TVJIRA_* env, Harmony와 토큰·URL 분리)
     tvjira_base_url: str = "http://jira.lge.com/issue"
-    tvjira_api_token: str = ""
+    tvjira_api_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN"),
+    )
     tvjira_verify_ssl: bool = False
 
     # Delivery Portal — 릴리즈 마일스톤 Gantt (Davis MilestonePage)
