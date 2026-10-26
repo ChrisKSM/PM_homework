@@ -44,6 +44,7 @@ fetch backend/polarion_client.py polarion_client.py
 fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.sh
 fetch scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-prd-fetch.sh
 fetch scripts/verify-model-status-sprint-be.sh scripts/verify-model-status-sprint-be.sh
+fetch scripts/diagnose-model-status-gantt-400.sh scripts/diagnose-model-status-gantt-400.sh
 fetch scripts/print-prd-polarion-query-urls.sh scripts/print-prd-polarion-query-urls.sh
 fetch scripts/probe-polarion-prd-rest.sh scripts/probe-polarion-prd-rest.sh
 fetch scripts/diagnose-polarion-pat.sh scripts/diagnose-polarion-pat.sh
