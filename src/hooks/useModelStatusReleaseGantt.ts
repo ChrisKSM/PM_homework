@@ -52,11 +52,13 @@ export function useModelStatusReleaseGantt(
           ),
         null,
       )
+      const errors = res?.meta?.errors ?? []
+      const failed = Boolean(res?.meta?.discovery?.failed) || errors.length > 0
       return {
         gantt: toGanttData(res, fallback),
         meta: res?.meta ?? null,
         initiative: res?.initiative ?? null,
-        source: res ? ('jira' as const) : ('mock' as const),
+        source: res && !failed ? ('jira' as const) : res ? ('degraded' as const) : ('mock' as const),
       }
     },
     placeholderData: {

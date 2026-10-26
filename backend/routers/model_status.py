@@ -49,6 +49,18 @@ def _gantt_http_detail_message(detail: object) -> str:
     return str(detail)
 
 
+def _gantt_http_status_for_error(detail: object, default: int = 400) -> int:
+    msg = _gantt_http_detail_message(detail)
+    try:
+        from tvjira_client import is_tvjira_config_error
+
+        if is_tvjira_config_error(msg):
+            return 503
+    except ImportError:
+        pass
+    return default
+
+
 def _gantt_failure_response(
     status_code: int,
     detail: object,
@@ -379,14 +391,12 @@ async def release_gantt(
             label=label,
         )
     except ValueError as e:
-        return _gantt_failure_response(400, str(e), model=model, label=label)
+        code = _gantt_http_status_for_error(str(e), 400)
+        return _gantt_failure_response(code, str(e), model=model, label=label)
     except Exception as e:
-        return _gantt_failure_response(
-            502,
-            f"TV Jira release gantt 오류: {e}",
-            model=model,
-            label=label,
-        )
+        msg = f"TV Jira release gantt 오류: {e}"
+        code = _gantt_http_status_for_error(msg, 502)
+        return _gantt_failure_response(code, msg, model=model, label=label)
 
 
 @router.get("/prd/query-catalog")

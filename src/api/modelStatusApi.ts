@@ -1,4 +1,20 @@
 import client from './client'
+import type { AxiosRequestConfig } from 'axios'
+
+/** release/gantt — BE가 meta 스키마 JSON + 400/503 반환 (axios 기본 throw 방지) */
+const modelStatusMetaEnvelopeConfig: AxiosRequestConfig = {
+  validateStatus: (status) => status === 200 || status === 400 || status === 502 || status === 503,
+  paramsSerializer: {
+    serialize: (params) => {
+      const sp = new URLSearchParams()
+      Object.entries(params as Record<string, unknown>).forEach(([key, value]) => {
+        if (value === undefined || value === null || value === '') return
+        sp.append(key, String(value))
+      })
+      return sp.toString()
+    },
+  },
+}
 import type { ModelStatusInitiativeIssue } from '../types/modelStatusInitiative'
 import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt'
 import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
@@ -60,8 +76,14 @@ export const modelStatusApi = {
     if (refresh) params.refresh = true
     if (allInitiatives) params.all_initiatives = true
     return client
-      .get<ModelReleaseGanttResponse>('/model-status/release/gantt', { params })
-      .then((r) => r.data)
+      .get<ModelReleaseGanttResponse>('/model-status/release/gantt', {
+        params,
+        ...modelStatusMetaEnvelopeConfig,
+      })
+      .then((r) => {
+        if (r.data?.meta) return r.data
+        throw new Error(`release/gantt unexpected response HTTP ${r.status}`)
+      })
   },
 
   getReleaseCalendar: () =>

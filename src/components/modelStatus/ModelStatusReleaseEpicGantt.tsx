@@ -114,6 +114,8 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
                   · Initiative {initiativeCount} · [Demo] Epic {demoEpicCount ?? gantt.epics.length} ·
                   Milestone {gantt.milestones.length}
                 </span>
+              ) : source === 'degraded' ? (
+                <span className="ml-1 text-amber-700 font-medium">· BE 오류 (아래 메시지 · 캘린더만 표시)</span>
               ) : (
                 <span className="ml-1 text-amber-600">· mock</span>
               )}
@@ -126,8 +128,17 @@ export default function ModelStatusReleaseEpicGantt({ modelCode, active }: Props
         </div>
 
         {metaErrors.length > 0 && (
-          <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[10px] text-amber-800">
-            Jira 일부 조회 실패: {metaErrors.slice(0, 2).join(' · ')}
+          <div className="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[10px] text-amber-800 space-y-1">
+            <p>
+              <span className="font-semibold">release/gantt:</span> {metaErrors.slice(0, 2).join(' · ')}
+            </p>
+            {metaErrors.some((e) => /TVJIRA_API_TOKEN/i.test(e)) ? (
+              <p>
+                공용 <code className="text-[9px]">be-audio-test.apps.axstudio.lge.com</code> BE에{' '}
+                <code className="text-[9px]">TVJIRA_API_TOKEN</code> 이 없습니다. Worker Pod .env 와 별도로
+                Deployment Variables / BE 패치 필요.
+              </p>
+            ) : null}
           </div>
         )}
 

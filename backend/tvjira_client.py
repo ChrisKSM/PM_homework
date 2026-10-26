@@ -76,16 +76,24 @@ def tvjira_token_source_info() -> tuple[str, int]:
     return source, len(_token)
 
 
+_TVJIRA_CONFIG_HINT = (
+    "TVJIRA_API_TOKEN이 비어 있습니다. "
+    "/usr/app/src/.env 또는 /workspace/project/.env 에 "
+    "TVJIRA_API_TOKEN=<PAT> 설정 (Harmony JIRA_API_TOKEN 과 별도). "
+    "공용 be-audio-test Route 는 Worker Pod .env 와 별도 — Deployment Variables 동기화 필요."
+)
+
+
+def is_tvjira_config_error(message: str) -> bool:
+    m = (message or "").lower()
+    return "tvjira_api_token" in m or "tvjira" in m and "token" in m and "비어" in message
+
+
 def resolve_tvjira_token() -> str:
     token, _source = _resolve_tvjira_token_pair()
     if token:
         return token
-    raise ValueError(
-        "TVJIRA_API_TOKEN이 비어 있습니다. "
-        "/usr/app/src/.env 또는 /workspace/project/.env 에 "
-        "TVJIRA_API_TOKEN=<PAT> 설정 (Harmony JIRA_API_TOKEN 과 별도). "
-        "BE replica 여러 개면 Deployment Variables·모든 pod .env 동기화 필요."
-    )
+    raise ValueError(_TVJIRA_CONFIG_HINT)
 
 
 def tvjira_issue_browse_url(issue_key: str) -> str:
