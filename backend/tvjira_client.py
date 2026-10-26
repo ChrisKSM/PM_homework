@@ -28,9 +28,19 @@ except ImportError:
             timeout=30.0,
         )
 
-_TVJIRA_DOTENV_KEYS = ("TVJIRA_API_TOKEN",)
-_TVJIRA_ENV_KEYS = ("TVJIRA_API_TOKEN", "TVJIRA_TOKEN", "TVJIRA_PAT")
-_JIRA_FALLBACK_ENV = ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT")
+_TVJIRA_DOTENV_KEYS = ("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN")
+_TVJIRA_ENV_KEYS = (
+    "TVJIRA_API_TOKEN",
+    "REACT_APP_TVJIRA_API_TOKEN",
+    "TVJIRA_TOKEN",
+    "TVJIRA_PAT",
+)
+_JIRA_FALLBACK_ENV = (
+    "JIRA_API_TOKEN",
+    "REACT_APP_JIRA_API_TOKEN",
+    "JIRA_TOKEN",
+    "JIRA_PAT",
+)
 
 
 def _resolve_tvjira_token_pair() -> tuple[str, str]:

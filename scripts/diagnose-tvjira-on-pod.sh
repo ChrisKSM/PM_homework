@@ -11,7 +11,12 @@ echo ""
 echo "=== Process env (length only) ==="
 python3 <<'PY'
 import os
-for k in ("TVJIRA_API_TOKEN", "TVJIRA_BASE_URL", "JIRA_API_TOKEN", "JIRA_BASE_URL"):
+for k in (
+    "TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN",
+    "TVJIRA_BASE_URL", "REACT_APP_TVJIRA_BASE_URL",
+    "JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN",
+    "JIRA_BASE_URL",
+):
     v = os.environ.get(k)
     if v is None:
         print(f"  {k}: (not set)")

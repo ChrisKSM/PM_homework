@@ -72,7 +72,12 @@ def _token_source_info() -> tuple[str, int]:
             if path.is_file():
                 return f"dotenv:{path}", len(token)
         return "dotenv", len(token)
-    for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+    for key in (
+        "JIRA_API_TOKEN",
+        "REACT_APP_JIRA_API_TOKEN",
+        "JIRA_TOKEN",
+        "JIRA_PAT",
+    ):
         token = _normalize_token(os.getenv(key))
         if token:
             return f"env:{key}", len(token)
@@ -88,7 +93,12 @@ def _resolve_jira_token() -> str:
         token = _read_token_from_dotenv()
         if token:
             return token
-        for key in ("JIRA_API_TOKEN", "JIRA_TOKEN", "JIRA_PAT"):
+        for key in (
+            "JIRA_API_TOKEN",
+            "REACT_APP_JIRA_API_TOKEN",
+            "JIRA_TOKEN",
+            "JIRA_PAT",
+        ):
             token = _normalize_token(os.getenv(key))
             if token:
                 return token
@@ -390,6 +400,7 @@ async def diagnose_jira() -> dict[str, Any]:
     import socket
 
     env_token_len = len(_normalize_token(os.getenv("JIRA_API_TOKEN")))
+    react_app_env_len = len(_normalize_token(os.getenv("REACT_APP_JIRA_API_TOKEN")))
     result: dict[str, Any] = {
         "ok": False,
         "hostname": socket.gethostname(),
@@ -400,6 +411,7 @@ async def diagnose_jira() -> dict[str, Any]:
         "token_source": "none",
         "token_length": 0,
         "env_jira_api_token_length": env_token_len,
+        "env_react_app_jira_api_token_length": react_app_env_len,
         "settings_jira_api_token_length": len(_normalize_token(settings.jira_api_token)),
         "dotenv_paths": [
             {"path": str(p), "exists": p.is_file()} for p in _DOTENV_PATHS
@@ -408,8 +420,10 @@ async def diagnose_jira() -> dict[str, Any]:
         "error": None,
         "fix_hint": (
             "JIRA_API_TOKEN: (1) AX Studio Variables → 프로젝트 **재시작**(uvicorn만 X), "
-            "(2) /workspace/project/.env + cp /usr/app/src/.env, "
-            "(3) FE URL vs Worker Port URL hostname 비교 (diagnose.hostname)"
+            "(2) BE 프로젝트 Global Prefix 가 REACT_APP_ 이면 env 키가 REACT_APP_JIRA_API_TOKEN — "
+            "BE는 Prefix 비우거나(권장) BE 패치로 REACT_APP_* fallback, "
+            "(3) /workspace/project/.env + cp /usr/app/src/.env, "
+            "(4) FE URL vs Worker Port URL hostname 비교 (diagnose.hostname)"
         ),
     }
     source, length = _token_source_info()
