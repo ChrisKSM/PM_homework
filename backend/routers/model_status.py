@@ -104,7 +104,10 @@ async def initiatives_ping():
     """배포 확인 — Jira 호출 없음."""
     from tvjira_client import tvjira_token_source_info
 
+    from jira_client import jira_related_dotenv_lengths, jira_related_env_lengths
+
     source, length = tvjira_token_source_info()
+    env_lens = jira_related_env_lengths()
     return {
         "ok": True,
         "service": "model-status-initiatives",
@@ -118,6 +121,8 @@ async def initiatives_ping():
             "tokenSource": source,
             "tokenLength": length,
         },
+        "envLengths": env_lens,
+        "dotenvTokenLengths": jira_related_dotenv_lengths(),
         "pod": _pod_identity(),
     }
 

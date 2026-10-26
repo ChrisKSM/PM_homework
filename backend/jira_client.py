@@ -61,6 +61,39 @@ def _normalize_token(raw: Any) -> str:
     return str(raw).strip()
 
 
+def jira_related_env_lengths() -> dict[str, int]:
+    """process env — 값 없이 key별 length (AxStudio Variables / Prefix 진단)."""
+    keys = (
+        "JIRA_API_TOKEN",
+        "REACT_APP_JIRA_API_TOKEN",
+        "JIRA_BASE_URL",
+        "TVJIRA_API_TOKEN",
+        "REACT_APP_TVJIRA_API_TOKEN",
+        "TVJIRA_BASE_URL",
+        "REACT_APP_TVJIRA_BASE_URL",
+    )
+    return {k: len(_normalize_token(os.getenv(k))) for k in keys}
+
+
+def jira_related_dotenv_lengths() -> dict[str, int]:
+    out: dict[str, int] = {k: 0 for k in ("JIRA_API_TOKEN", "TVJIRA_API_TOKEN")}
+    import re
+
+    for path in _DOTENV_PATHS:
+        if not path.is_file():
+            continue
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for key in out:
+            m = re.search(rf"^\s*{re.escape(key)}\s*=\s*(.*)$", text, re.M)
+            if m:
+                ln = len(m.group(1).strip().strip('"').strip("'"))
+                out[key] = max(out[key], ln)
+    return out
+
+
 def _token_source_info() -> tuple[str, int]:
     """토큰 출처·길이만 반환 (값 노출 금지)."""
     token = _normalize_token(settings.jira_api_token)
@@ -412,7 +445,10 @@ async def diagnose_jira() -> dict[str, Any]:
         "token_length": 0,
         "env_jira_api_token_length": env_token_len,
         "env_react_app_jira_api_token_length": react_app_env_len,
+        "env_lengths": jira_related_env_lengths(),
+        "dotenv_token_lengths": jira_related_dotenv_lengths(),
         "settings_jira_api_token_length": len(_normalize_token(settings.jira_api_token)),
+        "settings_tvjira_api_token_length": len(_normalize_token(settings.tvjira_api_token)),
         "dotenv_paths": [
             {"path": str(p), "exists": p.is_file()} for p in _DOTENV_PATHS
         ],
@@ -430,6 +466,25 @@ async def diagnose_jira() -> dict[str, Any]:
     result["token_source"] = source
     result["token_length"] = length
     if length == 0:
+        env_lens = result["env_lengths"]
+        react_j = env_lens.get("REACT_APP_JIRA_API_TOKEN", 0)
+        react_tv = env_lens.get("REACT_APP_TVJIRA_API_TOKEN", 0)
+        plain_j = env_lens.get("JIRA_API_TOKEN", 0)
+        plain_tv = env_lens.get("TVJIRA_API_TOKEN", 0)
+        if react_j or react_tv:
+            result["axstudio_hint"] = (
+                "Global Prefix REACT_APP_ still active on this Pod "
+                "(REACT_APP_* len>0, plain JIRA/TVJIRA=0). BE Prefix 비우기 + 재시작, "
+                "또는 BE patch f1465cf (REACT_APP fallback)."
+            )
+        elif not any(env_lens.values()) and not any(result["dotenv_token_lengths"].values()):
+            result["axstudio_hint"] = (
+                "process env·dotenv 모두 토큰 0 — Variables 가 **이 hostname Deployment**에 "
+                "주입되지 않았거나 Pod 재시작(Rollout) 전. "
+                "be-audio-test-dpl 공용 BE Variables + Rollout 확인 (Worker Pod 와 별개)."
+            )
+        elif plain_tv == 0 and plain_j > 0:
+            result["axstudio_hint"] = "JIRA only — TVJIRA_API_TOKEN Variables 추가 필요."
         result["error"] = "JIRA_API_TOKEN 미설정 (settings·dotenv·env 모두 비어 있음)"
         return result
 

@@ -52,7 +52,7 @@ fetch scripts/curl-polarion-prd-verbose.sh scripts/curl-polarion-prd-verbose.sh
 fetch scripts/fetch-polarion-diagnose-scripts.sh scripts/fetch-polarion-diagnose-scripts.sh
 fetch scripts/patch-model-status-be-fe.sh scripts/patch-model-status-be-fe.sh
 chmod +x scripts/print-prd-polarion-query-urls.sh scripts/probe-polarion-prd-rest.sh scripts/diagnose-polarion-pat.sh scripts/curl-polarion-prd-verbose.sh scripts/fetch-polarion-diagnose-scripts.sh scripts/patch-model-status-be-fe.sh 2>/dev/null || true
-chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-sprint-be.sh 2>/dev/null || true
+chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-sprint-be.sh scripts/diagnose-model-status-gantt-400.sh 2>/dev/null || true
 
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then
   echo "ERROR: routers/model_status.py 에 /prd 라우트 없음" >&2
