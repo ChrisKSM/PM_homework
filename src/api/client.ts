@@ -60,16 +60,12 @@ function sanitizeOverride(url: string | undefined, host: string): string | undef
 export function resolveApiBaseUrl(): string {
   const host = window.location.hostname
 
-  /**
-   * AxStudio Variables: Global Prefix REACT_APP_ + Key `API_BASE_URL`
-   * → runtime `window.workspace_env.REACT_APP_API_BASE_URL` (entrypoint 주입).
-   * UI Key에 REACT_APP_ 를 또 붙이지 말 것 (이중 prefix 방지).
-   */
+  // 공용 react-audio — 항상 공용 Route (503 Worker Port 방지)
+  if (host === 'react-audio.apps.axstudio.lge.com') {
+    return BE_AXSTUDIO
+  }
   if (REACT_AUDIO_HOSTS.has(host)) {
-    const override = sanitizeOverride(readApiBaseUrlOverride(), host)
-    if (override) return override
-    // Variables 미설정 시 hostname 기본 BE (Worker URL은 sanitize에서 차단)
-    return host === 'react-audio.apps.hedej.lge.com' ? BE_HEDEJ : BE_AXSTUDIO
+    return BE_AXSTUDIO
   }
 
   const override = sanitizeOverride(readApiBaseUrlOverride(), host)
