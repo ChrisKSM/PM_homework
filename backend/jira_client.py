@@ -543,6 +543,12 @@ async def diagnose_jira() -> dict[str, Any]:
             }
             if resp.status_code >= 400:
                 result["error"] = f"Jira HTTP {resp.status_code}: {resp.text[:200]}"
+                if resp.status_code == 401:
+                    result["auth_hint"] = (
+                        "토큰은 로드됨(variables.get/settings) — Harmony Jira 가 401 거부. "
+                        "AxStudio JIRA_API_TOKEN 이 harmony.lge.com Personal Access Token 인지, "
+                        "만료·오타·TVJIRA 토큰과 혼동 여부 확인. (process env 0 은 정상)"
+                    )
                 return result
             body = resp.json()
             result["jira_ping"]["board_name"] = body.get("name")

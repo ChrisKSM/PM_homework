@@ -40,6 +40,8 @@ if d.get("axstudio_hint"):
     print("  HINT:", d["axstudio_hint"])
 if d.get("fix_hint"):
     print("  fix_hint:", (d.get("fix_hint") or "")[:240])
+if d.get("auth_hint"):
+    print("  AUTH:", d["auth_hint"])
 if d.get("error"):
     print("  error:", (d.get("error") or "")[:200])
 print("  ok:", d.get("ok"))
