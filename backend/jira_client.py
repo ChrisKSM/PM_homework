@@ -130,35 +130,38 @@ def jira_related_dotenv_lengths() -> dict[str, int]:
     return out
 
 
-def _token_source_info() -> tuple[str, int]:
-    """토큰 출처·길이만 반환 (값 노출 금지)."""
-    token = _normalize_token(settings.jira_api_token)
+def _resolve_jira_token_pair() -> tuple[str, str]:
+    """
+    AxStudio: variables.get 가 기준(settings 는 import 시점 캐시 — dpl 401 방지).
+    로컬: dotenv → variables → settings → os.environ.
+    """
+    token, source = _token_from_dej_or_env()
     if token:
-        return "settings.jira_api_token", len(token)
+        return token, source
     token = _read_token_from_dotenv()
     if token:
         for path in _DOTENV_PATHS:
             if path.is_file():
-                return f"dotenv:{path}", len(token)
-        return "dotenv", len(token)
-    token, source = _token_from_dej_or_env()
+                return token, f"dotenv:{path}"
+        return token, "dotenv"
+    token = _normalize_token(settings.jira_api_token)
+    if token:
+        return token, "settings.jira_api_token"
+    return "", "none"
+
+
+def _token_source_info() -> tuple[str, int]:
+    """토큰 출처·길이만 반환 (값 노출 금지)."""
+    token, source = _resolve_jira_token_pair()
     if token:
         return source, len(token)
     return "none", 0
 
 
 def _resolve_jira_token() -> str:
-    source, length = _token_source_info()
-    if length > 0:
-        token = _normalize_token(settings.jira_api_token)
-        if token:
-            return token
-        token = _read_token_from_dotenv()
-        if token:
-            return token
-        token, _ = _token_from_dej_or_env()
-        if token:
-            return token
+    token, _ = _resolve_jira_token_pair()
+    if token:
+        return token
     raise ValueError(
         "JIRA_API_TOKEN이 비어 있습니다. AxStudio Variables(dej_sdk variables.get), "
         "/usr/app/src/.env 또는 /workspace/project/.env 확인."
