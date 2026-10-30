@@ -10,7 +10,7 @@ from services.model_status_initiative_service import (
 def test_build_initiative_jql_h7_vi():
     jql = build_initiative_jql("SoundSuite_H7(VI)")
     assert 'project = TVPLAT' in jql
-    assert "issuetype = Initiative" in jql
+    assert "issuetype in (Initiative, initiative)" in jql
     assert 'labels in ("SoundSuite_H7(VI)")' in jql
 
 

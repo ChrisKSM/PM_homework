@@ -183,6 +183,12 @@ def _hydrate_settings_from_dej(base: Settings) -> Settings:
         v = pick("DELIVERY_PORTAL_API_TOKEN")
         if v:
             patch["delivery_portal_api_token"] = v
+    tv_base = pick("TVJIRA_BASE_URL", "REACT_APP_TVJIRA_BASE_URL")
+    if tv_base and tv_base != base.tvjira_base_url:
+        patch["tvjira_base_url"] = tv_base
+    j_base = pick("JIRA_BASE_URL", "REACT_APP_JIRA_BASE_URL")
+    if j_base and j_base != base.jira_base_url:
+        patch["jira_base_url"] = j_base
     if patch:
         return base.model_copy(update=patch)
     return base

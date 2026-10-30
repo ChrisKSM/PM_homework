@@ -46,16 +46,9 @@ _JIRA_FALLBACK_ENV = (
 
 def _resolve_tvjira_token_pair() -> tuple[str, str]:
     """
-    PAT + 출처 라벨. Pod .env 가 process env/settings 보다 우선 (수동 .env 수정·다중 replica).
+    AxStudio variables.get → dotenv(Worker) → settings → os.environ.
     TVJIRA 없으면 Harmony JIRA_API_TOKEN fallback.
     """
-    token = _read_token_from_dotenv_keys(*_TVJIRA_DOTENV_KEYS)
-    if token:
-        for path in _DOTENV_PATHS:
-            if path.is_file():
-                return token, f"dotenv:{path}:TVJIRA_API_TOKEN"
-        return token, "dotenv:TVJIRA_API_TOKEN"
-
     for key in _TVJIRA_ENV_KEYS:
         token = _normalize_token(dej_get(key))
         if token:
@@ -63,6 +56,13 @@ def _resolve_tvjira_token_pair() -> tuple[str, str]:
         token = _normalize_token(os.getenv(key))
         if token:
             return token, f"env:{key}"
+
+    token = _read_token_from_dotenv_keys(*_TVJIRA_DOTENV_KEYS)
+    if token:
+        for path in _DOTENV_PATHS:
+            if path.is_file():
+                return token, f"dotenv:{path}:TVJIRA_API_TOKEN"
+        return token, "dotenv:TVJIRA_API_TOKEN"
 
     token = _normalize_token(settings.tvjira_api_token)
     if token:
@@ -103,6 +103,28 @@ _TVJIRA_CONFIG_HINT = (
 def is_tvjira_config_error(message: str) -> bool:
     m = (message or "").lower()
     return "tvjira_api_token" in m or "tvjira" in m and "token" in m and "비어" in message
+
+
+def tvjira_http_error(resp: httpx.Response, *, jql: str = "") -> httpx.HTTPStatusError:
+    """Jira 4xx/5xx — errorMessages 를 exception message 에 포함."""
+    body = (resp.text or "")[:800]
+    hint = body
+    try:
+        data = resp.json()
+        msgs = data.get("errorMessages") or []
+        errs = data.get("errors") or {}
+        parts = list(msgs) + [f"{k}: {v}" for k, v in errs.items()]
+        if parts:
+            hint = "; ".join(str(p) for p in parts)[:800]
+    except Exception:
+        pass
+    req = resp.request
+    msg = f"TV Jira HTTP {resp.status_code}"
+    if jql:
+        msg += f" jql={jql[:200]!r}"
+    if hint:
+        msg += f" — {hint}"
+    return httpx.HTTPStatusError(msg, request=req, response=resp)
 
 
 def resolve_tvjira_token() -> str:
@@ -149,17 +171,20 @@ class TvJiraClient:
         max_results: int = 1000,
         start_at: int = 0,
     ) -> dict:
-        params: dict[str, Any] = {
-            "jql": jql,
-            "fields": ",".join(fields or ["summary", "status"]),
-            "maxResults": max_results,
-            "startAt": start_at,
-        }
+        """Jira Server — POST /search (긴 JQL·fields GET 400 방지)."""
         url = f"{self.base_url}/rest/api/2/search"
+        field_list = list(fields or ["summary", "status"])
+        payload: dict[str, Any] = {
+            "jql": jql,
+            "startAt": start_at,
+            "maxResults": max_results,
+            "fields": field_list,
+        }
         token = resolve_tvjira_token()
         async with _make_authed_client(token, settings.tvjira_verify_ssl) as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
+            resp = await client.post(url, json=payload)
+            if resp.status_code >= 400:
+                raise tvjira_http_error(resp, jql=jql)
             return resp.json()
 
 
