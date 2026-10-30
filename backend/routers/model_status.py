@@ -101,52 +101,61 @@ router = APIRouter(prefix="/api/model-status", tags=["model-status"])
 
 @router.get("/initiatives/ping")
 async def initiatives_ping():
-    """배포 확인 — Jira 호출 없음."""
-    from tvjira_client import tvjira_token_source_info
-
-    from jira_client import (
-        jira_related_dej_variable_lengths,
-        jira_related_dotenv_lengths,
-        jira_related_env_lengths,
-        jira_related_process_env_lengths,
-    )
-    from dej_variables import dej_sdk_variables_available
-
-    from dej_variables import token_fingerprint
-    from jira_client import _resolve_jira_token_pair
-    from tvjira_client import _resolve_tvjira_token_pair
-
-    source, length = tvjira_token_source_info()
-    env_lens = jira_related_env_lengths()
-    jira_tok, jira_src = _resolve_jira_token_pair()
-    tv_tok, _tv_src = _resolve_tvjira_token_pair()
-    return {
+    """배포 확인 — Jira 호출 없음 (항상 JSON, 500 방지)."""
+    base: dict = {
         "ok": True,
         "service": "model-status-initiatives",
-        "models": sorted(
-            set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
-            | set(_sprint_story_label_models())
-        ),
-        "sprintModels": sorted(_sprint_story_label_models()),
-        "harmonyJira": {
-            "baseUrl": settings.jira_base_url.rstrip("/"),
-            "tokenSource": jira_src,
-            "tokenLength": len((jira_tok or "").strip()),
-            "tokenFingerprint": token_fingerprint(jira_tok),
-        },
-        "tvjira": {
-            "baseUrl": settings.tvjira_base_url.rstrip("/"),
-            "tokenSource": source,
-            "tokenLength": length,
-            "tokenFingerprint": token_fingerprint(tv_tok),
-        },
-        "envLengths": env_lens,
-        "dejVariableLengths": jira_related_dej_variable_lengths(),
-        "processEnvLengths": jira_related_process_env_lengths(),
-        "dejSdkVariables": dej_sdk_variables_available(),
-        "dotenvTokenLengths": jira_related_dotenv_lengths(),
         "pod": _pod_identity(),
     }
+    try:
+        from dej_variables import dej_sdk_variables_available, token_fingerprint
+        from jira_client import (
+            _resolve_jira_token_pair,
+            jira_related_dej_variable_lengths,
+            jira_related_dotenv_lengths,
+            jira_related_env_lengths,
+            jira_related_process_env_lengths,
+        )
+        from tvjira_client import _resolve_tvjira_token_pair, tvjira_token_source_info
+
+        source, length = tvjira_token_source_info()
+        env_lens = jira_related_env_lengths()
+        jira_tok, jira_src = _resolve_jira_token_pair()
+        tv_tok, _tv_src = _resolve_tvjira_token_pair()
+        base.update(
+            {
+                "models": sorted(
+                    set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
+                    | set(_sprint_story_label_models())
+                ),
+                "sprintModels": sorted(_sprint_story_label_models()),
+                "harmonyJira": {
+                    "baseUrl": settings.jira_base_url.rstrip("/"),
+                    "tokenSource": jira_src,
+                    "tokenLength": len((jira_tok or "").strip()),
+                    "tokenFingerprint": token_fingerprint(jira_tok),
+                },
+                "tvjira": {
+                    "baseUrl": settings.tvjira_base_url.rstrip("/"),
+                    "tokenSource": source,
+                    "tokenLength": length,
+                    "tokenFingerprint": token_fingerprint(tv_tok),
+                },
+                "envLengths": env_lens,
+                "dejVariableLengths": jira_related_dej_variable_lengths(),
+                "processEnvLengths": jira_related_process_env_lengths(),
+                "dejSdkVariables": dej_sdk_variables_available(),
+                "dotenvTokenLengths": jira_related_dotenv_lengths(),
+            }
+        )
+    except Exception as e:
+        base["ok"] = False
+        base["pingError"] = str(e)[:500]
+        base["hint"] = (
+            "dpl BE 구버전/파일 누락 — patch-be-dej-variables-from-github.sh + Publish, "
+            "Variables 재연결 후 AxStudio 프로젝트 재시작"
+        )
+    return base
 
 
 @router.get("/initiatives/story-sp-kpi")

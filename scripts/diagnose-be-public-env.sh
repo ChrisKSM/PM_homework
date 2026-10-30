@@ -28,7 +28,13 @@ print("  variables_get_base_urls:", d.get("variables_get_base_urls"))
 print("  settings_jira:", d.get("settings_jira_api_token_length"),
       "settings_tvjira:", d.get("settings_tvjira_api_token_length"))
 dej = d.get("dej_variable_lengths") or {}
-print("  dej_sdk_variables:", d.get("dej_sdk_variables"))
+_dej_flag = d.get("dej_sdk_variables")
+_tl = int(d.get("token_length") or 0)
+print("  dej_sdk_variables:", _dej_flag)
+if _dej_flag is None and not dej:
+    print("  WARN diagnose 구버전 또는 필드 누락 — jira_client patch + Rollout")
+if _tl == 0 and not any(dej.values()):
+    print("  WARN token 0 — AxStudio Variables + Deployment 재시작(Rollout), Worker .env 는 dpl 에 안 감")
 print("  dej_variable_lengths:", dej if dej else "(all 0)")
 proc = d.get("process_env_lengths") or {}
 print("  process_env_lengths:", proc if proc else "(all 0)")
@@ -108,6 +114,9 @@ HTTP2=$(curl -sS -o /tmp/diag-ping.json -w "%{http_code}" "${BASE}/model-status/
 echo "  HTTP $HTTP2"
 if [ "$HTTP2" = "404" ]; then
   echo "  NG  ping 없음 — model_status router patch 필요"
+elif [ "$HTTP2" = "500" ]; then
+  echo "  NG  Internal Server Error — ping 라우트 예외 (BE patch/Rollout)"
+  head -c 300 /tmp/diag-ping.json 2>/dev/null; echo ""
 elif [ "$HTTP2" = "000" ] || [ "$HTTP2" = "502" ] || [ "$HTTP2" = "503" ]; then
   head -c 200 /tmp/diag-ping.json 2>/dev/null; echo ""
 else
@@ -173,7 +182,8 @@ tv_len = (p.get("tvjira") or {}).get("tokenLength") or 0
 if dej_j or dej_tv or tl:
     print("  OK  variables.get / settings — JIRA=%s TV=%s (process env 0 은 AxStudio 에서 정상)" % (dej_j or tl, dej_tv or tv_len))
 else:
-    print("  NG  Variables 미인식 — patch-be-dej-variables-from-github.sh + Publish")
+    print("  NG  Variables/token 0 on dpl — AxStudio Variables 확인 + Publish/Rollout (pod hostname 변경됐으면 새 pod)")
+    print("      Worker patch-be-dej 는 dpl Variables 주입 대체 불가")
 
 if j.get("ok"):
     print("  OK  Harmony Jira board ping 성공")

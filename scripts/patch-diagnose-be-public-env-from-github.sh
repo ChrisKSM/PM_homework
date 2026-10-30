@@ -23,6 +23,7 @@ fetch() {
 echo "=== patch public env diagnose @ $REF ==="
 fetch scripts/diagnose-be-public-env.sh scripts/diagnose-be-public-env.sh
 fetch scripts/diagnose-be-env-loading.sh scripts/diagnose-be-env-loading.sh
+fetch backend/routers/model_status.py routers/model_status.py
 chmod +x scripts/diagnose-be-public-env.sh scripts/diagnose-be-env-loading.sh 2>/dev/null || true
 
 echo ""
