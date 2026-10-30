@@ -19,6 +19,12 @@ except json.JSONDecodeError as e:
 print("  hostname:", d.get("hostname"))
 print("  cwd:", d.get("cwd"))
 print("  token_length:", d.get("token_length"), "source:", d.get("token_source"))
+print("  token_fingerprint:", d.get("token_fingerprint"))
+print("  jira_base_url:", d.get("jira_base_url"))
+vg = d.get("variables_get_jira_api_token") or {}
+print("  variables.get JIRA len_raw/strip:", vg.get("len_raw"), vg.get("len_stripped"), "ws:", vg.get("had_outer_whitespace"))
+print("  variables.get JIRA fp:", vg.get("fingerprint"))
+print("  variables_get_base_urls:", d.get("variables_get_base_urls"))
 print("  settings_jira:", d.get("settings_jira_api_token_length"),
       "settings_tvjira:", d.get("settings_tvjira_api_token_length"))
 dej = d.get("dej_variable_lengths") or {}
@@ -61,9 +67,15 @@ except json.JSONDecodeError:
 pod = d.get("pod") or {}
 print("  pod hostname:", pod.get("hostname"))
 tv = d.get("tvjira") or {}
-print("  tvjira tokenLength:", tv.get("tokenLength"), "source:", tv.get("tokenSource"))
+print("  tvjira baseUrl:", tv.get("baseUrl"))
+hj = d.get("harmonyJira") or {}
+print("  harmony baseUrl:", hj.get("baseUrl"), "fp:", hj.get("tokenFingerprint"), "len:", hj.get("tokenLength"))
+print("  tvjira tokenLength:", tv.get("tokenLength"), "source:", tv.get("tokenSource"), "fp:", tv.get("tokenFingerprint"))
+print("  tvjira baseUrl:", tv.get("baseUrl"))
 el = d.get("envLengths") or {}
 dej = d.get("dejVariableLengths") or {}
+if not (dej.get("TVJIRA_BASE_URL") or 0):
+    print("  WARN TVJIRA_BASE_URL Variables=0 → BE config 기본 URL 사용 (Worker .env 와 다를 수 있음)")
 print("  dejSdkVariables:", d.get("dejSdkVariables"))
 print("  dejVariableLengths:", dej if dej else "(all 0)")
 print("  envLengths (merged):", el if el else "(all 0)")
@@ -103,6 +115,23 @@ else
 fi
 
 echo ""
+echo "=== TV live GET /model-status/initiatives?model=H7_VI (Jira search) ==="
+HTTP3=$(curl -sS -o /tmp/diag-init.json -w "%{http_code}" "${BASE}/model-status/initiatives?model=H7_VI" || echo "000")
+echo "  HTTP $HTTP3"
+if [ "$HTTP3" = "200" ]; then
+  python3 -c "
+import json,sys
+d=json.load(open('/tmp/diag-init.json'))
+meta=d.get('meta') or {}
+print('  total:', meta.get('total'), 'jql:', (meta.get('jql') or '')[:100])
+err=meta.get('error') or d.get('detail')
+if err: print('  error:', str(err)[:200])
+" 2>/dev/null || head -c 200 /tmp/diag-init.json
+elif [ "$HTTP3" != "404" ]; then
+  head -c 240 /tmp/diag-init.json 2>/dev/null; echo ""
+fi
+
+echo ""
 echo "=== 해석 (이번 실행 기준) ==="
 python3 <<'PY'
 import json
@@ -137,4 +166,15 @@ elif not tl:
 
 if tv_len:
     print("  OK  TV Jira token 로드 — Initiative/Gantt API 시도 가능 (실제 Jira 호출은 별도)")
+dej_tv_base = (j.get("dej_variable_lengths") or {}).get("TVJIRA_BASE_URL", 0)
+if tv_len and not dej_tv_base:
+    print("  WARN TVJIRA_BASE_URL Variables 없음 — Worker .env TVJIRA_BASE_URL 을 Variables 에 등록 권장")
+
+init = load("/tmp/diag-init.json")
+if Path("/tmp/diag-init.json").exists():
+    meta = init.get("meta") or {}
+    if init.get("issues") is not None and (meta.get("total") or 0) > 0:
+        print("  OK  TV Initiative search — total=%s" % meta.get("total"))
+    elif meta.get("error") or (isinstance(init.get("detail"), str) and init.get("detail")):
+        print("  NG  TV Initiative search 실패 — TV PAT·BASE_URL·issuetype JQL 확인")
 PY

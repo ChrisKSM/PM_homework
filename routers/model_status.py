@@ -2,14 +2,9 @@ import socket
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
 
 from config import settings
 from services import model_status_initiative_service
-
-
-def _sprint_story_label_models() -> set[str]:
-    return set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
 
 
 def _release_gantt_service():
@@ -47,18 +42,6 @@ def _gantt_http_detail_message(detail: object) -> str:
             parts.append(str(hint))
         return " — ".join(parts)
     return str(detail)
-
-
-def _gantt_http_status_for_error(detail: object, default: int = 400) -> int:
-    msg = _gantt_http_detail_message(detail)
-    try:
-        from tvjira_client import is_tvjira_config_error
-
-        if is_tvjira_config_error(msg):
-            return 503
-    except ImportError:
-        pass
-    return default
 
 
 def _gantt_failure_response(
@@ -104,34 +87,16 @@ async def initiatives_ping():
     """배포 확인 — Jira 호출 없음."""
     from tvjira_client import tvjira_token_source_info
 
-    from jira_client import (
-        jira_related_dej_variable_lengths,
-        jira_related_dotenv_lengths,
-        jira_related_env_lengths,
-        jira_related_process_env_lengths,
-    )
-    from dej_variables import dej_sdk_variables_available
-
     source, length = tvjira_token_source_info()
-    env_lens = jira_related_env_lengths()
     return {
         "ok": True,
         "service": "model-status-initiatives",
-        "models": sorted(
-            set(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys())
-            | set(_sprint_story_label_models())
-        ),
-        "sprintModels": sorted(_sprint_story_label_models()),
+        "models": list(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
         "tvjira": {
             "baseUrl": settings.tvjira_base_url.rstrip("/"),
             "tokenSource": source,
             "tokenLength": length,
         },
-        "envLengths": env_lens,
-        "dejVariableLengths": jira_related_dej_variable_lengths(),
-        "processEnvLengths": jira_related_process_env_lengths(),
-        "dejSdkVariables": dej_sdk_variables_available(),
-        "dotenvTokenLengths": jira_related_dotenv_lengths(),
         "pod": _pod_identity(),
     }
 
@@ -405,77 +370,20 @@ async def release_gantt(
             label=label,
         )
     except ValueError as e:
-        code = _gantt_http_status_for_error(str(e), 400)
-        return _gantt_failure_response(code, str(e), model=model, label=label)
+        return _gantt_failure_response(400, str(e), model=model, label=label)
     except Exception as e:
-        msg = f"TV Jira release gantt 오류: {e}"
-        code = _gantt_http_status_for_error(msg, 502)
-        return _gantt_failure_response(code, msg, model=model, label=label)
-
-
-@router.get("/prd/query-catalog")
-async def model_status_prd_query_catalog(
-    model: str | None = Query(None, description="UI model e.g. H7_VI"),
-    project_key: str | None = Query(None, description="Polarion project override"),
-    max_queries: int = Query(50, ge=1, le=80),
-):
-    """
-    PRD Lucene 후보 probe — **Polarion UI URL** 포함.
-    브라우저에서 recommended[].polarionUrl 로 hit 쿼리 확인.
-    """
-    from services.model_status_prd_service import get_prd_query_catalog
-
-    try:
-        return await get_prd_query_catalog(model, project_key=project_key, max_queries=max_queries)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PRD query catalog 오류: {e}") from e
-
-
-@router.get("/sprint/dashboard")
-async def model_status_sprint_dashboard(
-    model: str | None = Query(None, description="UI model e.g. H7_VI"),
-    label: str | None = Query(None, description='Jira label e.g. SoundSuite_H7(VI)'),
-    project: str = Query("TVPLAT", description="Jira project key"),
-):
-    """
-    TV Jira (TVPLAT) — Initiative Description 마일스톤 + release/gantt Epic Milestone.
-    Harmony 보드 / S80C 스프린트와 무관. H7_VI 등 Initiative label 매핑 모델.
-    """
-    from services.model_status_sprint_service import (
-        get_sprint_dashboard_for_model,
-        resolve_sprint_model_label,
-    )
-
-    if not (label and label.strip()) and model:
-        auto = resolve_sprint_model_label(model, None)
-        if auto:
-            label = auto
-        elif model.strip().upper().replace("-", "_").replace(" ", "_") == "H7_VI":
-            label = "SoundSuite_H7(VI)"
-
-    try:
-        return await get_sprint_dashboard_for_model(model=model, label=label, project_key=project)
-    except ValueError as e:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": str(e),
-                "knownModels": sorted(model_status_initiative_service.INITIATIVE_JIRA_LABEL_BY_MODEL.keys()),
-                "hint": "model=H7_VI & label=SoundSuite_H7(VI) — Initiative/릴리즈 탭과 동일",
-            },
-        ) from e
-    except Exception as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"TV Jira sprint 집계 오류: {e} — TVJIRA_API_TOKEN · GET /api/model-status/initiatives/ping",
-        ) from e
+        return _gantt_failure_response(
+            502,
+            f"TV Jira release gantt 오류: {e}",
+            model=model,
+            label=label,
+        )
 
 
 @router.get("/prd")
 async def model_status_prd(
     model: str | None = Query(None, description="UI model e.g. H7_VI"),
     probe: bool = Query(False, description="true면 Lucene probe 결과 포함"),
-    discover: bool = Query(False, description="true면 type/필드 discovery probe (probe 0 hit 시 자동)"),
     project_key: str | None = Query(None, description="Polarion project override"),
     alm_type: str = Query("tv", description="davis alm_type (alm page.js)"),
 ):
@@ -489,37 +397,8 @@ async def model_status_prd(
         return await get_prd_for_model(
             model,
             probe=probe,
-            discover=discover,
             project_key=project_key,
             alm_type=alm_type,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"PRD ALM 조회 오류: {e}") from e
-
-
-class ModelStatusPrdLabelBody(BaseModel):
-    model: str = Field(..., description="UI model e.g. H7_VI")
-    prdId: str = Field(..., description="Polarion workitem id")
-    reviewLabel: str = Field("", description="검토 일정/그룹 라벨 (Milvus 저장)")
-    almLabels: list[str] | None = Field(None, description="저장 시 ALM labels 스냅샷")
-
-
-@router.put("/prd/labels")
-async def model_status_prd_save_label(body: ModelStatusPrdLabelBody):
-    """PRD 검토 라벨 — Milvus model_status_prd_labels."""
-    from services.model_status_prd_labels import save_review_label
-
-    try:
-        doc = save_review_label(
-            model=body.model,
-            prd_id=body.prdId,
-            review_label=body.reviewLabel,
-            alm_labels=body.almLabels,
-        )
-        return {"ok": True, "label": doc}
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e)) from e
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"PRD label 저장 오류: {e}") from e

@@ -1,7 +1,5 @@
-from pathlib import Path
-
-from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pathlib import Path
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -18,18 +16,12 @@ def _env_file_paths() -> tuple[str, ...]:
 class Settings(BaseSettings):
     # Harmony Jira — MLCSIXZERO 보드·스프린트 등 (기존 JIRA_* env)
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
-    jira_api_token: str = Field(
-        default="",
-        validation_alias=AliasChoices("JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN"),
-    )
+    jira_api_token: str = ""
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
 
     # TV Jira — TVPLAT Initiative 등 (TVJIRA_* env, Harmony와 토큰·URL 분리)
     tvjira_base_url: str = "http://jira.lge.com/issue"
-    tvjira_api_token: str = Field(
-        default="",
-        validation_alias=AliasChoices("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN"),
-    )
+    tvjira_api_token: str = ""
     tvjira_verify_ssl: bool = False
 
     # Delivery Portal — 릴리즈 마일스톤 Gantt (Davis MilestonePage)
@@ -123,14 +115,7 @@ class Settings(BaseSettings):
     polarion_verify_ssl: bool = False
     # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
     polarion_list_path: str = "workitems"
-    polarion_prd_project_key: str = "AVSWReqMgmt"  # PRD workitem 목록 프로젝트
-    # PRD 목록 — UI hash vs REST (customs v1) 분리
-    #   UI:  .../#/project/AVSWReqMgmt/workitems/PRD?query=<lucene>
-    #   REST: .../projects/AVSWReqMgmt/workitems?query=<lucene>&page=&pageSize=
-    # REST 에 별도 ?prd= 파라미터 없음. PRD 범위는 UI path `workitems/PRD` 또는 Lucene(type:PRD 등).
-    polarion_prd_ui_list_path: str = "workitems/PRD"  # Polarion UI hash 경로
-    polarion_prd_rest_list_path: str = "workitems"  # REST path segment (not workitems/PRD on many gateways)
-    polarion_prd_list_path: str = "workitems/PRD"  # 하위 호환 → UI 경로 alias
+    polarion_prd_project_key: str = ""  # 비우면 polarion_project_key
     # alm page.js — davis-db-api /alm/workitems/list (선택)
     davis_db_api_base_url: str = ""
     davis_db_api_key: str = ""
@@ -152,49 +137,7 @@ class Settings(BaseSettings):
     )
 
 
-def _hydrate_settings_from_dej(base: Settings) -> Settings:
-    """AxStudio Variables(dej_sdk) → pydantic settings (Publish Pod 기동 시)."""
-    try:
-        from dej_variables import runtime_get
-    except ImportError:
-        return base
-
-    def pick(*keys: str) -> str:
-        for key in keys:
-            val = runtime_get(key)
-            if val:
-                return val
-        return ""
-
-    patch: dict[str, str] = {}
-    if not (base.jira_api_token or "").strip():
-        v = pick("JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN")
-        if v:
-            patch["jira_api_token"] = v
-    if not (base.tvjira_api_token or "").strip():
-        v = pick("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN")
-        if v:
-            patch["tvjira_api_token"] = v
-    if not (base.polarion_pat or "").strip():
-        v = pick("POLARION_PAT")
-        if v:
-            patch["polarion_pat"] = v
-    if not (base.delivery_portal_api_token or "").strip():
-        v = pick("DELIVERY_PORTAL_API_TOKEN")
-        if v:
-            patch["delivery_portal_api_token"] = v
-    tv_base = pick("TVJIRA_BASE_URL", "REACT_APP_TVJIRA_BASE_URL")
-    if tv_base and tv_base != base.tvjira_base_url:
-        patch["tvjira_base_url"] = tv_base
-    j_base = pick("JIRA_BASE_URL", "REACT_APP_JIRA_BASE_URL")
-    if j_base and j_base != base.jira_base_url:
-        patch["jira_base_url"] = j_base
-    if patch:
-        return base.model_copy(update=patch)
-    return base
-
-
-settings = _hydrate_settings_from_dej(Settings())
+settings = Settings()
 
 
 def effective_smtp_host() -> str:

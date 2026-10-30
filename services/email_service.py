@@ -3,29 +3,19 @@ SMTP email delivery — LGE 내부 relay(lgesmtp.lge.com:25, STARTTLS, 무인증
 """
 from __future__ import annotations
 
-import base64
 import smtplib
 import ssl
 import time
-from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from config import effective_smtp_host, settings
+from config import settings
 
 MAX_RETRIES = 3
 
 
 def _parse_recipients(raw: str) -> list[str]:
     return [addr.strip() for addr in raw.split(",") if addr.strip()]
-
-
-def _normalize_sender(raw: str) -> str:
-    """`.env` 줄 붙음 bug: `...@lge.comSMTP_HOST=...` → 발신 주소만 추출."""
-    addr = str(raw or "").strip()
-    if "SMTP_" in addr:
-        addr = addr.split("SMTP_", 1)[0].rstrip()
-    return addr
 
 
 def _tls_context() -> ssl.SSLContext | None:
@@ -39,7 +29,7 @@ def _tls_context() -> ssl.SSLContext | None:
 
 
 def _create_smtp_connection() -> smtplib.SMTP:
-    server = smtplib.SMTP(effective_smtp_host(), settings.smtp_port, timeout=30)
+    server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
     server.ehlo()
     if settings.smtp_use_tls:
         server.starttls(context=_tls_context())
@@ -76,21 +66,16 @@ def _send_with_retry(*, sender: str, to_addrs: list[str], msg: str) -> None:
             pass
 
 
-def _mail_sender_and_recipients(recipients: list[str] | None) -> tuple[str, list[str]]:
+def send_html_email(*, subject: str, html_body: str, recipients: list[str] | None = None) -> None:
+    """Send HTML email via SMTP. Raises if SMTP is not configured."""
     to_addrs = recipients or _parse_recipients(settings.report_recipients)
     if not to_addrs:
         raise ValueError("수신자(REPORT_RECIPIENTS)가 설정되지 않았습니다.")
-    if not effective_smtp_host():
+
+    if not settings.smtp_host:
         raise ValueError("SMTP_HOST가 설정되지 않았습니다.")
-    sender = _normalize_sender(
-        settings.smtp_from or settings.smtp_user or "DL-webOS_PMO-AudioSWPO@lge.com"
-    )
-    return sender, to_addrs
 
-
-def send_html_email(*, subject: str, html_body: str, recipients: list[str] | None = None) -> None:
-    """Send HTML email via SMTP. Raises if SMTP is not configured."""
-    sender, to_addrs = _mail_sender_and_recipients(recipients)
+    sender = settings.smtp_from or settings.smtp_user or "DL-webOS_PMO-AudioSWPO@lge.com"
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
@@ -99,57 +84,6 @@ def send_html_email(*, subject: str, html_body: str, recipients: list[str] | Non
     msg.attach(MIMEText(html_body, "html", "utf-8"))
 
     _send_with_retry(sender=sender, to_addrs=to_addrs, msg=msg.as_string())
-
-
-def send_plain_and_html_email(
-    *,
-    subject: str,
-    plain_body: str,
-    html_body: str,
-    recipients: list[str] | None = None,
-    inline_images: list[tuple[str, bytes, str]] | None = None,
-    attachments: list[tuple[str, bytes, str]] | None = None,
-) -> None:
-    """Plain + HTML 본문, 인라인/첨부 PNG 지원 (overview snapshot)."""
-    sender, to_addrs = _mail_sender_and_recipients(recipients)
-
-    msg = MIMEMultipart("mixed")
-    msg["Subject"] = subject
-    msg["From"] = sender
-    msg["To"] = ", ".join(to_addrs)
-
-    if inline_images:
-        related = MIMEMultipart("related")
-        alt = MIMEMultipart("alternative")
-        alt.attach(MIMEText(plain_body, "plain", "utf-8"))
-        alt.attach(MIMEText(html_body, "html", "utf-8"))
-        related.attach(alt)
-        for cid, data, mime in inline_images:
-            img = MIMEImage(data, _subtype=mime.split("/")[-1] if "/" in mime else "png")
-            img.add_header("Content-ID", f"<{cid}>")
-            img.add_header("Content-Disposition", "inline", filename=f"{cid}.png")
-            related.attach(img)
-        msg.attach(related)
-    else:
-        alt = MIMEMultipart("alternative")
-        alt.attach(MIMEText(plain_body, "plain", "utf-8"))
-        alt.attach(MIMEText(html_body, "html", "utf-8"))
-        msg.attach(alt)
-
-    for filename, data, mime in attachments or []:
-        img = MIMEImage(data, _subtype=mime.split("/")[-1] if "/" in mime else "png")
-        img.add_header("Content-Disposition", "attachment", filename=filename)
-        msg.attach(img)
-
-    _send_with_retry(sender=sender, to_addrs=to_addrs, msg=msg.as_string())
-
-
-def decode_page_image_data(raw: str) -> bytes:
-    """data:image/png;base64,... 또는 raw base64 → bytes."""
-    text = str(raw or "").strip()
-    if "," in text and text.lower().startswith("data:"):
-        text = text.split(",", 1)[1]
-    return base64.b64decode(text)
 
 
 def build_report_subject() -> str:

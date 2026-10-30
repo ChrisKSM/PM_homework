@@ -50,7 +50,8 @@ def build_initiative_jql(jira_label: str, project_key: str = "TVPLAT") -> str:
     label = jira_label.strip().replace('"', '\\"')
     proj = project_key.strip()
     return (
-        f'project = {proj} AND issuetype = Initiative AND labels in ("{label}")'
+        f'project = {proj} AND issuetype in (Initiative, initiative) '
+        f'AND labels in ("{label}")'
     )
 
 

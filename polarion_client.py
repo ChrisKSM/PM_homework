@@ -11,7 +11,6 @@ from typing import Any
 import httpx
 
 from config import settings
-from dej_variables import runtime_get
 
 if not settings.polarion_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
@@ -51,13 +50,9 @@ async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> htt
     raise last_exc or RuntimeError("Polarion request failed")
 
 
-def _polarion_pat() -> str:
-    return (settings.polarion_pat or "").strip() or runtime_get("POLARION_PAT")
-
-
 def _headers() -> dict[str, str]:
     return {
-        "Authorization": f"Bearer {_polarion_pat()}",
+        "Authorization": f"Bearer {settings.polarion_pat}",
         "Accept": "application/json",
     }
 
@@ -66,8 +61,8 @@ def _base_url() -> str:
     return settings.polarion_base_url.rstrip("/")
 
 
-def _list_endpoint(project_key: str | None = None, list_path: str | None = None) -> str:
-    path = (list_path or getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
+def _list_endpoint(project_key: str | None = None) -> str:
+    path = (getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
     key = (project_key or settings.polarion_project_key).strip()
     return f"{_base_url()}/projects/{key}/{path}"
 
@@ -84,44 +79,11 @@ def _safe_text(attrs: dict, key: str) -> str:
     return str(val).strip()
 
 
-def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
-    """Polarion customs list JSON → (workitems, totalCount)."""
-    obj: dict[str, Any] | None = None
-    if isinstance(data, dict) and "data" in data:
-        inner = data["data"]
-        if isinstance(inner, list) and inner:
-            obj = inner[0] if isinstance(inner[0], dict) else None
-        elif isinstance(inner, dict):
-            obj = inner
-    elif isinstance(data, list) and data and isinstance(data[0], dict):
-        obj = data[0]
-    elif isinstance(data, dict):
-        obj = data
-
-    if not obj:
-        return [], 0
-
-    workitems: list[dict[str, Any]] = []
-    for key in ("workitems", "workItems", "items", "Workitems", "WorkItems"):
-        raw = obj.get(key)
-        if isinstance(raw, list):
-            workitems = raw
-            break
-
-    total_raw = obj.get("totalCount", obj.get("total", obj.get("totalItems")))
-    try:
-        total_count = int(total_raw) if total_raw is not None else len(workitems)
-    except (TypeError, ValueError):
-        total_count = len(workitems)
-    return workitems, total_count
-
-
 async def fetch_list_page(
     page: int = 1,
     query: str = "type:testDefect",
     page_size: int = 100,
     project_key: str | None = None,
-    list_path: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
     params: dict[str, Any] = {
@@ -129,8 +91,28 @@ async def fetch_list_page(
         "page": page,
         "pageSize": page_size,
     }
-    resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
-    return _parse_polarion_list_page(resp.json())
+    resp = await _get_with_retry(_list_endpoint(project_key), params=params)
+    data = resp.json()
+
+    # 응답 구조: {"data": [{"page":1, "totalCount":N, "workitems":[...]}]}
+    #         또는 [{"page":1, ...}]
+    #         또는 {"workitems":[...]}
+    if isinstance(data, dict) and "data" in data:
+        inner = data["data"]
+        obj = inner[0] if isinstance(inner, list) and inner else inner
+    elif isinstance(data, list) and data and isinstance(data[0], dict):
+        obj = data[0]
+    elif isinstance(data, dict):
+        obj = data
+    else:
+        return [], 0
+
+    if not isinstance(obj, dict):
+        return [], 0
+
+    workitems = obj.get("workitems", [])
+    total_count = obj.get("totalCount", len(workitems))
+    return workitems, total_count
 
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:

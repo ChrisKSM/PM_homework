@@ -1,18 +1,13 @@
 """모델 현황 저장소 — Milvus (pymilvus) 직접 연결.
 
 포털 DB 정보(host *.milvus.svc, port 19530)는 Milvus 벡터 DB입니다.
-MongoDB(pymongo, 27017)가 아닙니다.
 """
 from __future__ import annotations
 
 import logging
 import os
 import re
-from pathlib import Path
 from typing import Any
-
-from dotenv import load_dotenv
-
 try:
     from pymilvus import DataType, MilvusClient
 except ModuleNotFoundError as exc:
@@ -24,32 +19,10 @@ except ModuleNotFoundError as exc:
 
 logger = logging.getLogger(__name__)
 
-
-def _load_dotenv() -> None:
-    """uvicorn 은 config.Settings 만 로드 — MONGO_* 는 os.environ 에 직접 넣어야 함."""
-    for path in (Path("/usr/app/src/.env"), Path("/workspace/project/.env"), Path(".env")):
-        if path.is_file():
-            load_dotenv(path, override=False)
-            return
-
-
-_load_dotenv()
-
 COLLECTION_VECTOR_DIM = 2
 DUMMY_VECTOR = [0.0, 0.0]
 
 _client: MilvusClient | None = None
-_last_error: str | None = None
-
-
-def _set_error(msg: str) -> None:
-    global _last_error
-    _last_error = msg
-    logger.error(msg)
-
-
-def last_error() -> str | None:
-    return _last_error
 
 
 def _host() -> str:
@@ -68,17 +41,12 @@ def _password() -> str:
     return os.getenv("MILVUS_PASSWORD") or os.getenv("MONGO_PASSWORD", "")
 
 
-def _normalize_db_name(raw: str) -> str:
-    """Milvus DB명: 하이픈·특수문자 불가 → underscore."""
-    name = (raw or "default").strip()
-    if not name or name.lower() == "default":
-        return "default"
-    return re.sub(r"[^0-9a-zA-Z_]", "_", name.replace("-", "_"))
-
-
 def _db_name() -> str:
-    raw = os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "default")
-    return _normalize_db_name(raw)
+    return (
+        os.getenv("MILVUS_DB")
+        or os.getenv("MONGO_DB")
+        or "default"
+    )
 
 
 def _uri() -> str:
@@ -109,43 +77,129 @@ def _safe_uri_for_log() -> str:
 
 
 def _client_kwargs() -> dict[str, Any]:
-    user, password = _user(), _password()
-    kwargs: dict[str, Any] = {"uri": _uri()}
+    user = _user()
+    password = _password()
+    uri = _uri()
+
+    logger.info("[Milvus] uri=%s", uri)
+    logger.info("[Milvus] user configured=%s", bool(user))
+    logger.info("[Milvus] password configured=%s", bool(password))
+
+    kwargs: dict[str, Any] = {
+        "uri": uri
+    }
+
     if user and password:
         kwargs["token"] = f"{user}:{password}"
+
     return kwargs
 
 
 def ensure_database() -> str:
-    """Milvus database 없으면 생성 (default DB는 스킵)."""
+    """Milvus database가 없으면 생성합니다. default DB는 생성을 건너뜁니다."""
+
     db = _db_name()
+    uri = _uri()
+
+    logger.info("[Milvus] ensure_database 시작")
+    logger.info("[Milvus] db_name=%s", db)
+    logger.info("[Milvus] uri=%s", uri)
+
     if not db or db == "default":
+        logger.info("[Milvus] default database 사용")
         return "default"
 
-    bootstrap = MilvusClient(**_client_kwargs())
     try:
-        databases = bootstrap.list_databases()
-        if db not in databases:
-            bootstrap.create_database(db_name=db)
-            logger.info("Created Milvus database: %s", db)
+        logger.info("[Milvus] bootstrap client 생성 시작")
+
+        bootstrap = MilvusClient(**_client_kwargs())
+
+        logger.info("[Milvus] bootstrap client 생성 성공")
+
+        try:
+            logger.info("[Milvus] list_databases 시작")
+
+            databases = bootstrap.list_databases()
+
+            logger.info(
+                "[Milvus] list_databases 성공: %s",
+                databases,
+            )
+
+            if db not in databases:
+                logger.info(
+                    "[Milvus] database 없음. 생성 시작: %s",
+                    db,
+                )
+
+                bootstrap.create_database(db_name=db)
+
+                logger.info(
+                    "[Milvus] database 생성 성공: %s",
+                    db,
+                )
+            else:
+                logger.info(
+                    "[Milvus] database 존재함: %s",
+                    db,
+                )
+
+        finally:
+            close = getattr(bootstrap, "close", None)
+
+            if callable(close):
+                close()
+                logger.info("[Milvus] bootstrap client close 완료")
+
     except Exception as exc:
-        _set_error(f"ensure_database({db}) failed: {exc}")
+        logger.exception(
+            "[Milvus] ensure_database 실패: "
+            "db=%s, uri=%s, error=%s",
+            db,
+            uri,
+            exc,
+        )
         raise
-    finally:
-        close = getattr(bootstrap, "close", None)
-        if callable(close):
-            close()
 
     return db
 
 
 def get_client() -> MilvusClient:
     global _client
+
     if _client is None:
-        db = ensure_database()
-        kwargs = _client_kwargs()
-        kwargs["db_name"] = db
-        _client = MilvusClient(**kwargs)
+        try:
+            logger.info("[Milvus] get_client 시작")
+
+            logger.info("[Milvus] ensure_database 시작")
+            db = ensure_database()
+            logger.info("[Milvus] ensure_database 성공: db=%s", db)
+
+            logger.info("[Milvus] _client_kwargs 시작")
+            kwargs = _client_kwargs()
+
+            # 비밀번호/token 등이 있을 수 있으므로 kwargs 전체 출력 금지
+            logger.info(
+                "[Milvus] connection 설정: uri=%s, db=%s",
+                kwargs.get("uri", "N/A"),
+                db,
+            )
+
+            kwargs["db_name"] = db
+
+            logger.info("[Milvus] MilvusClient 생성 시작")
+
+            _client = MilvusClient(**kwargs)
+
+            logger.info("[Milvus] MilvusClient 생성 성공")
+
+        except Exception as exc:
+            logger.exception(
+                "[Milvus] get_client 실패: %s",
+                exc,
+            )
+            raise
+
     return _client
 
 
@@ -168,8 +222,6 @@ def _create_collection_schema(client: MilvusClient):
 
 
 def create_collection(name: str) -> bool:
-    global _last_error
-    _last_error = None
     try:
         client = get_client()
         if client.has_collection(name):
@@ -178,30 +230,12 @@ def create_collection(name: str) -> bool:
         client.create_collection(collection_name=name, schema=schema, index_params=index_params)
         return True
     except Exception as exc:
-        _set_error(f"create_collection({name}) failed: {exc}")
+        logger.error("create_collection failed: %s", exc)
         return False
 
 
 def ensure_collection(name: str) -> bool:
     return create_collection(name)
-
-
-def collection_error(name: str) -> str:
-    """ensure_collection 실패 시 API 응답용 상세 메시지."""
-    if _last_error:
-        return _last_error
-    return (
-        f"Milvus collection '{name}' 준비 실패 — "
-        f"uri={_safe_uri_for_log()} db={_db_name()} "
-        f"(MONGO_PASSWORD·MONGO_PORT=19530·pymilvus 설치 확인)"
-    )
-
-
-def _flush_collection(collection: str) -> None:
-    try:
-        get_client().flush(collection_name=collection)
-    except Exception as exc:
-        logger.warning("flush(%s) failed: %s", collection, exc)
 
 
 def get_all_documents(collection: str, use_cache: bool = False) -> list[dict]:
@@ -244,7 +278,6 @@ def insert_documents(collection: str, documents: list[dict]) -> bool:
         if not batch:
             return True
         client.insert(collection_name=collection, data=batch)
-        _flush_collection(collection)
         return True
     except Exception as exc:
         logger.error("insert_documents failed: %s", exc)
@@ -285,7 +318,6 @@ def delete_all_documents(collection: str) -> bool:
         if not client.has_collection(collection):
             return True
         client.delete(collection_name=collection, filter='row_id != ""')
-        _flush_collection(collection)
         return True
     except Exception as exc:
         logger.error("delete_all_documents failed: %s", exc)
@@ -293,12 +325,10 @@ def delete_all_documents(collection: str) -> bool:
 
 
 def diagnose(collection: str = "model_schedule_data") -> dict[str, Any]:
-    raw_db = os.getenv("MILVUS_DB") or os.getenv("MONGO_DB", "default")
     result: dict[str, Any] = {
         "mode": "milvus",
         "uri": _safe_uri_for_log(),
         "db": _db_name(),
-        "db_raw": raw_db,
         "port": _port(),
         "collection": collection,
         "steps": [],

@@ -6,7 +6,17 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import effective_cors_origins, settings
 from cache import clear_cache
-from routers import manager, devteam, planning, quality, procurement, risk, sprint_plan, mr_quality, model_status
+from routers import (
+    manager,
+    devteam,
+    planning,
+    quality,
+    procurement,
+    risk,
+    sprint_plan,
+    mr_quality,
+    model_status,
+)
 
 app = FastAPI(
     title="Jira Dashboard API",
@@ -42,6 +52,12 @@ try:
 except ImportError:
     pass
 
+try:
+    from routers import delivery_portal
+    app.include_router(delivery_portal.router)
+except ImportError:
+    pass
+
 # daily report — jinja2 미설치 환경(prod 이미지 등)에서는 건너뜀
 try:
     from routers import report
@@ -68,9 +84,3 @@ async def invalidate_cache():
     """캐시 전체 초기화 (Frontend 새로고침 버튼 연동)."""
     await clear_cache()
     return {"message": "캐시가 초기화되었습니다."}
-
-try:
-    from routers import delivery_portal
-    app.include_router(delivery_portal.router)
-except ImportError:
-    pass
