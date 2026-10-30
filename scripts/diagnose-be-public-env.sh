@@ -40,6 +40,8 @@ if d.get("axstudio_hint"):
     print("  HINT:", d["axstudio_hint"])
 if d.get("fix_hint"):
     print("  fix_hint:", (d.get("fix_hint") or "")[:240])
+if d.get("auth_hint"):
+    print("  AUTH:", d["auth_hint"])
 if d.get("error"):
     print("  error:", (d.get("error") or "")[:200])
 print("  ok:", d.get("ok"))
@@ -101,8 +103,38 @@ else
 fi
 
 echo ""
-echo "=== 해석 ==="
-echo "  · env·dotenv 전부 0 → Variables 가 be-audio-test-dpl Pod 에 없음 → BE Deployment Variables + Rollout"
-echo "  · REACT_APP_* 만 >0 → Global Prefix (BE Prefix 비우기 또는 REACT_APP fallback BE)"
-echo "  · JIRA>0 TV=0 → TVJIRA_API_TOKEN Variables 추가"
-echo "  · Worker Pod: sh scripts/diagnose-be-env-loading.sh (file vs env 비교)"
+echo "=== 해석 (이번 실행 기준) ==="
+python3 <<'PY'
+import json
+from pathlib import Path
+
+def load(p):
+    try:
+        return json.loads(Path(p).read_text())
+    except Exception:
+        return {}
+
+j = load("/tmp/diag-jira.json")
+p = load("/tmp/diag-ping.json")
+dej_j = (j.get("dej_variable_lengths") or {}).get("JIRA_API_TOKEN", 0)
+dej_tv = (j.get("dej_variable_lengths") or {}).get("TVJIRA_API_TOKEN", 0)
+tl = j.get("token_length") or 0
+tv_len = (p.get("tvjira") or {}).get("tokenLength") or 0
+
+if dej_j or dej_tv or tl:
+    print("  OK  variables.get / settings — JIRA=%s TV=%s (process env 0 은 AxStudio 에서 정상)" % (dej_j or tl, dej_tv or tv_len))
+else:
+    print("  NG  Variables 미인식 — patch-be-dej-variables-from-github.sh + Publish")
+
+if j.get("ok"):
+    print("  OK  Harmony Jira board ping 성공")
+elif tl and "401" in (j.get("error") or ""):
+    print("  WARN Harmony 401 — 토큰 값 문제(PAT 만료·오타·TV/Harmony PAT 혼동). Variables JIRA_API_TOKEN 재등록")
+elif tl:
+    print("  WARN Harmony:", (j.get("error") or "")[:120])
+elif not tl:
+    print("  NG  Harmony token 0")
+
+if tv_len:
+    print("  OK  TV Jira token 로드 — Initiative/Gantt API 시도 가능 (실제 Jira 호출은 별도)")
+PY
