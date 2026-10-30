@@ -35,7 +35,8 @@ fetch backend/jira_client.py jira_client.py
 fetch backend/tvjira_client.py tvjira_client.py
 fetch scripts/patch-be-main-model-schedule.sh scripts/patch-be-main-model-schedule.sh
 fetch scripts/be-restart-uvicorn-standalone.sh scripts/be-restart-uvicorn-standalone.sh
-chmod +x scripts/patch-be-main-model-schedule.sh scripts/be-restart-uvicorn-standalone.sh
+fetch scripts/kill-be-port-listener.sh scripts/kill-be-port-listener.sh
+chmod +x scripts/patch-be-main-model-schedule.sh scripts/be-restart-uvicorn-standalone.sh scripts/kill-be-port-listener.sh
 
 # config — dej_sdk hydrate 유지 (overview 패치만으로 config 롤백 방지)
 fetch backend/config.py config.py.patched 2>/dev/null || true
