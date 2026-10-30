@@ -37,6 +37,18 @@ _model_schedule_ok() {
   "$1" -c "from routers import model_schedule" >/dev/null 2>&1
 }
 
+_ms_routes_on_app() {
+  "$1" -c "
+import main
+paths = [
+    getattr(r, 'path', '') or ''
+    for r in main.app.routes
+    if 'model-schedule' in (getattr(r, 'path', '') or '')
+]
+raise SystemExit(0 if paths else 1)
+" >/dev/null 2>&1
+}
+
 _llm_wanted() {
   if [ -f .env ] && grep -qE '^LLM_ENABLED=(1|true|yes|on|TRUE|True)' .env 2>/dev/null; then
     return 0
@@ -84,6 +96,8 @@ fi
 if _llm_wanted; then
   if _dej_ok "$PY"; then
     echo "OK  LLM_ENABLED — dej_sdk on $PY"
+  elif [ -f routers/model_schedule.py ] && _model_schedule_ok "$PY"; then
+    echo "WARN dej_sdk missing on $PY — keep venv for model_schedule/overview (LLM → rule fallback)"
   else
     echo "WARN dej_sdk missing on $PY — trying alternate interpreters"
     for candidate in python3 python /usr/bin/python3 venv/bin/python; do
@@ -105,6 +119,15 @@ if _llm_wanted; then
   fi
 fi
 
+# overview: import alone is not enough — main.app must expose routes
+if [ -f routers/model_schedule.py ] && ! _ms_routes_on_app "$PY"; then
+  echo "WARN model-schedule routes missing on main.app ($PY) — trying venv/bin/python"
+  if [ -x venv/bin/python ] && _main_ok venv/bin/python && _ms_routes_on_app venv/bin/python; then
+    PY="venv/bin/python"
+    echo "OK  model-schedule routes on $PY"
+  fi
+fi
+
 echo "=== import main:app ==="
 if ! "$PY" -c "import main" 2>/tmp/be-import.err; then
   echo "NG  import main failed:"
@@ -112,6 +135,13 @@ if ! "$PY" -c "import main" 2>/tmp/be-import.err; then
   exit 1
 fi
 echo "OK  import main"
+
+if [ -f routers/model_schedule.py ] && ! _ms_routes_on_app "$PY"; then
+  echo "NG  main.app has no /api/model-schedule routes (main.py 등록 누락)"
+  echo "    sh scripts/patch-be-main-model-schedule.sh"
+  grep -n model_schedule main.py 2>/dev/null | head -5 || true
+  exit 1
+fi
 
 echo "=== uvicorn 0.0.0.0:$PORT ==="
 nohup "$PY" -m uvicorn main:app --host 0.0.0.0 --port "$PORT" >>"/tmp/uvicorn-${PORT}.log" 2>&1 &
