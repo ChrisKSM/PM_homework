@@ -582,10 +582,19 @@ async def diagnose_jira() -> dict[str, Any]:
             if resp.status_code >= 400:
                 result["error"] = f"Jira HTTP {resp.status_code}: {resp.text[:200]}"
                 if resp.status_code == 401:
+                    vg = result.get("variables_get_jira_api_token") or {}
+                    b64_note = ""
+                    if vg.get("looks_b64_wrapped_pat") and vg.get("fingerprint_b64_decoded"):
+                        b64_note = (
+                            " variables.get len=60 + Base64 디코드 시 fp="
+                            f"{vg.get('fingerprint_b64_decoded')} — UI 44자 PAT가 "
+                            "플랫폼에서 Base64(60)로 주입된 경우 BE dej_variables b64 decode 패치 필요."
+                        )
                     result["auth_hint"] = (
                         "토큰은 로드됨(variables.get/settings) — Harmony Jira 가 401 거부. "
                         "AxStudio JIRA_API_TOKEN 이 harmony.lge.com Personal Access Token 인지, "
                         "만료·오타·TVJIRA 토큰과 혼동 여부 확인. (process env 0 은 정상)"
+                        + b64_note
                     )
                 return result
             body = resp.json()

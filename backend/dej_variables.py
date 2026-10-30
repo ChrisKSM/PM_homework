@@ -4,6 +4,7 @@ AxStudio / DEJ SDK Variables — UI Variables 는 os.environ 이 아닌 variable
 """
 from __future__ import annotations
 
+import base64
 import hashlib
 import os
 from typing import Any
@@ -37,13 +38,33 @@ def _normalize(raw: Any) -> str:
     return str(raw).strip()
 
 
+def _maybe_b64_decode_pat(value: str) -> str:
+    """
+    AxStudio variables.get 이 UI(44자)와 다른 60자 문자열을 줄 때 —
+    Base64(44자 PAT) → 60자 인코딩인 경우만 디코드 (값 노출 없이 길이·fp로 검증).
+    """
+    t = (value or "").strip()
+    if len(t) < 48:
+        return t
+    try:
+        decoded = base64.b64decode(t, validate=True).decode("utf-8").strip()
+    except Exception:
+        return t
+    if not decoded or not decoded.isascii():
+        return t
+    if 40 <= len(decoded) <= 48 and len(decoded) < len(t):
+        return decoded
+    return t
+
+
 def dej_get(key: str) -> str:
     """DEJ SDK variables.get 만 (os.environ 미사용)."""
     vmod = _dej_variables()
     if vmod is None:
         return ""
     try:
-        return _normalize(vmod.get(key))
+        raw = _normalize(vmod.get(key))
+        return _maybe_b64_decode_pat(raw)
     except Exception:
         return ""
 
@@ -96,9 +117,19 @@ def variables_get_length_detail(key: str) -> dict[str, int | bool | str]:
     else:
         raw_s = str(raw)
     stripped = _normalize(raw_s)
-    return {
+    decoded = _maybe_b64_decode_pat(stripped)
+    out: dict[str, int | bool | str] = {
         "len_raw": len(raw_s),
         "len_stripped": len(stripped),
         "had_outer_whitespace": raw_s != stripped,
         "fingerprint": token_fingerprint(stripped),
     }
+    if decoded != stripped:
+        out["len_b64_decoded"] = len(decoded)
+        out["fingerprint_b64_decoded"] = token_fingerprint(decoded)
+        out["looks_b64_wrapped_pat"] = True
+    else:
+        out["len_b64_decoded"] = 0
+        out["fingerprint_b64_decoded"] = ""
+        out["looks_b64_wrapped_pat"] = False
+    return out
