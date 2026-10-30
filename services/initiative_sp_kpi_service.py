@@ -709,7 +709,8 @@ async def preview_story_sp_kpi(
     if not jira_label:
         return {"error": "label required", "plannedSpTotal": 0, "actualSpTotal": 0}
 
-    fields = list(initiative_search_field_ids()) + ["description"]
+    # description 은 search fields 에 넣으면 TV Jira Server 가 400 반환하는 경우 있음 → 이슈별 get
+    fields = list(initiative_search_field_ids())
     inits = await tvjira_search_all(build_initiative_jql(jira_label, project_key), fields)
     per_init: list[dict[str, Any]] = []
     planned_total = 0.0
