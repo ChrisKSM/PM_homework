@@ -21,6 +21,10 @@ print("  cwd:", d.get("cwd"))
 print("  token_length:", d.get("token_length"), "source:", d.get("token_source"))
 print("  token_fingerprint:", d.get("token_fingerprint"))
 print("  jira_base_url:", d.get("jira_base_url"))
+vg = d.get("variables_get_jira_api_token") or {}
+print("  variables.get JIRA len_raw/strip:", vg.get("len_raw"), vg.get("len_stripped"), "ws:", vg.get("had_outer_whitespace"))
+print("  variables.get JIRA fp:", vg.get("fingerprint"))
+print("  variables_get_base_urls:", d.get("variables_get_base_urls"))
 print("  settings_jira:", d.get("settings_jira_api_token_length"),
       "settings_tvjira:", d.get("settings_tvjira_api_token_length"))
 dej = d.get("dej_variable_lengths") or {}

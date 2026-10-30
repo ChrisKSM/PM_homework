@@ -11,7 +11,13 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
-from dej_variables import dej_get, dej_sdk_variables_available, process_env_lengths_for_keys, token_fingerprint
+from dej_variables import (
+    dej_get,
+    dej_sdk_variables_available,
+    process_env_lengths_for_keys,
+    token_fingerprint,
+    variables_get_length_detail,
+)
 
 # 내부 서버 자체 서명 인증서 경고 억제
 if not settings.jira_verify_ssl:
@@ -460,8 +466,22 @@ async def diagnose_jira() -> dict[str, Any]:
     """
     import socket
 
-    env_token_len = len(_normalize_token(dej_get("JIRA_API_TOKEN")))
-    react_app_dej_len = len(_normalize_token(dej_get("REACT_APP_JIRA_API_TOKEN")))
+    # DEJ SDK 공식 API — variables.get (dej_get 래퍼와 동일 소스, 진단은 explicit import)
+    try:
+        from dej_sdk import variables as dej_variables_sdk
+    except ImportError:
+        dej_variables_sdk = None
+
+    def _variables_get(key: str) -> str:
+        if dej_variables_sdk is None:
+            return dej_get(key)
+        try:
+            return _normalize_token(dej_variables_sdk.get(key))
+        except Exception:
+            return ""
+
+    env_token_len = len(_variables_get("JIRA_API_TOKEN"))
+    react_app_dej_len = len(_variables_get("REACT_APP_JIRA_API_TOKEN"))
     result: dict[str, Any] = {
         "ok": False,
         "hostname": socket.gethostname(),
@@ -474,6 +494,17 @@ async def diagnose_jira() -> dict[str, Any]:
         "token_length": 0,
         "env_jira_api_token_length": env_token_len,
         "env_react_app_jira_api_token_length": react_app_dej_len,
+        "variables_get_jira_api_token": variables_get_length_detail("JIRA_API_TOKEN"),
+        "variables_get_tvjira_api_token": variables_get_length_detail("TVJIRA_API_TOKEN"),
+        "variables_get_base_urls": {
+            k: len(_variables_get(k))
+            for k in (
+                "JIRA_BASE_URL",
+                "TVJIRA_BASE_URL",
+                "REACT_APP_JIRA_BASE_URL",
+                "REACT_APP_TVJIRA_BASE_URL",
+            )
+        },
         "dej_variable_lengths": jira_related_dej_variable_lengths(),
         "process_env_lengths": jira_related_process_env_lengths(),
         "env_lengths": jira_related_env_lengths(),
