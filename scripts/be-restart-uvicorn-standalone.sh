@@ -19,10 +19,49 @@ if [ -f .env ]; then
   echo "OK  .env copied (if path exists)"
 fi
 
-# stop old listener on PORT (best effort)
-if command -v fuser >/dev/null 2>&1; then
-  fuser -k "${PORT}/tcp" 2>/dev/null || true
-  sleep 1
+_kill_port_listeners() {
+  _port="$1"
+  _i=1
+  while [ "$_i" -le 5 ]; do
+    _pids=""
+    if command -v ss >/dev/null 2>&1; then
+      _pids=$(ss -tlnp 2>/dev/null | grep ":${_port} " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u)
+    elif command -v netstat >/dev/null 2>&1; then
+      _pids=$(netstat -tlnp 2>/dev/null | grep ":${_port} " | awk '{print $7}' | cut -d/ -f1 | grep -E '^[0-9]+$' | sort -u)
+    fi
+    if [ -z "$_pids" ]; then
+      return 0
+    fi
+    echo "  stopping port ${_port} pid(s): $(echo "$_pids" | tr '\n' ' ')"
+    for _pid in $_pids; do
+      kill "$_pid" 2>/dev/null || true
+    done
+    sleep 2
+    for _pid in $_pids; do
+      kill -0 "$_pid" 2>/dev/null && kill -9 "$_pid" 2>/dev/null || true
+    done
+    sleep 1
+    _i=$((_i + 1))
+  done
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${_port}/tcp" 2>/dev/null || true
+    sleep 1
+  fi
+}
+
+_openapi_has_model_schedule() {
+  curl -sf "http://127.0.0.1:${PORT}/openapi.json" 2>/dev/null | "$PY" -c "
+import json, sys
+d = json.load(sys.stdin)
+ok = any('model-schedule' in p for p in d.get('paths', {}))
+sys.exit(0 if ok else 1)
+" >/dev/null 2>&1
+}
+
+echo "=== stop listeners on :$PORT ==="
+_kill_port_listeners "$PORT"
+if command -v ss >/dev/null 2>&1; then
+  ss -tlnp 2>/dev/null | grep ":${PORT} " || echo "  (port $PORT free)"
 fi
 
 _dej_ok() {
@@ -143,23 +182,47 @@ if [ -f routers/model_schedule.py ] && ! _ms_routes_on_app "$PY"; then
   exit 1
 fi
 
-echo "=== uvicorn 0.0.0.0:$PORT ==="
+echo "=== uvicorn 0.0.0.0:$PORT ($PY) ==="
 nohup "$PY" -m uvicorn main:app --host 0.0.0.0 --port "$PORT" >>"/tmp/uvicorn-${PORT}.log" 2>&1 &
-echo "  pid $!  log /tmp/uvicorn-${PORT}.log"
+UVPID=$!
+echo "  pid $UVPID  log /tmp/uvicorn-${PORT}.log"
+sleep 2
+if ! kill -0 "$UVPID" 2>/dev/null; then
+  echo "NG  uvicorn exited immediately (port in use or import error)"
+  tail -25 "/tmp/uvicorn-${PORT}.log" 2>/dev/null || true
+  ss -tlnp 2>/dev/null | grep ":${PORT} " || true
+  exit 1
+fi
 
 i=1
 while [ "$i" -le 15 ]; do
   CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT}/health" 2>/dev/null || echo "000")
   if [ "$CODE" = "200" ]; then
     echo "OK  GET /health → 200"
+    LISTEN_PID=""
+    if command -v ss >/dev/null 2>&1; then
+      LISTEN_PID=$(ss -tlnp 2>/dev/null | grep ":${PORT} " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)
+      echo "  listen pid: ${LISTEN_PID:-?} (expected $UVPID)"
+    fi
+    if [ -f routers/model_schedule.py ] && ! _openapi_has_model_schedule; then
+      echo "NG  :${PORT} 응답에 model-schedule OpenAPI 없음 — 구 uvicorn/플랫폼 프로세스일 수 있음"
+      echo "    venv/bin/python -c \"import main; print([r.path for r in main.app.routes if 'model-schedule' in str(getattr(r,'path',''))][:3])\""
+      echo "    ss -tlnp | grep :${PORT}  →  listen pid가 $UVPID 가 아니면 해당 PID kill 후 재시작"
+      curl -s "http://127.0.0.1:${PORT}/openapi.json" 2>/dev/null | "$PY" -c "
+import json,sys
+d=json.load(sys.stdin)
+print('  openapi overview:', [p for p in d.get('paths',{}) if 'overview' in p][:5] or 'NONE')
+" 2>/dev/null || true
+      exit 1
+    fi
     OVC=$(curl -s -o /dev/null -w "%{http_code}" \
       "http://127.0.0.1:${PORT}/api/model-schedule/overview/load" 2>/dev/null || echo "000")
     if [ "$OVC" = "200" ] || [ "$OVC" = "502" ]; then
       echo "OK  GET /api/model-schedule/overview/load → $OVC"
     elif [ "$OVC" = "404" ]; then
-      echo "WARN GET /api/model-schedule/overview/load → 404 (BE 기동 OK, overview 라우터 없음)"
-      echo "     uvicorn python: $PY — venv에 pymilvus·model_schedule import 확인"
-      echo "     curl -fsSL \".../patch-be-overview-from-github.sh\" | sh"
+      echo "NG  GET /api/model-schedule/overview/load → 404 (listen pid ≠ venv uvicorn?)"
+      ss -tlnp 2>/dev/null | grep ":${PORT} " || true
+      exit 1
     else
       echo "     GET /api/model-schedule/overview/load → $OVC"
     fi
