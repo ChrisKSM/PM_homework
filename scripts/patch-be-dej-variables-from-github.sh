@@ -37,6 +37,8 @@ fetch_flat backend/polarion_client.py polarion_client.py
 fetch_flat backend/services/delivery_portal_client.py services/delivery_portal_client.py
 fetch_flat backend/routers/model_status.py routers/model_status.py
 fetch_flat backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
+fetch_flat backend/services/model_status_initiative_service.py services/model_status_initiative_service.py
+fetch_flat backend/services/release_gantt_service.py services/release_gantt_service.py
 fetch_flat scripts/diagnose-be-public-env.sh scripts/diagnose-be-public-env.sh
 chmod +x scripts/diagnose-be-public-env.sh 2>/dev/null || true
 
