@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from config import settings
+from dej_variables import dej_get
 from jira_client import _DOTENV_PATHS, _normalize_token, _read_token_from_dotenv_keys
 
 try:
@@ -56,6 +57,9 @@ def _resolve_tvjira_token_pair() -> tuple[str, str]:
         return token, "dotenv:TVJIRA_API_TOKEN"
 
     for key in _TVJIRA_ENV_KEYS:
+        token = _normalize_token(dej_get(key))
+        if token:
+            return token, f"variables:{key}"
         token = _normalize_token(os.getenv(key))
         if token:
             return token, f"env:{key}"
@@ -69,6 +73,9 @@ def _resolve_tvjira_token_pair() -> tuple[str, str]:
         return token, "dotenv:JIRA_API_TOKEN(fallback)"
 
     for key in _JIRA_FALLBACK_ENV:
+        token = _normalize_token(dej_get(key))
+        if token:
+            return token, f"variables:{key}(fallback)"
         token = _normalize_token(os.getenv(key))
         if token:
             return token, f"env:{key}(fallback)"
@@ -88,9 +95,8 @@ def tvjira_token_source_info() -> tuple[str, int]:
 
 _TVJIRA_CONFIG_HINT = (
     "TVJIRA_API_TOKEN이 비어 있습니다. "
-    "/usr/app/src/.env 또는 /workspace/project/.env 에 "
-    "TVJIRA_API_TOKEN=<PAT> 설정 (Harmony JIRA_API_TOKEN 과 별도). "
-    "공용 be-audio-test Route 는 Worker Pod .env 와 별도 — Deployment Variables 동기화 필요."
+    "AxStudio Variables → dej_sdk variables.get('TVJIRA_API_TOKEN') "
+    "(os.getenv 아님) 또는 /workspace/project/.env · /usr/app/src/.env."
 )
 
 
