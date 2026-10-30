@@ -33,6 +33,10 @@ _main_ok() {
   "$1" -c "import main" >/dev/null 2>&1
 }
 
+_model_schedule_ok() {
+  "$1" -c "from routers import model_schedule" >/dev/null 2>&1
+}
+
 _llm_wanted() {
   if [ -f .env ] && grep -qE '^LLM_ENABLED=(1|true|yes|on|TRUE|True)' .env 2>/dev/null; then
     return 0
@@ -40,18 +44,41 @@ _llm_wanted() {
   return 1
 }
 
-PY=""
-for candidate in venv/bin/python python3 python /usr/bin/python3; do
-  [ -n "$candidate" ] || continue
-  [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1 || continue
-  _main_ok "$candidate" || continue
-  PY="$candidate"
-  break
-done
+_pick_python() {
+  want_ms=0
+  [ -f routers/model_schedule.py ] && want_ms=1
 
+  for candidate in venv/bin/python python3 python /usr/bin/python3; do
+    [ -n "$candidate" ] || continue
+    [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1 || continue
+    _main_ok "$candidate" || continue
+    if [ "$want_ms" -eq 1 ] && ! _model_schedule_ok "$candidate"; then
+      continue
+    fi
+    echo "$candidate"
+    return 0
+  done
+
+  for candidate in venv/bin/python python3 python /usr/bin/python3; do
+    [ -n "$candidate" ] || continue
+    [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1 || continue
+    _main_ok "$candidate" || continue
+    echo "$candidate"
+    return 0
+  done
+  return 1
+}
+
+PY="$(_pick_python)" || true
 if [ -z "$PY" ]; then
   echo "NG: python with import main required (venv/bin/python or python3)"
   exit 1
+fi
+
+if [ -f routers/model_schedule.py ] && _model_schedule_ok "$PY"; then
+  echo "OK  model_schedule import on $PY"
+elif [ -f routers/model_schedule.py ]; then
+  echo "WARN model_schedule.py present but import failed on $PY (overview → 404)"
 fi
 
 if _llm_wanted; then
@@ -63,11 +90,14 @@ if _llm_wanted; then
       [ "$candidate" = "$PY" ] && continue
       [ -x "$candidate" ] || command -v "$candidate" >/dev/null 2>&1 || continue
       _main_ok "$candidate" || continue
-      if _dej_ok "$candidate"; then
-        echo "OK  using $candidate (dej_sdk available)"
-        PY="$candidate"
-        break
+      _dej_ok "$candidate" || continue
+      if [ -f routers/model_schedule.py ] && ! _model_schedule_ok "$candidate"; then
+        echo "  skip $candidate (dej_sdk OK but model_schedule/pymilvus missing)"
+        continue
       fi
+      echo "OK  using $candidate (dej_sdk available)"
+      PY="$candidate"
+      break
     done
     if ! _dej_ok "$PY"; then
       echo "WARN dej_sdk still missing — sprint report will use source=rule only"
@@ -98,6 +128,7 @@ while [ "$i" -le 15 ]; do
       echo "OK  GET /api/model-schedule/overview/load → $OVC"
     elif [ "$OVC" = "404" ]; then
       echo "WARN GET /api/model-schedule/overview/load → 404 (BE 기동 OK, overview 라우터 없음)"
+      echo "     uvicorn python: $PY — venv에 pymilvus·model_schedule import 확인"
       echo "     curl -fsSL \".../patch-be-overview-from-github.sh\" | sh"
     else
       echo "     GET /api/model-schedule/overview/load → $OVC"
