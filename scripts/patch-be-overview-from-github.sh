@@ -26,17 +26,27 @@ fetch backend/services/overview_snapshot_email.py services/overview_snapshot_ema
 fetch backend/services/schedule_snapshot_email.py services/schedule_snapshot_email.py
 fetch backend/services/model_schedule_recipients.py services/model_schedule_recipients.py
 fetch backend/services/email_service.py services/email_service.py
+fetch backend/services/delivery_portal_client.py services/delivery_portal_client.py
+fetch backend/services/delivery_portal_catalog.py services/delivery_portal_catalog.py
+fetch backend/services/delivery_portal_overview_sync.py services/delivery_portal_overview_sync.py
+fetch scripts/delivery_portal_catalog_lib.py scripts/delivery_portal_catalog_lib.py
+fetch backend/dej_variables.py dej_variables.py
+fetch backend/jira_client.py jira_client.py
+fetch backend/tvjira_client.py tvjira_client.py
 fetch scripts/patch-be-main-model-schedule.sh scripts/patch-be-main-model-schedule.sh
 fetch scripts/be-restart-uvicorn-standalone.sh scripts/be-restart-uvicorn-standalone.sh
 chmod +x scripts/patch-be-main-model-schedule.sh scripts/be-restart-uvicorn-standalone.sh
 
-# config CORS / mongo — best effort
+# config — dej_sdk hydrate 유지 (overview 패치만으로 config 롤백 방지)
 fetch backend/config.py config.py.patched 2>/dev/null || true
 if [ -f config.py.patched ]; then
-  if grep -q model_schedule config.py.patched 2>/dev/null || grep -q COLLECTION_OVERVIEW config.py.patched 2>/dev/null; then
+  if grep -q _hydrate_settings_from_dej config.py 2>/dev/null \
+    && ! grep -q _hydrate_settings_from_dej config.py.patched 2>/dev/null; then
+    echo "  SKIP config.py replace (pod dej_sdk hydrate 유지)"
+  elif grep -q model_schedule config.py.patched 2>/dev/null || grep -q _hydrate_settings_from_dej config.py.patched 2>/dev/null; then
     cp config.py config.py.bak.overview 2>/dev/null || true
     cp config.py.patched config.py
-    echo "  + config.py (from github)"
+    echo "  + config.py (from github @ $REF)"
   fi
   rm -f config.py.patched
 fi
