@@ -115,6 +115,26 @@ else
 fi
 
 echo ""
+echo "=== model-schedule GET /model-schedule/overview/load ==="
+OVC=$(curl -sS -o /dev/null -w "%{http_code}" "${BASE}/model-schedule/overview/load" || echo "000")
+echo "  HTTP $OVC"
+
+echo ""
+echo "=== OpenAPI (model-status / model-schedule paths) ==="
+curl -sS "${BASE%/api}/openapi.json" 2>/dev/null | python3 -c "
+import json,sys
+raw=sys.stdin.read().strip()
+if not raw:
+    print('  NG  empty openapi')
+    raise SystemExit(0)
+d=json.loads(raw)
+paths=d.get('paths') or {}
+ms=any('model-status' in p for p in paths)
+sch=any('model-schedule' in p for p in paths)
+print('  model-status routes:', ms, ' model-schedule routes:', sch)
+" 2>/dev/null || echo "  (openapi fetch failed)"
+
+echo ""
 echo "=== TV live GET /model-status/initiatives?model=H7_VI (Jira search) ==="
 HTTP3=$(curl -sS -o /tmp/diag-init.json -w "%{http_code}" "${BASE}/model-status/initiatives?model=H7_VI" || echo "000")
 echo "  HTTP $HTTP3"
