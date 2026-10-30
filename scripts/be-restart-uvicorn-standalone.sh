@@ -19,16 +19,54 @@ if [ -f .env ]; then
   echo "OK  .env copied (if path exists)"
 fi
 
+_pids_on_port() {
+  _port="$1"
+  _found=""
+  if command -v ss >/dev/null 2>&1; then
+    _found=$(ss -tlnp 2>/dev/null | grep ":${_port} " | sed -n 's/.*pid=\([0-9]*\).*/\1/p')
+  fi
+  if command -v netstat >/dev/null 2>&1; then
+    _ns=$(netstat -tlnp 2>/dev/null | grep ":${_port} " | awk '{print $7}' | cut -d/ -f1 | grep -E '^[0-9]+$')
+    _found=$(printf '%s\n%s' "$_found" "$_ns")
+  fi
+  if command -v fuser >/dev/null 2>&1; then
+    _fu=$(fuser "${_port}/tcp" 2>/dev/null || true)
+    _found=$(printf '%s\n%s' "$_found" "$_fu")
+  fi
+  if command -v lsof >/dev/null 2>&1; then
+    _lo=$(lsof -t -i ":${_port}" -sTCP:LISTEN 2>/dev/null || true)
+    _found=$(printf '%s\n%s' "$_found" "$_lo")
+  fi
+  echo "$_found" | tr ' ' '\n' | grep -E '^[0-9]+$' | sort -u
+}
+
+_show_port_listener() {
+  _port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -tlnp 2>/dev/null | grep ":${_port} " || echo "  (port $_port free)"
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -tlnp 2>/dev/null | grep ":${_port} " || echo "  (port $_port free)"
+  elif command -v fuser >/dev/null 2>&1; then
+    fuser -v "${_port}/tcp" 2>&1 || echo "  (port $_port free)"
+  else
+    ps aux 2>/dev/null | grep -E '[u]vicorn|[p]ython.*main:app' || true
+  fi
+}
+
 _kill_port_listeners() {
   _port="$1"
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -f "uvicorn main:app" 2>/dev/null || true
+    pkill -f "uvicorn.*--port ${_port}" 2>/dev/null || true
+    sleep 1
+  fi
+  if command -v fuser >/dev/null 2>&1; then
+    fuser -k "${_port}/tcp" 2>/dev/null || true
+    sleep 1
+  fi
   _i=1
   while [ "$_i" -le 5 ]; do
-    _pids=""
-    if command -v ss >/dev/null 2>&1; then
-      _pids=$(ss -tlnp 2>/dev/null | grep ":${_port} " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | sort -u)
-    elif command -v netstat >/dev/null 2>&1; then
-      _pids=$(netstat -tlnp 2>/dev/null | grep ":${_port} " | awk '{print $7}' | cut -d/ -f1 | grep -E '^[0-9]+$' | sort -u)
-    fi
+    _pids=$(_pids_on_port "$_port")
     if [ -z "$_pids" ]; then
       return 0
     fi
@@ -43,10 +81,6 @@ _kill_port_listeners() {
     sleep 1
     _i=$((_i + 1))
   done
-  if command -v fuser >/dev/null 2>&1; then
-    fuser -k "${_port}/tcp" 2>/dev/null || true
-    sleep 1
-  fi
 }
 
 _openapi_has_model_schedule() {
@@ -60,9 +94,7 @@ sys.exit(0 if ok else 1)
 
 echo "=== stop listeners on :$PORT ==="
 _kill_port_listeners "$PORT"
-if command -v ss >/dev/null 2>&1; then
-  ss -tlnp 2>/dev/null | grep ":${PORT} " || echo "  (port $PORT free)"
-fi
+_show_port_listener "$PORT"
 
 _dej_ok() {
   "$1" -c "from dej_sdk import llm" >/dev/null 2>&1
@@ -190,7 +222,7 @@ sleep 2
 if ! kill -0 "$UVPID" 2>/dev/null; then
   echo "NG  uvicorn exited immediately (port in use or import error)"
   tail -25 "/tmp/uvicorn-${PORT}.log" 2>/dev/null || true
-  ss -tlnp 2>/dev/null | grep ":${PORT} " || true
+  _show_port_listener "$PORT"
   exit 1
 fi
 
@@ -199,15 +231,12 @@ while [ "$i" -le 15 ]; do
   CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${PORT}/health" 2>/dev/null || echo "000")
   if [ "$CODE" = "200" ]; then
     echo "OK  GET /health → 200"
-    LISTEN_PID=""
-    if command -v ss >/dev/null 2>&1; then
-      LISTEN_PID=$(ss -tlnp 2>/dev/null | grep ":${PORT} " | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)
-      echo "  listen pid: ${LISTEN_PID:-?} (expected $UVPID)"
-    fi
+    LISTEN_PID=$(_pids_on_port "$PORT" | head -1)
+    echo "  listen pid: ${LISTEN_PID:-?} (expected $UVPID)"
     if [ -f routers/model_schedule.py ] && ! _openapi_has_model_schedule; then
       echo "NG  :${PORT} 응답에 model-schedule OpenAPI 없음 — 구 uvicorn/플랫폼 프로세스일 수 있음"
+      echo "    sh scripts/kill-be-port-listener.sh && sh scripts/be-restart-uvicorn-standalone.sh"
       echo "    venv/bin/python -c \"import main; print([r.path for r in main.app.routes if 'model-schedule' in str(getattr(r,'path',''))][:3])\""
-      echo "    ss -tlnp | grep :${PORT}  →  listen pid가 $UVPID 가 아니면 해당 PID kill 후 재시작"
       curl -s "http://127.0.0.1:${PORT}/openapi.json" 2>/dev/null | "$PY" -c "
 import json,sys
 d=json.load(sys.stdin)
@@ -221,7 +250,7 @@ print('  openapi overview:', [p for p in d.get('paths',{}) if 'overview' in p][:
       echo "OK  GET /api/model-schedule/overview/load → $OVC"
     elif [ "$OVC" = "404" ]; then
       echo "NG  GET /api/model-schedule/overview/load → 404 (listen pid ≠ venv uvicorn?)"
-      ss -tlnp 2>/dev/null | grep ":${PORT} " || true
+      _show_port_listener "$PORT"
       exit 1
     else
       echo "     GET /api/model-schedule/overview/load → $OVC"
