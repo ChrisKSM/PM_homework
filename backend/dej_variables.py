@@ -4,6 +4,7 @@ AxStudio / DEJ SDK Variables — UI Variables 는 os.environ 이 아닌 variable
 """
 from __future__ import annotations
 
+import hashlib
 import os
 from typing import Any
 
@@ -61,3 +62,11 @@ def lengths_for_keys(*keys: str) -> dict[str, int]:
 
 def process_env_lengths_for_keys(*keys: str) -> dict[str, int]:
     return {k: len(_normalize(os.getenv(k))) for k in keys}
+
+
+def token_fingerprint(token: str) -> str:
+    """PAT 값 노출 없이 Worker vs dpl Variables 일치 여부 비교용."""
+    t = _normalize(token)
+    if not t:
+        return ""
+    return hashlib.sha256(t.encode()).hexdigest()[:16]

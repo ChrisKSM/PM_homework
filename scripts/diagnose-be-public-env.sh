@@ -19,6 +19,8 @@ except json.JSONDecodeError as e:
 print("  hostname:", d.get("hostname"))
 print("  cwd:", d.get("cwd"))
 print("  token_length:", d.get("token_length"), "source:", d.get("token_source"))
+print("  token_fingerprint:", d.get("token_fingerprint"))
+print("  jira_base_url:", d.get("jira_base_url"))
 print("  settings_jira:", d.get("settings_jira_api_token_length"),
       "settings_tvjira:", d.get("settings_tvjira_api_token_length"))
 dej = d.get("dej_variable_lengths") or {}
@@ -62,7 +64,10 @@ pod = d.get("pod") or {}
 print("  pod hostname:", pod.get("hostname"))
 tv = d.get("tvjira") or {}
 print("  tvjira baseUrl:", tv.get("baseUrl"))
-print("  tvjira tokenLength:", tv.get("tokenLength"), "source:", tv.get("tokenSource"))
+hj = d.get("harmonyJira") or {}
+print("  harmony baseUrl:", hj.get("baseUrl"), "fp:", hj.get("tokenFingerprint"), "len:", hj.get("tokenLength"))
+print("  tvjira tokenLength:", tv.get("tokenLength"), "source:", tv.get("tokenSource"), "fp:", tv.get("tokenFingerprint"))
+print("  tvjira baseUrl:", tv.get("baseUrl"))
 el = d.get("envLengths") or {}
 dej = d.get("dejVariableLengths") or {}
 if not (dej.get("TVJIRA_BASE_URL") or 0):

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
-from dej_variables import dej_get, dej_sdk_variables_available, process_env_lengths_for_keys
+from dej_variables import dej_get, dej_sdk_variables_available, process_env_lengths_for_keys, token_fingerprint
 
 # 내부 서버 자체 서명 인증서 경고 억제
 if not settings.jira_verify_ssl:
@@ -495,6 +495,10 @@ async def diagnose_jira() -> dict[str, Any]:
     source, length = _token_source_info()
     result["token_source"] = source
     result["token_length"] = length
+    try:
+        result["token_fingerprint"] = token_fingerprint(_resolve_jira_token())
+    except ValueError:
+        result["token_fingerprint"] = ""
     if length == 0:
         env_lens = result["env_lengths"]
         react_j = env_lens.get("REACT_APP_JIRA_API_TOKEN", 0)

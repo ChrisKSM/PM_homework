@@ -112,8 +112,14 @@ async def initiatives_ping():
     )
     from dej_variables import dej_sdk_variables_available
 
+    from dej_variables import token_fingerprint
+    from jira_client import _resolve_jira_token_pair
+    from tvjira_client import _resolve_tvjira_token_pair
+
     source, length = tvjira_token_source_info()
     env_lens = jira_related_env_lengths()
+    jira_tok, jira_src = _resolve_jira_token_pair()
+    tv_tok, _tv_src = _resolve_tvjira_token_pair()
     return {
         "ok": True,
         "service": "model-status-initiatives",
@@ -122,10 +128,17 @@ async def initiatives_ping():
             | set(_sprint_story_label_models())
         ),
         "sprintModels": sorted(_sprint_story_label_models()),
+        "harmonyJira": {
+            "baseUrl": settings.jira_base_url.rstrip("/"),
+            "tokenSource": jira_src,
+            "tokenLength": len((jira_tok or "").strip()),
+            "tokenFingerprint": token_fingerprint(jira_tok),
+        },
         "tvjira": {
             "baseUrl": settings.tvjira_base_url.rstrip("/"),
             "tokenSource": source,
             "tokenLength": length,
+            "tokenFingerprint": token_fingerprint(tv_tok),
         },
         "envLengths": env_lens,
         "dejVariableLengths": jira_related_dej_variable_lengths(),
