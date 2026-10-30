@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from config import settings
+from dej_variables import runtime_get
 
 if not settings.polarion_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
@@ -50,9 +51,13 @@ async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> htt
     raise last_exc or RuntimeError("Polarion request failed")
 
 
+def _polarion_pat() -> str:
+    return (settings.polarion_pat or "").strip() or runtime_get("POLARION_PAT")
+
+
 def _headers() -> dict[str, str]:
     return {
-        "Authorization": f"Bearer {settings.polarion_pat}",
+        "Authorization": f"Bearer {_polarion_pat()}",
         "Accept": "application/json",
     }
 

@@ -21,8 +21,13 @@ print("  cwd:", d.get("cwd"))
 print("  token_length:", d.get("token_length"), "source:", d.get("token_source"))
 print("  settings_jira:", d.get("settings_jira_api_token_length"),
       "settings_tvjira:", d.get("settings_tvjira_api_token_length"))
+dej = d.get("dej_variable_lengths") or {}
+print("  dej_sdk_variables:", d.get("dej_sdk_variables"))
+print("  dej_variable_lengths:", dej if dej else "(all 0)")
+proc = d.get("process_env_lengths") or {}
+print("  process_env_lengths:", proc if proc else "(all 0)")
 el = d.get("env_lengths") or {}
-print("  env_lengths:", el if el else "(all 0)")
+print("  env_lengths (merged):", el if el else "(all 0)")
 nz = {k: v for k, v in el.items() if v}
 if nz:
     print("  env_lengths (nonzero):", nz)
@@ -56,7 +61,10 @@ print("  pod hostname:", pod.get("hostname"))
 tv = d.get("tvjira") or {}
 print("  tvjira tokenLength:", tv.get("tokenLength"), "source:", tv.get("tokenSource"))
 el = d.get("envLengths") or {}
-print("  envLengths:", el if el else "(all 0)")
+dej = d.get("dejVariableLengths") or {}
+print("  dejSdkVariables:", d.get("dejSdkVariables"))
+print("  dejVariableLengths:", dej if dej else "(all 0)")
+print("  envLengths (merged):", el if el else "(all 0)")
 dot = d.get("dotenvTokenLengths") or {}
 print("  dotenvTokenLengths:", dot)
 errs = d.get("errors") or []

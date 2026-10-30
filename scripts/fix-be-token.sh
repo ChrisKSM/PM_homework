@@ -10,8 +10,11 @@ git fetch github cursor/model-schedule-bar-label-fix-b14b 2>/dev/null || \
   git fetch github webpack-migration 2>/dev/null || true
 
 if git rev-parse "$REF" >/dev/null 2>&1; then
+  git show "$REF:backend/dej_variables.py" > dej_variables.py
   git show "$REF:backend/jira_client.py" > jira_client.py
-  echo "  updated jira_client.py from $REF"
+  git show "$REF:backend/tvjira_client.py" > tvjira_client.py
+  git show "$REF:backend/config.py" > config.py
+  echo "  updated dej_variables.py, jira_client.py, tvjira_client.py, config.py from $REF"
 else
   echo "  WARN ref $REF 없음 — jira_client.py 유지"
 fi

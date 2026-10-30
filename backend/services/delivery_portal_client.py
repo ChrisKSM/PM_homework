@@ -5,10 +5,13 @@ import httpx
 from fastapi import HTTPException
 
 from config import settings
+from dej_variables import runtime_get
 
 
 def _token() -> str:
-    token = (settings.delivery_portal_api_token or "").strip()
+    token = (settings.delivery_portal_api_token or "").strip() or runtime_get(
+        "DELIVERY_PORTAL_API_TOKEN"
+    )
     if not token:
         raise HTTPException(status_code=503, detail="DELIVERY_PORTAL_API_TOKEN 미설정")
     return token

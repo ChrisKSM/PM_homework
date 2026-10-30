@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
+from dej_variables import dej_get, dej_sdk_variables_available, process_env_lengths_for_keys
 
 # 내부 서버 자체 서명 인증서 경고 억제
 if not settings.jira_verify_ssl:
@@ -61,18 +62,53 @@ def _normalize_token(raw: Any) -> str:
     return str(raw).strip()
 
 
+_JIRA_DIAG_KEYS = (
+    "JIRA_API_TOKEN",
+    "REACT_APP_JIRA_API_TOKEN",
+    "JIRA_BASE_URL",
+    "TVJIRA_API_TOKEN",
+    "REACT_APP_TVJIRA_API_TOKEN",
+    "TVJIRA_BASE_URL",
+    "REACT_APP_TVJIRA_BASE_URL",
+)
+
+_JIRA_TOKEN_KEYS = (
+    "JIRA_API_TOKEN",
+    "REACT_APP_JIRA_API_TOKEN",
+    "JIRA_TOKEN",
+    "JIRA_PAT",
+)
+
+
+def jira_related_dej_variable_lengths() -> dict[str, int]:
+    """AxStudio variables.get — 값 없이 length 만."""
+    return {k: len(_normalize_token(dej_get(k))) for k in _JIRA_DIAG_KEYS}
+
+
+def jira_related_process_env_lengths() -> dict[str, int]:
+    """os.environ — 로컬·pytest 진단."""
+    return process_env_lengths_for_keys(*_JIRA_DIAG_KEYS)
+
+
 def jira_related_env_lengths() -> dict[str, int]:
-    """process env — 값 없이 key별 length (AxStudio Variables / Prefix 진단)."""
-    keys = (
-        "JIRA_API_TOKEN",
-        "REACT_APP_JIRA_API_TOKEN",
-        "JIRA_BASE_URL",
-        "TVJIRA_API_TOKEN",
-        "REACT_APP_TVJIRA_API_TOKEN",
-        "TVJIRA_BASE_URL",
-        "REACT_APP_TVJIRA_BASE_URL",
-    )
-    return {k: len(_normalize_token(os.getenv(k))) for k in keys}
+    """variables.get 우선, 없으면 process env length (하위 호환)."""
+    dej = jira_related_dej_variable_lengths()
+    proc = jira_related_process_env_lengths()
+    out: dict[str, int] = {}
+    for k in _JIRA_DIAG_KEYS:
+        out[k] = dej.get(k, 0) or proc.get(k, 0)
+    return out
+
+
+def _token_from_dej_or_env() -> tuple[str, str]:
+    for key in _JIRA_TOKEN_KEYS:
+        token = _normalize_token(dej_get(key))
+        if token:
+            return token, f"variables:{key}"
+        token = _normalize_token(os.getenv(key))
+        if token:
+            return token, f"env:{key}"
+    return "", "none"
 
 
 def jira_related_dotenv_lengths() -> dict[str, int]:
@@ -105,15 +141,9 @@ def _token_source_info() -> tuple[str, int]:
             if path.is_file():
                 return f"dotenv:{path}", len(token)
         return "dotenv", len(token)
-    for key in (
-        "JIRA_API_TOKEN",
-        "REACT_APP_JIRA_API_TOKEN",
-        "JIRA_TOKEN",
-        "JIRA_PAT",
-    ):
-        token = _normalize_token(os.getenv(key))
-        if token:
-            return f"env:{key}", len(token)
+    token, source = _token_from_dej_or_env()
+    if token:
+        return source, len(token)
     return "none", 0
 
 
@@ -126,17 +156,12 @@ def _resolve_jira_token() -> str:
         token = _read_token_from_dotenv()
         if token:
             return token
-        for key in (
-            "JIRA_API_TOKEN",
-            "REACT_APP_JIRA_API_TOKEN",
-            "JIRA_TOKEN",
-            "JIRA_PAT",
-        ):
-            token = _normalize_token(os.getenv(key))
-            if token:
-                return token
+        token, _ = _token_from_dej_or_env()
+        if token:
+            return token
     raise ValueError(
-        "JIRA_API_TOKEN이 비어 있습니다. /usr/app/src/.env 또는 /workspace/project/.env 확인."
+        "JIRA_API_TOKEN이 비어 있습니다. AxStudio Variables(dej_sdk variables.get), "
+        "/usr/app/src/.env 또는 /workspace/project/.env 확인."
     )
 
 
@@ -432,8 +457,8 @@ async def diagnose_jira() -> dict[str, Any]:
     """
     import socket
 
-    env_token_len = len(_normalize_token(os.getenv("JIRA_API_TOKEN")))
-    react_app_env_len = len(_normalize_token(os.getenv("REACT_APP_JIRA_API_TOKEN")))
+    env_token_len = len(_normalize_token(dej_get("JIRA_API_TOKEN")))
+    react_app_dej_len = len(_normalize_token(dej_get("REACT_APP_JIRA_API_TOKEN")))
     result: dict[str, Any] = {
         "ok": False,
         "hostname": socket.gethostname(),
@@ -441,10 +466,13 @@ async def diagnose_jira() -> dict[str, Any]:
         "jira_base_url": settings.jira_base_url,
         "board_id": settings.board_id,
         "jira_verify_ssl": settings.jira_verify_ssl,
+        "dej_sdk_variables": dej_sdk_variables_available(),
         "token_source": "none",
         "token_length": 0,
         "env_jira_api_token_length": env_token_len,
-        "env_react_app_jira_api_token_length": react_app_env_len,
+        "env_react_app_jira_api_token_length": react_app_dej_len,
+        "dej_variable_lengths": jira_related_dej_variable_lengths(),
+        "process_env_lengths": jira_related_process_env_lengths(),
         "env_lengths": jira_related_env_lengths(),
         "dotenv_token_lengths": jira_related_dotenv_lengths(),
         "settings_jira_api_token_length": len(_normalize_token(settings.jira_api_token)),
@@ -455,11 +483,10 @@ async def diagnose_jira() -> dict[str, Any]:
         "jira_ping": None,
         "error": None,
         "fix_hint": (
-            "JIRA_API_TOKEN: (1) AX Studio Variables → 프로젝트 **재시작**(uvicorn만 X), "
-            "(2) BE 프로젝트 Global Prefix 가 REACT_APP_ 이면 env 키가 REACT_APP_JIRA_API_TOKEN — "
-            "BE는 Prefix 비우거나(권장) BE 패치로 REACT_APP_* fallback, "
-            "(3) /workspace/project/.env + cp /usr/app/src/.env, "
-            "(4) FE URL vs Worker Port URL hostname 비교 (diagnose.hostname)"
+            "JIRA_API_TOKEN: (1) AxStudio Variables → dej_sdk variables.get('JIRA_API_TOKEN') "
+            "(os.getenv 아님) — Publish/Rollout, "
+            "(2) Worker .env: /workspace/project/.env + cp /usr/app/src/.env, "
+            "(3) FE URL vs Worker Port hostname 비교 (diagnose.hostname)"
         ),
     }
     source, length = _token_source_info()
@@ -478,11 +505,22 @@ async def diagnose_jira() -> dict[str, Any]:
                 "또는 BE patch f1465cf (REACT_APP fallback)."
             )
         elif not any(env_lens.values()) and not any(result["dotenv_token_lengths"].values()):
-            result["axstudio_hint"] = (
-                "process env·dotenv 모두 토큰 0 — Variables 가 **이 hostname Deployment**에 "
-                "주입되지 않았거나 Pod 재시작(Rollout) 전. "
-                "be-audio-test-dpl 공용 BE Variables + Rollout 확인 (Worker Pod 와 별개)."
-            )
+            dej_lens = result.get("dej_variable_lengths") or {}
+            if dej_sdk_variables_available() and not any(dej_lens.values()):
+                result["axstudio_hint"] = (
+                    "dej_sdk variables 는 import 되나 variables.get 토큰 0 — "
+                    "AxStudio Variables 키 이름·Publish/Rollout 확인."
+                )
+            elif not dej_sdk_variables_available():
+                result["axstudio_hint"] = (
+                    "dej_sdk variables 미로드 — BE 이미지에 dej-sdk 필요. "
+                    "Variables는 os.environ 이 아닌 variables.get 으로만 주입됨."
+                )
+            else:
+                result["axstudio_hint"] = (
+                    "variables.get·dotenv·process env 모두 토큰 0 — "
+                    "be-audio-test-dpl Variables + Publish 확인 (Worker .env 와 별개)."
+                )
         elif plain_tv == 0 and plain_j > 0:
             result["axstudio_hint"] = "JIRA only — TVJIRA_API_TOKEN Variables 추가 필요."
         result["error"] = "JIRA_API_TOKEN 미설정 (settings·dotenv·env 모두 비어 있음)"

@@ -152,7 +152,43 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+def _hydrate_settings_from_dej(base: Settings) -> Settings:
+    """AxStudio Variables(dej_sdk) → pydantic settings (Publish Pod 기동 시)."""
+    try:
+        from dej_variables import runtime_get
+    except ImportError:
+        return base
+
+    def pick(*keys: str) -> str:
+        for key in keys:
+            val = runtime_get(key)
+            if val:
+                return val
+        return ""
+
+    patch: dict[str, str] = {}
+    if not (base.jira_api_token or "").strip():
+        v = pick("JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN")
+        if v:
+            patch["jira_api_token"] = v
+    if not (base.tvjira_api_token or "").strip():
+        v = pick("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN")
+        if v:
+            patch["tvjira_api_token"] = v
+    if not (base.polarion_pat or "").strip():
+        v = pick("POLARION_PAT")
+        if v:
+            patch["polarion_pat"] = v
+    if not (base.delivery_portal_api_token or "").strip():
+        v = pick("DELIVERY_PORTAL_API_TOKEN")
+        if v:
+            patch["delivery_portal_api_token"] = v
+    if patch:
+        return base.model_copy(update=patch)
+    return base
+
+
+settings = _hydrate_settings_from_dej(Settings())
 
 
 def effective_smtp_host() -> str:
