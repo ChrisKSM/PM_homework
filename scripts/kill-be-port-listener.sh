@@ -60,6 +60,9 @@ while [ "$_i" -le 5 ]; do
   fi
   echo "  kill pid(s): $(echo "$_pids" | tr '\n' ' ')"
   for _pid in $_pids; do
+    if [ -r "/proc/$_pid/cmdline" ]; then
+      echo "    pid $_pid: $(tr '\0' ' ' </proc/"$_pid"/cmdline)"
+    fi
     kill "$_pid" 2>/dev/null || true
   done
   sleep 2
