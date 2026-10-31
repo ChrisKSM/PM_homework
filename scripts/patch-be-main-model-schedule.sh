@@ -4,8 +4,13 @@ set -e
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+if [ ! -f main.py ] && [ -f /workspace/project/main.py ]; then
+  ROOT=/workspace/project
+  cd "$ROOT"
+fi
+
 if [ ! -f main.py ]; then
-  echo "Error: main.py not found"
+  echo "Error: main.py not found (cwd: $(pwd) — cd /workspace/project 후 실행)"
   exit 1
 fi
 
@@ -17,9 +22,9 @@ p = Path("main.py")
 t = p.read_text(encoding="utf-8")
 changed = False
 
-# try/except 블록이 이미 있으면 스킵
-if "model_schedule.router" in t:
-    print("  main.py already has model_schedule.router")
+# 문자열만 있고 include_router 가 없으면 다시 삽입 (pod main 오염 방지)
+if "app.include_router(model_schedule.router)" in t:
+    print("  main.py already has app.include_router(model_schedule.router)")
 else:
     block = """
 try:

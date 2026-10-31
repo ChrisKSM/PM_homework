@@ -1,0 +1,78 @@
+SoC,Site,Branch,Product Category,Product,Model,Event,Start Date,End Date
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,FC 1,2026-10-30,2026-11-09
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,FC 2,2026-11-18,2026-11-24
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,FC 3,2026-12-01,2026-12-04
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,QP 1,2026-12-14,2026-12-24
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,QP 2,2027-01-05,2027-01-12
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,SIT1,2026-10-06,2026-10-13
+Others,HQ,@que4media,Audio_Soundbar,soundbar_WiFi,S90C,SIT2,2026-10-21,2026-10-23
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,FC 1,2026-10-15,2026-10-23
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,FC 2,2026-10-30,2026-11-06
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,FC 3,2026-11-12,2026-11-16
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,QP 1,2026-11-19,2026-11-27
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,QP 2,2026-12-07,2026-12-11
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,S I T1,2026-08-13,2026-08-21
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,S I T2,2026-09-11,2026-09-18
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H7_VI,S I T3,2026-09-29,2026-10-08
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H5,FC 1,2026-10-21,2026-10-28
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H5,FC 2,2026-11-06,2026-11-12
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H5,FC 3,2026-11-20,2026-11-24
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H5,QP 1,2026-12-03,2026-12-11
+ax26sb,HQ,@que4media,Audio_Soundbar,soundbar_WiFi, H5,QP 2,2026-12-21,2026-12-23
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,FC 1,2026-11-02,2026-11-10
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,FC 2,2026-11-18,2026-11-24
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,FC 3,2026-12-02,2026-12-04
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,QP 1,2026-12-14,2026-12-28
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,QP 2,2027-01-06,2027-01-13
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,QP 3,2027-01-21,2027-01-27
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,SIT 1,2026-10-12,2026-10-16
+Others,HQ,@que4media,Audio_Speaker,speaker_Music, M7_VI,SIT 2,2026-10-21,2026-10-23
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Dev Test,2026-07-21,2026-07-22
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,QP 1,2026-08-24,2026-08-26
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,QP 2,2026-08-28,2026-09-02
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Pre QP1,2026-07-22,2026-07-27
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Pre QP2,2026-08-11,2026-08-13
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Pre QP3,2026-08-20,2026-08-20
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Dev Test,2026-08-12,2026-09-07
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,QP 1,2026-09-22,2026-09-23
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Pre QP1,2026-09-08,2026-09-15
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,Pre QP2,2026-09-17,2026-09-19
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,SU Test,2026-10-02,2026-10-02
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,QP 1,2026-10-01,2026-10-02
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,SU Test,2026-11-27,2026-11-27
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,QP 1,2026-11-17,2026-11-20
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,QP 2,2026-11-24,2026-11-26
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,PreQP1,2026-11-04,2026-11-09
+o26sb,HQ,@qausui.sb,Audio_Soundbar,soundbar_WiFi, H7,PreQP2,2026-11-11,2026-11-13
+BL618M,HQ,Others,Audio_Soundbar,soundbar_WiFi, W5,Dev Test,2026-09-07,2026-10-16
+BL618M,HQ,Others,Audio_Soundbar,soundbar_WiFi, W5,FC 1,2026-10-19,2026-10-30
+BL618M,HQ,Others,Audio_Soundbar,soundbar_WiFi, W5,FC 2,2026-11-23,2026-12-03
+BL618M,HQ,Others,Audio_Soundbar,soundbar_WiFi, W5,QP 1,2026-12-04,2026-12-18
+BL618M,HQ,Others,Audio_Soundbar,soundbar_WiFi, W5,QP 2,2027-01-04,2027-01-08
+BL618M,HQ,Others,Audio_Soundbar,soundbar_WiFi, W5,MP approval,2027-01-11,2027-01-22
+Others,HQ,Others,Audio_Others,Others,,FC 1,2026-09-23,2026-10-02
+Others,HQ,Others,Audio_Others,Others,,FC 2,2026-10-08,2026-10-23
+Others,HQ,Others,Audio_Others,Others,,QP 1,2026-11-24,2026-12-01
+Others,HQ,Others,Audio_Others,Others,,QP 2,2026-12-04,2026-12-10
+MLC3760,HQ,Others,Audio_Soundbar,soundbar_BT,,Dev Test,2026-08-25,2026-09-02
+MLC3760,HQ,Others,Audio_Soundbar,soundbar_BT,,FC 1,2026-09-21,2026-10-02
+MLC3760,HQ,Others,Audio_Soundbar,soundbar_BT,,FC 2,2026-10-08,2026-10-26
+MLC3760,HQ,Others,Audio_Soundbar,soundbar_BT,,QP 1,2026-11-24,2026-12-01
+MLC3760,HQ,Others,Audio_Soundbar,soundbar_BT,,QP 2,2026-12-07,2026-12-09
+QCC5125,HQ,Others,Audio_Speaker,speaker_Portable,XT7S,Dev Test,2026-09-01,2026-09-04
+QCC5125,HQ,Others,Audio_Speaker,speaker_Portable,XT7S,QP 1,2026-09-16,2026-09-28
+BES2710,HQ,Others,Audio_Speaker,speaker_Portable,Bounce,QP 1,2026-10-14,2026-10-20
+Others,HQ,Others,Audio_Speaker,speaker_Portable,Blast,Dev Test,2026-09-28,2026-09-29
+Others,HQ,Others,Audio_Speaker,speaker_Portable,Blast,QP 1,2026-09-29,2026-10-01
+Others,HQ,Others,Audio_Speaker,speaker_Portable,Rock,Dev Test,2026-10-01,2026-10-02
+Others,HQ,Others,Audio_Speaker,speaker_Portable,Rock,QP 1,2026-10-06,2026-10-13
+MLC3735,HQ,Others,Audio_Speaker,speaker_Party,Power9000,QP 1,2026-09-30,2026-10-05
+MLC3735,HQ,Others,Audio_Speaker,speaker_Party,Stage501,QP 1,2026-09-30,2026-10-05
+Others,HQ,Others,Audio_Speaker,speaker_Music, M7,Dev Test,2026-09-04,2026-09-08
+Others,HQ,Others,Audio_Speaker,speaker_Music, M7,QP 1,2026-09-09,2026-09-17
+Others,HQ,Others,Audio_Speaker,speaker_Music, M7,QP 2,2026-09-18,2026-09-23
+Others,HQ,Others,Audio_Speaker,speaker_Music,,Dev Test,2026-09-29,2026-09-29
+Others,HQ,Others,Audio_Speaker,speaker_Music,,QP 1,2026-09-29,2026-09-30
+Others,HQ,Others,Audio_Speaker,speaker_Music,,QP 2,2026-10-01,2026-10-02
+Others,HQ,Others,Audio_Others,Others,Others,SU Test,2026-10-23,2026-10-23
+Others,HQ,Others,Audio_Others,Others,Others,QP 1,2026-10-20,2026-10-22

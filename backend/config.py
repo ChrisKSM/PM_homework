@@ -1,5 +1,7 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
+
+from pydantic import AliasChoices, Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _env_file_paths() -> tuple[str, ...]:
@@ -14,21 +16,48 @@ def _env_file_paths() -> tuple[str, ...]:
 
 
 class Settings(BaseSettings):
-    # Jira Server 연결 — token은 .env / JIRA_API_TOKEN env (소스에 하드코딩 금지)
+    # Harmony Jira — MLCSIXZERO 보드·스프린트 등 (기존 JIRA_* env)
     jira_base_url: str = "https://harmony.lge.com:8443/issue"
-    jira_api_token: str = ""
+    jira_api_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN"),
+    )
     jira_verify_ssl: bool = False  # 내부 서버 자체 서명 인증서 대응
+
+    # TV Jira — TVPLAT Initiative 등 (TVJIRA_* env, Harmony와 토큰·URL 분리)
+    tvjira_base_url: str = "http://jira.lge.com/issue"
+    tvjira_api_token: str = Field(
+        default="",
+        validation_alias=AliasChoices("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN"),
+    )
+    tvjira_verify_ssl: bool = False
+
+    # Delivery Portal — 릴리즈 마일스톤 Gantt (Davis MilestonePage)
+    delivery_portal_base_url: str = "https://delivery-portal-backend.apps.axstudio.lge.com"
+    delivery_portal_api_token: str = ""
+    delivery_portal_verify_ssl: bool = True
 
     # Board
     board_id: int = 12641
 
     # 커스텀 필드 ID (LGE Jira Server)
     story_points_field: str = "customfield_10808"
+    # WorklogReport / KPI-1: 1 Story Point = N hours logged
+    sp_hours_per_point: float = 4.0
     epic_name_field: str = "customfield_10804"
     epic_link_field: str = "customfield_10801"
     sprint_field: str = "customfield_10800"
     release_sprint_field: str = "customfield_18834"
     chip_name_field: str = "customfield_14922"
+
+    # TVPLAT Initiative (Davis InitiativePage INITIATIVE_FIELDS 기준)
+    initiative_start_date_field: str = "customfield_35441"
+    initiative_grouping_field: str = "customfield_35455"
+    initiative_categorization_field: str = "customfield_35516"
+    initiative_estimated_effort_field: str = "customfield_35454"
+
+    # 릴리즈 Gantt — Milestone JQL fixVersion (Initiative fixVersions 에 없을 때 fallback)
+    release_gantt_milestone_fix_version: str = "Audio_2025"
 
     # 조달 Request DoD (Story DoD customfield_18874 와 별도)
     procurement_dod_field: str = "customfield_10504"
@@ -53,7 +82,23 @@ class Settings(BaseSettings):
     inprogress_status_category: str = "indeterminate"
 
     # CORS (쉼표 구분). prod FE 도메인 포함 필요
-    cors_origins: str = "http://localhost:3000,http://localhost:5173,https://react-audio.apps.hedej.lge.com,https://workspace.hedej.lge.com"
+    cors_origins: str = (
+        "http://localhost:3000,http://localhost:5173,"
+        "https://react-audio.apps.axstudio.lge.com,https://react-audio.apps.hedej.lge.com,"
+        "https://workspace.hedej.lge.com,https://workspace.axstudio.lge.com"
+    )
+
+    # 모델 현황 Snapshot 메일 공유 — audiences 별 수신 (쉼표 구분)
+    model_schedule_share_dqa_recipients: str = (
+        "rokyung.kim@lge.com,seunghwa.kim@lge.com,haengmo.jin@lge.com"
+    )
+    model_schedule_share_dev_recipients: str = (
+        "seokmin.koh@lge.com,hyunja.kim@lge.com,sungyeon.cho@lge.com,hongsoon.lee@lge.com,"
+        "yoonkyu.park@lge.com,jejun.oh@lge.com,sh12.park@lge.com,taeksu.la@lge.com,"
+        "yongseung.cho@lge.com,maeul.lee@lge.com,pilkyu.yoon@lge.com,jaecheol.lee@lge.com"
+    )
+    # legacy fallback
+    model_schedule_share_recipients: str = "seokmin.koh@lge.com"
 
     # Daily report
     report_enabled: bool = True
@@ -62,13 +107,14 @@ class Settings(BaseSettings):
     report_dashboard_url: str = ""
     report_api_key: str = ""
 
-    # SMTP
-    smtp_host: str = ""
-    smtp_port: int = 587
+    # SMTP — LGE 내부 relay 기본 (lgesmtp.lge.com:25, STARTTLS, 무인증)
+    smtp_host: str = "lgesmtp.lge.com"
+    smtp_port: int = 25
     smtp_user: str = ""
     smtp_password: str = ""
-    smtp_from: str = ""
+    smtp_from: str = "DL-webOS_PMO-AudioSWPO@lge.com"
     smtp_use_tls: bool = True
+    smtp_verify_ssl: bool = False  # 사내 relay — 인증서 검증 생략
 
     # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
     polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
@@ -77,6 +123,18 @@ class Settings(BaseSettings):
     polarion_verify_ssl: bool = False
     # projects/{key}/ 뒤 목록 경로 — Polarion 링크가 .../testDefect?query= 이면 testDefect
     polarion_list_path: str = "workitems"
+    polarion_prd_project_key: str = "AVSWReqMgmt"  # PRD workitem 목록 프로젝트
+    # PRD 목록 — UI hash vs REST (customs v1) 분리
+    #   UI:  .../#/project/AVSWReqMgmt/workitems/PRD?query=<lucene>
+    #   REST: .../projects/AVSWReqMgmt/workitems?query=<lucene>&page=&pageSize=
+    # REST 에 별도 ?prd= 파라미터 없음. PRD 범위는 UI path `workitems/PRD` 또는 Lucene(type:PRD 등).
+    polarion_prd_ui_list_path: str = "workitems/PRD"  # Polarion UI hash 경로
+    polarion_prd_rest_list_path: str = "workitems"  # REST path segment (not workitems/PRD on many gateways)
+    polarion_prd_list_path: str = "workitems/PRD"  # 하위 호환 → UI 경로 alias
+    # alm page.js — davis-db-api /alm/workitems/list (선택)
+    davis_db_api_base_url: str = ""
+    davis_db_api_key: str = ""
+    davis_alm_project_id: str = ""
 
     # LLM — 주간 스프린트 요약 (사내 dej_sdk 사용: from dej_sdk import llm)
     #  ※ URL/API-key 불필요. SDK가 내부에서 dej 플랫폼 연결을 처리.
@@ -94,4 +152,79 @@ class Settings(BaseSettings):
     )
 
 
-settings = Settings()
+def _hydrate_settings_from_dej(base: Settings) -> Settings:
+    """AxStudio Variables(dej_sdk) → pydantic settings (Publish Pod 기동 시)."""
+    try:
+        from dej_variables import runtime_get
+    except ImportError:
+        return base
+
+    def pick(*keys: str) -> str:
+        for key in keys:
+            val = runtime_get(key)
+            if val:
+                return val
+        return ""
+
+    patch: dict[str, str] = {}
+    if not (base.jira_api_token or "").strip():
+        v = pick("JIRA_API_TOKEN", "REACT_APP_JIRA_API_TOKEN")
+        if v:
+            patch["jira_api_token"] = v
+    if not (base.tvjira_api_token or "").strip():
+        v = pick("TVJIRA_API_TOKEN", "REACT_APP_TVJIRA_API_TOKEN")
+        if v:
+            patch["tvjira_api_token"] = v
+    if not (base.polarion_pat or "").strip():
+        v = pick("POLARION_PAT")
+        if v:
+            patch["polarion_pat"] = v
+    if not (base.delivery_portal_api_token or "").strip():
+        v = pick("DELIVERY_PORTAL_API_TOKEN")
+        if v:
+            patch["delivery_portal_api_token"] = v
+    tv_base = pick("TVJIRA_BASE_URL", "REACT_APP_TVJIRA_BASE_URL")
+    if tv_base and tv_base != base.tvjira_base_url:
+        patch["tvjira_base_url"] = tv_base
+    j_base = pick("JIRA_BASE_URL", "REACT_APP_JIRA_BASE_URL")
+    if j_base and j_base != base.jira_base_url:
+        patch["jira_base_url"] = j_base
+    if patch:
+        return base.model_copy(update=patch)
+    return base
+
+
+settings = _hydrate_settings_from_dej(Settings())
+
+
+def effective_smtp_host() -> str:
+    """`.env`에 SMTP_HOST= 빈 값이 있어도 LGE relay 기본 사용."""
+    host = (settings.smtp_host or "").strip()
+    return host or "lgesmtp.lge.com"
+
+
+def smtp_is_configured() -> bool:
+    return bool(effective_smtp_host())
+
+
+# prod .env CORS_ORIGINS 에 axstudio 가 빠져도 FE(react-audio.apps.axstudio) 허용
+_REQUIRED_CORS_ORIGINS = (
+    "https://react-audio.apps.axstudio.lge.com",
+    "https://react-audio.apps.hedej.lge.com",
+    "https://workspace.hedej.lge.com",
+    "https://workspace.axstudio.lge.com",
+)
+
+
+def effective_cors_origins() -> list[str]:
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for origin in [o.strip() for o in settings.cors_origins.split(",") if o.strip()]:
+        if origin not in seen:
+            seen.add(origin)
+            ordered.append(origin)
+    for origin in _REQUIRED_CORS_ORIGINS:
+        if origin not in seen:
+            seen.add(origin)
+            ordered.append(origin)
+    return ordered
