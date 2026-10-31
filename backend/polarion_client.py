@@ -51,8 +51,17 @@ async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> htt
     raise last_exc or RuntimeError("Polarion request failed")
 
 
-def _polarion_pat() -> str:
+def polarion_pat() -> str:
+    """settings → dej variables.get → os.getenv (Jira PAT 와 동일 패턴)."""
     return (settings.polarion_pat or "").strip() or runtime_get("POLARION_PAT")
+
+
+def polarion_pat_configured() -> bool:
+    return bool(polarion_pat())
+
+
+def _polarion_pat() -> str:
+    return polarion_pat()
 
 
 def _headers() -> dict[str, str]:

@@ -549,6 +549,14 @@ def _summarize_polarion_fetch_attempts(
             }
         return None
     blob = " ".join(errors).lower()
+    if "401" in blob or "unauthorized" in blob:
+        return {
+            "polarionRestHint": (
+                "REST 401 — POLARION_PAT 만료·오타 또는 AxStudio Variables ≠ Worker .env. "
+                "Polarion User Settings → Personal Access Token 재발급 후 Variables 삭제·재등록."
+            ),
+            "polarionRestSampleError": errors[0][:220],
+        }
     if "403" in blob or "forbidden" in blob or "administration" in blob:
         return {
             "polarionRestBlocked": True,
@@ -568,7 +576,9 @@ async def _probe_polarion_query(
     *,
     list_path: str | None = None,
 ) -> dict[str, Any]:
-    if not (settings.polarion_pat or "").strip():
+    from polarion_client import polarion_pat_configured
+
+    if not polarion_pat_configured():
         return {"query": query, "count": 0, "error": "POLARION_PAT not configured"}
     try:
         rows, total = await fetch_list_page(
@@ -985,8 +995,11 @@ async def get_prd_query_catalog(
     discovery_queries = build_prd_discovery_queries(terms, model=model)
     all_queries = _dedupe_queries(probe_queries + discovery_queries, limit=max_queries)
 
+    from polarion_client import polarion_pat_configured
+    from dej_variables import token_fingerprint, variables_get_length_detail
+
     catalog: list[dict[str, Any]] = []
-    if not (settings.polarion_pat or "").strip():
+    if not polarion_pat_configured():
         return {
             "meta": {
                 "model": model,
@@ -994,6 +1007,7 @@ async def get_prd_query_catalog(
                 "terms": terms,
                 "polarionConfigured": False,
                 "error": "POLARION_PAT not configured",
+                "variables_get_polarion_pat": variables_get_length_detail("POLARION_PAT"),
             },
             "queryCatalog": [],
             "recommended": [],
@@ -1016,19 +1030,36 @@ async def get_prd_query_catalog(
     hits = [row for row in catalog if row.get("count") and not row.get("error")]
     recommended = hits[:8] if hits else catalog[:12]
 
+    from polarion_client import polarion_pat
+
+    pat_detail = variables_get_length_detail("POLARION_PAT")
+    sample_errors = [str(r.get("error") or "") for r in catalog if r.get("error")][:3]
+    meta_out: dict[str, Any] = {
+        "model": model,
+        "projectKey": proj,
+        "listPath": prd_ui_path,
+        "restListPath": prd_rest_path,
+        "polarionComponent": polarion_component_for_model(model),
+        "terms": terms,
+        "polarionConfigured": True,
+        "polarionPatLength": len(polarion_pat()),
+        "probed": len(catalog),
+        "hitCount": len(hits),
+        "hint": "recommended[].polarionUrl 은 UI 경로; REST probe 는 restListPath 사용",
+        "variables_get_polarion_pat": pat_detail,
+    }
+    meta_out["polarionPatFingerprint"] = token_fingerprint(polarion_pat())
+    if sample_errors:
+        meta_out["probeSampleErrors"] = sample_errors
+        blob = " ".join(sample_errors).lower()
+        if "401" in blob:
+            meta_out["polarionRestHint"] = (
+                "REST 401 — POLARION_PAT 만료·오타 또는 AxStudio Variables ≠ Worker .env. "
+                "Jira와 같이 Variables 삭제·재등록 + Publish. "
+                "sh scripts/diagnose-polarion-pat.sh (Worker .env) 로 MR/PRD HTTP 확인."
+            )
     return {
-        "meta": {
-            "model": model,
-            "projectKey": proj,
-            "listPath": prd_ui_path,
-            "restListPath": prd_rest_path,
-            "polarionComponent": polarion_component_for_model(model),
-            "terms": terms,
-            "polarionConfigured": True,
-            "probed": len(catalog),
-            "hitCount": len(hits),
-            "hint": "recommended[].polarionUrl 은 UI 경로; REST probe 는 restListPath 사용",
-        },
+        "meta": meta_out,
         "queryCatalog": catalog,
         "recommended": recommended,
     }
