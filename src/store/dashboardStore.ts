@@ -16,6 +16,7 @@ export const PROJECTS: ProjectConfig[] = [
       { to: '/model-schedule/overview', label: '전 모델 일정', icon: 'CalendarRange' },
       { to: '/model-schedule/verification', label: '모델 검증 일정 상세', icon: 'CalendarRange' },
       { to: '/model-schedule/status', label: '모델현황', icon: 'LayoutDashboard' },
+      { to: '/model-schedule/requirements-review', label: '요구사항 검토', icon: 'ClipboardList' },
     ],
   },
   {

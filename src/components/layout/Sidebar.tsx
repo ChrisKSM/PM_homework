@@ -1,5 +1,5 @@
 import {
-  Activity, CalendarRange, ChevronDown, GitBranch, LayoutDashboard,
+  Activity, CalendarRange, ChevronDown, ClipboardList, GitBranch, LayoutDashboard,
   Menu, Package, ShieldAlert, ShieldCheck, Users, X, Check,
 } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -17,6 +17,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: 
   ShieldCheck,
   Package,
   ShieldAlert,
+  ClipboardList,
 }
 
 function ProjectSelector() {

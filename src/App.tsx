@@ -10,6 +10,7 @@ import RiskDashboardPage from './pages/RiskDashboardPage'
 import ModelSchedulePage from './pages/ModelSchedulePage'
 import ModelScheduleOverviewPage from './pages/ModelScheduleOverviewPage'
 import ModelScheduleStatusPage from './pages/ModelScheduleStatusPage'
+import RequirementsReviewPage from './pages/RequirementsReviewPage'
 import MrSchedulePage from './pages/mr/MrSchedulePage'
 import MrQualityPage from './pages/mr/MrQualityPage'
 import MrBuildPlanPage from './pages/mr/MrBuildPlanPage'
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="model-schedule/overview" element={<ModelScheduleOverviewPage />} />
           <Route path="model-schedule/verification" element={<ModelSchedulePage />} />
           <Route path="model-schedule/status" element={<ModelScheduleStatusPage />} />
+          <Route path="model-schedule/requirements-review" element={<RequirementsReviewPage />} />
 
           {/* S80C Soundbar */}
           <Route path="s80c/manager" element={<ManagerDashboard />} />
