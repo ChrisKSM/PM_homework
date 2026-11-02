@@ -247,6 +247,17 @@ async def diagnose_delivery_portal() -> dict[str, Any]:
             "전용 토큰 없으면 all_deliveries 는 API_TOKEN 으로 폴백."
         ),
     }
+    if (
+        pr_token
+        and ad_token
+        and token_fingerprint(pr_token) == token_fingerprint(ad_token)
+    ):
+        out["sameTokenInBothSlots"] = True
+        out["warn"] = (
+            "programReport 와 allDeliveries fingerprint 가 동일 — "
+            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 에 Gantt용 access JWT(다른 fingerprint)를 넣어야 "
+            "all_deliveries_data 403 이 해소됩니다. program-report 200 만으로는 Gantt 권한이 없습니다."
+        )
     if ad_token:
         out["portalProbeAllDeliveries"] = await _probe_portal_get(
             "all_deliveries_data", token=ad_token
