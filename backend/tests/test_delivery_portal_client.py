@@ -51,6 +51,24 @@ def test_all_deliveries_token_uses_dedicated_variable(monkeypatch):
     assert pr_src == "variables:DELIVERY_PORTAL_API_TOKEN"
 
 
+def test_all_deliveries_works_when_settings_lacks_new_field(monkeypatch):
+    class FakeVars:
+        @staticmethod
+        def get(key):
+            if key == "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN":
+                return "gantt-only"
+            return None
+
+    monkeypatch.setattr(dej_variables, "_variables_mod", FakeVars())
+    monkeypatch.setattr(dej_variables, "_import_tried", True)
+    monkeypatch.setattr(
+        "services.delivery_portal_client.settings",
+        type("S", (), {"delivery_portal_api_token": "x"})(),
+    )
+    ad, _ = resolve_delivery_portal_all_deliveries_token_pair()
+    assert ad == "gantt-only"
+
+
 def test_delivery_portal_base_url_prefers_dej(monkeypatch):
     class FakeVars:
         @staticmethod

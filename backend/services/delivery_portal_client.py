@@ -112,10 +112,14 @@ def resolve_delivery_portal_program_report_token_pair() -> tuple[str, str]:
     )
 
 
+def _settings_all_deliveries_token() -> str:
+    return _normalize_token(getattr(settings, "delivery_portal_all_deliveries_api_token", ""))
+
+
 def resolve_delivery_portal_all_deliveries_token_pair() -> tuple[str, str]:
     token, source = _resolve_token_for_keys(
         *_ALL_DELIVERIES_TOKEN_KEYS,
-        settings_fallback=settings.delivery_portal_all_deliveries_api_token,
+        settings_fallback=_settings_all_deliveries_token(),
     )
     if token:
         return token, source

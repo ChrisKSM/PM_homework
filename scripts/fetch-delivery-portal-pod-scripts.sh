@@ -6,7 +6,7 @@
 #
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
-REF="${REF:-d68ef83}"
+REF="${REF:-1245e29}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
 mkdir -p scripts services routers 2>/dev/null || true
@@ -32,6 +32,7 @@ fetch scripts/be-restart-uvicorn-standalone.sh scripts/be-restart-uvicorn-standa
 fetch scripts/DELIVERY_PORTAL_OVERVIEW_MAPPING.md scripts/DELIVERY_PORTAL_OVERVIEW_MAPPING.md
 
 echo "-- BE (overview sync API) --"
+fetch backend/config.py config.py
 fetch backend/services/delivery_portal_client.py services/delivery_portal_client.py
 fetch backend/services/delivery_portal_catalog.py services/delivery_portal_catalog.py
 fetch backend/services/delivery_portal_overview_sync.py services/delivery_portal_overview_sync.py
