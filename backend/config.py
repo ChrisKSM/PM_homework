@@ -183,6 +183,9 @@ def _hydrate_settings_from_dej(base: Settings) -> Settings:
         v = pick("DELIVERY_PORTAL_API_TOKEN")
         if v:
             patch["delivery_portal_api_token"] = v
+    dp_base = pick("DELIVERY_PORTAL_BASE_URL")
+    if dp_base and dp_base.rstrip("/") != base.delivery_portal_base_url.rstrip("/"):
+        patch["delivery_portal_base_url"] = dp_base.rstrip("/")
     tv_base = pick("TVJIRA_BASE_URL", "REACT_APP_TVJIRA_BASE_URL")
     if tv_base and tv_base != base.tvjira_base_url:
         patch["tvjira_base_url"] = tv_base

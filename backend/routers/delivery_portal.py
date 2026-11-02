@@ -4,36 +4,50 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 
 from config import settings
-from services.delivery_portal_client import fetch_all_deliveries_data
+from services.delivery_portal_client import (
+    diagnose_delivery_portal,
+    fetch_all_deliveries_data,
+    resolve_delivery_portal_base_url_pair,
+    resolve_delivery_portal_token_pair,
+)
 
 router = APIRouter(prefix="/api/delivery-portal", tags=["delivery-portal"])
 
 
 def _resolve_token() -> str:
-    token = (settings.delivery_portal_api_token or "").strip()
+    token, _ = resolve_delivery_portal_token_pair()
     if token:
         return token
     raise HTTPException(
         status_code=503,
-        detail="DELIVERY_PORTAL_API_TOKEN 미설정 — BE .env 확인",
+        detail="DELIVERY_PORTAL_API_TOKEN 미설정 — AxStudio Variables 또는 BE .env 확인",
     )
 
 
 @router.get("/ping")
 async def delivery_ping():
-    token = (settings.delivery_portal_api_token or "").strip()
+    token, token_source = resolve_delivery_portal_token_pair()
+    base, base_source = resolve_delivery_portal_base_url_pair()
     return {
-        "ok": True,
-        "baseUrl": settings.delivery_portal_base_url.rstrip("/"),
+        "ok": bool(token),
+        "baseUrl": base,
+        "baseUrlSource": base_source,
         "tokenLength": len(token),
+        "tokenSource": token_source,
     }
+
+
+@router.get("/diagnose")
+async def delivery_diagnose():
+    """Variables vs .env 토큰·BASE URL·Portal HTTP 프로브 (값 노출 없음)."""
+    return await diagnose_delivery_portal()
 
 
 async def _portal_get(path: str, *, params: dict | None = None) -> object:
     """GET /api/v1/{path} — Bearer DELIVERY_PORTAL_API_TOKEN."""
     import httpx
 
-    base = settings.delivery_portal_base_url.rstrip("/")
+    base, _ = resolve_delivery_portal_base_url_pair()
     segment = path.strip("/")
     url = f"{base}/api/v1/{segment}/"
     token = _resolve_token()
