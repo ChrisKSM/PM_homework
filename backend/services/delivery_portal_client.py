@@ -140,15 +140,17 @@ def jwt_payload_hints(token: str) -> dict[str, Any]:
         "looksLikeJwt": True,
         "payloadDecodeOk": True,
         "token_type": payload.get("token_type"),
+        "sub": payload.get("sub") or payload.get("user_id"),
         "exp": payload.get("exp"),
         "iat": payload.get("iat"),
     }
     return out
 
 
-async def probe_all_deliveries_auth() -> dict[str, Any]:
-    """Portal GET all_deliveries_data — HTTP 코드만 (본문 일부)."""
-    url = f"{_base_url()}/api/v1/all_deliveries_data/"
+async def _probe_portal_get(path_segment: str) -> dict[str, Any]:
+    """Portal GET /api/v1/{path}/ — HTTP 코드만 (본문 일부)."""
+    segment = path_segment.strip("/")
+    url = f"{_base_url()}/api/v1/{segment}/"
     token = _token()
     try:
         async with httpx.AsyncClient(
@@ -156,11 +158,20 @@ async def probe_all_deliveries_auth() -> dict[str, Any]:
         ) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             return {
+                "path": f"/api/v1/{segment}/",
                 "httpStatus": resp.status_code,
                 "bodyPreview": (resp.text or "")[:240],
             }
     except httpx.HTTPError as e:
-        return {"httpStatus": 0, "bodyPreview": str(e)[:240]}
+        return {"path": f"/api/v1/{segment}/", "httpStatus": 0, "bodyPreview": str(e)[:240]}
+
+
+async def probe_all_deliveries_auth() -> dict[str, Any]:
+    return await _probe_portal_get("all_deliveries_data")
+
+
+async def probe_program_report_auth() -> dict[str, Any]:
+    return await _probe_portal_get("program-report")
 
 
 async def diagnose_delivery_portal() -> dict[str, Any]:
@@ -181,9 +192,10 @@ async def diagnose_delivery_portal() -> dict[str, Any]:
         "variablesGetDeliveryPortalToken": variables_get_length_detail("DELIVERY_PORTAL_API_TOKEN"),
         "verifySsl": settings.delivery_portal_verify_ssl,
         "hint": (
-            "tokenSource 가 settings/dotenv 인데 UI Variables 길이와 다르면 "
-            "pod .env 의 stale DELIVERY_PORTAL_API_TOKEN 삭제 후 재배포. "
-            "401 이면 DELIVERY_PORTAL_BASE_URL(hedej vs axstudio) 과 JWT 발급 환경 일치 확인."
+            "401: BASE_URL·JWT 환경 불일치 또는 stale .env 토큰. "
+            "403 on all_deliveries_data: JWT는 유효하나 해당 API GET 역할 없음 — "
+            "Delivery Portal 관리자에게 all_deliveries_data 접근 권한 또는 서비스 access token 발급 요청 "
+            "(브라우저 Milestone UI SSO 와 Bearer JWT 역할이 다를 수 있음)."
         ),
     }
     if token:
@@ -191,10 +203,22 @@ async def diagnose_delivery_portal() -> dict[str, Any]:
         if token_source.startswith("variables:") and settings_token_len and settings_token_len != len(token):
             out["staleSettingsTokenLikely"] = True
         try:
-            out["portalProbe"] = await probe_all_deliveries_auth()
+            out["portalProbeAllDeliveries"] = await probe_all_deliveries_auth()
+            out["portalProbeProgramReport"] = await probe_program_report_auth()
         except HTTPException as e:
-            out["portalProbe"] = {"httpStatus": e.status_code, "bodyPreview": str(e.detail)[:240]}
+            out["portalProbeAllDeliveries"] = {"httpStatus": e.status_code, "bodyPreview": str(e.detail)[:240]}
     return out
+
+
+def _portal_http_detail(status: int, body: str) -> str:
+    base = f"Delivery Portal HTTP {status}: {body[:500]}"
+    if status == 403 and "all_deliveries_data" in body:
+        return (
+            f"{base} — JWT 인증은 통과했으나 GET /api/v1/all_deliveries_data/ API 권한 없음. "
+            "Variables 토큰 주체(jwtHints.sub)에 Delivery Portal API 역할 부여 또는 "
+            "Milestone Gantt 조회 가능 계정의 access token 으로 교체하세요."
+        )
+    return base
 
 
 async def fetch_all_deliveries_data() -> dict:
@@ -207,7 +231,7 @@ async def fetch_all_deliveries_data() -> dict:
             if resp.status_code >= 400:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Delivery Portal HTTP {resp.status_code}: {resp.text[:500]}",
+                    detail=_portal_http_detail(resp.status_code, resp.text or ""),
                 )
             data = resp.json()
             if not isinstance(data, dict):
