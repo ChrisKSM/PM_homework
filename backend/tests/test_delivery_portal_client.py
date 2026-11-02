@@ -1,6 +1,8 @@
 import dej_variables
 from services.delivery_portal_client import (
+    resolve_delivery_portal_all_deliveries_token_pair,
     resolve_delivery_portal_base_url_pair,
+    resolve_delivery_portal_program_report_token_pair,
     resolve_delivery_portal_token_pair,
 )
 
@@ -23,9 +25,30 @@ def test_delivery_portal_token_prefers_dej_over_settings(monkeypatch):
             {"delivery_portal_api_token": "stale-from-settings"},
         )(),
     )
-    token, source = resolve_delivery_portal_token_pair()
+    token, source = resolve_delivery_portal_program_report_token_pair()
     assert token == "jwt-from-variables"
     assert source == "variables:DELIVERY_PORTAL_API_TOKEN"
+    assert resolve_delivery_portal_token_pair()[0] == "jwt-from-variables"
+
+
+def test_all_deliveries_token_uses_dedicated_variable(monkeypatch):
+    class FakeVars:
+        @staticmethod
+        def get(key):
+            if key == "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN":
+                return "gantt-jwt"
+            if key == "DELIVERY_PORTAL_API_TOKEN":
+                return "report-jwt"
+            return None
+
+    monkeypatch.setattr(dej_variables, "_variables_mod", FakeVars())
+    monkeypatch.setattr(dej_variables, "_import_tried", True)
+    ad, ad_src = resolve_delivery_portal_all_deliveries_token_pair()
+    pr, pr_src = resolve_delivery_portal_program_report_token_pair()
+    assert ad == "gantt-jwt"
+    assert ad_src == "variables:DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN"
+    assert pr == "report-jwt"
+    assert pr_src == "variables:DELIVERY_PORTAL_API_TOKEN"
 
 
 def test_delivery_portal_base_url_prefers_dej(monkeypatch):

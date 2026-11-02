@@ -7,33 +7,28 @@ from config import settings
 from services.delivery_portal_client import (
     diagnose_delivery_portal,
     fetch_all_deliveries_data,
+    program_report_bearer_token,
+    resolve_delivery_portal_all_deliveries_token_pair,
     resolve_delivery_portal_base_url_pair,
-    resolve_delivery_portal_token_pair,
+    resolve_delivery_portal_program_report_token_pair,
 )
 
 router = APIRouter(prefix="/api/delivery-portal", tags=["delivery-portal"])
 
 
-def _resolve_token() -> str:
-    token, _ = resolve_delivery_portal_token_pair()
-    if token:
-        return token
-    raise HTTPException(
-        status_code=503,
-        detail="DELIVERY_PORTAL_API_TOKEN 미설정 — AxStudio Variables 또는 BE .env 확인",
-    )
-
-
 @router.get("/ping")
 async def delivery_ping():
-    token, token_source = resolve_delivery_portal_token_pair()
+    pr_token, pr_source = resolve_delivery_portal_program_report_token_pair()
+    ad_token, ad_source = resolve_delivery_portal_all_deliveries_token_pair()
     base, base_source = resolve_delivery_portal_base_url_pair()
     return {
-        "ok": bool(token),
+        "ok": bool(pr_token or ad_token),
         "baseUrl": base,
         "baseUrlSource": base_source,
-        "tokenLength": len(token),
-        "tokenSource": token_source,
+        "programReportTokenLength": len(pr_token),
+        "programReportTokenSource": pr_source,
+        "allDeliveriesTokenLength": len(ad_token),
+        "allDeliveriesTokenSource": ad_source,
     }
 
 
@@ -44,13 +39,13 @@ async def delivery_diagnose():
 
 
 async def _portal_get(path: str, *, params: dict | None = None) -> object:
-    """GET /api/v1/{path} — Bearer DELIVERY_PORTAL_API_TOKEN."""
+    """GET /api/v1/{path} — program-report 는 DELIVERY_PORTAL_API_TOKEN."""
     import httpx
 
     base, _ = resolve_delivery_portal_base_url_pair()
     segment = path.strip("/")
     url = f"{base}/api/v1/{segment}/"
-    token = _resolve_token()
+    token = program_report_bearer_token()
     try:
         async with httpx.AsyncClient(verify=settings.delivery_portal_verify_ssl, timeout=120.0) as client:
             resp = await client.get(

@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     # Delivery Portal — 릴리즈 마일스톤 Gantt (Davis MilestonePage)
     delivery_portal_base_url: str = "https://delivery-portal-backend.apps.axstudio.lge.com"
     delivery_portal_api_token: str = ""
+    delivery_portal_all_deliveries_api_token: str = ""
     delivery_portal_verify_ssl: bool = True
 
     # Board
@@ -183,6 +184,10 @@ def _hydrate_settings_from_dej(base: Settings) -> Settings:
         v = pick("DELIVERY_PORTAL_API_TOKEN")
         if v:
             patch["delivery_portal_api_token"] = v
+    if not (base.delivery_portal_all_deliveries_api_token or "").strip():
+        v = pick("DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN")
+        if v:
+            patch["delivery_portal_all_deliveries_api_token"] = v
     dp_base = pick("DELIVERY_PORTAL_BASE_URL")
     if dp_base and dp_base.rstrip("/") != base.delivery_portal_base_url.rstrip("/"):
         patch["delivery_portal_base_url"] = dp_base.rstrip("/")

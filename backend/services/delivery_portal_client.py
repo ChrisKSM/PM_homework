@@ -4,7 +4,6 @@ from __future__ import annotations
 import base64
 import json
 import os
-import re
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +19,13 @@ _DOTENV_PATHS = (
     Path(".env"),
 )
 
-_TOKEN_KEYS = ("DELIVERY_PORTAL_API_TOKEN",)
+# program-report · 기본 프록시
+_PROGRAM_REPORT_TOKEN_KEYS = ("DELIVERY_PORTAL_API_TOKEN",)
+# Gantt / 전 모델 일정 sync — 전용 토큰 우선, 없으면 API_TOKEN 폴백
+_ALL_DELIVERIES_TOKEN_KEYS = (
+    "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN",
+    "DELIVERY_PORTAL_API_TOKEN",
+)
 _BASE_URL_KEYS = ("DELIVERY_PORTAL_BASE_URL",)
 
 
@@ -54,8 +59,8 @@ def _read_from_dotenv_keys(*env_keys: str) -> str:
     return ""
 
 
-def _token_from_dej_or_env() -> tuple[str, str]:
-    for key in _TOKEN_KEYS:
+def _token_from_dej_or_env_for_keys(*keys: str) -> tuple[str, str]:
+    for key in keys:
         token = _normalize_token(dej_get(key))
         if token:
             return token, f"variables:{key}"
@@ -76,26 +81,50 @@ def _base_url_from_dej_or_env() -> tuple[str, str]:
     return "", "none"
 
 
-def resolve_delivery_portal_token_pair() -> tuple[str, str]:
-    """
-    AxStudio Variables(dej) 우선 — settings 는 import 시 .env 캐시라 stale 토큰 401 방지.
-    """
-    token, source = _token_from_dej_or_env()
+def _resolve_token_for_keys(
+    *keys: str,
+    settings_fallback: str = "",
+) -> tuple[str, str]:
+    """AxStudio Variables(dej) 우선 — settings 는 import 시 .env 캐시."""
+    token, source = _token_from_dej_or_env_for_keys(*keys)
     if token:
         return token, source
-    token = _read_from_dotenv_keys(*_TOKEN_KEYS)
+    token = _read_from_dotenv_keys(*keys)
     if token:
         for path in _DOTENV_PATHS:
             if path.is_file():
                 return token, f"dotenv:{path}"
         return token, "dotenv"
-    token = _normalize_token(settings.delivery_portal_api_token)
+    token = _normalize_token(settings_fallback)
     if token:
-        return token, "settings.delivery_portal_api_token"
-    token = _normalize_token(runtime_get("DELIVERY_PORTAL_API_TOKEN"))
-    if token:
-        return token, "runtime_get:DELIVERY_PORTAL_API_TOKEN"
+        return token, "settings"
+    for key in keys:
+        token = _normalize_token(runtime_get(key))
+        if token:
+            return token, f"runtime_get:{key}"
     return "", "none"
+
+
+def resolve_delivery_portal_program_report_token_pair() -> tuple[str, str]:
+    return _resolve_token_for_keys(
+        *_PROGRAM_REPORT_TOKEN_KEYS,
+        settings_fallback=settings.delivery_portal_api_token,
+    )
+
+
+def resolve_delivery_portal_all_deliveries_token_pair() -> tuple[str, str]:
+    token, source = _resolve_token_for_keys(
+        *_ALL_DELIVERIES_TOKEN_KEYS,
+        settings_fallback=settings.delivery_portal_all_deliveries_api_token,
+    )
+    if token:
+        return token, source
+    return "", "none"
+
+
+def resolve_delivery_portal_token_pair() -> tuple[str, str]:
+    """하위 호환 — program-report 와 동일."""
+    return resolve_delivery_portal_program_report_token_pair()
 
 
 def resolve_delivery_portal_base_url_pair() -> tuple[str, str]:
@@ -111,10 +140,23 @@ def resolve_delivery_portal_base_url_pair() -> tuple[str, str]:
     return "https://delivery-portal-backend.apps.axstudio.lge.com", "default"
 
 
-def _token() -> str:
-    token, _ = resolve_delivery_portal_token_pair()
+def _program_report_token() -> str:
+    token, _ = resolve_delivery_portal_program_report_token_pair()
     if not token:
         raise HTTPException(status_code=503, detail="DELIVERY_PORTAL_API_TOKEN 미설정")
+    return token
+
+
+def _all_deliveries_token() -> str:
+    token, _ = resolve_delivery_portal_all_deliveries_token_pair()
+    if not token:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 미설정 "
+                "(또는 DELIVERY_PORTAL_API_TOKEN 폴백)"
+            ),
+        )
     return token
 
 
@@ -136,7 +178,7 @@ def jwt_payload_hints(token: str) -> dict[str, Any]:
         return {"looksLikeJwt": True, "payloadDecodeOk": False}
     if not isinstance(payload, dict):
         return {"looksLikeJwt": True, "payloadDecodeOk": False}
-    out: dict[str, Any] = {
+    return {
         "looksLikeJwt": True,
         "payloadDecodeOk": True,
         "token_type": payload.get("token_type"),
@@ -144,14 +186,22 @@ def jwt_payload_hints(token: str) -> dict[str, Any]:
         "exp": payload.get("exp"),
         "iat": payload.get("iat"),
     }
-    return out
 
 
-async def _probe_portal_get(path_segment: str) -> dict[str, Any]:
-    """Portal GET /api/v1/{path}/ — HTTP 코드만 (본문 일부)."""
+def _token_slot_diagnostic(var_key: str, token: str, source: str) -> dict[str, Any]:
+    return {
+        "configured": bool(token),
+        "tokenLength": len(token),
+        "tokenSource": source,
+        "tokenFingerprint": token_fingerprint(token),
+        "variablesGet": variables_get_length_detail(var_key),
+        "jwtHints": jwt_payload_hints(token) if token else {},
+    }
+
+
+async def _probe_portal_get(path_segment: str, *, token: str) -> dict[str, Any]:
     segment = path_segment.strip("/")
     url = f"{_base_url()}/api/v1/{segment}/"
-    token = _token()
     try:
         async with httpx.AsyncClient(
             verify=settings.delivery_portal_verify_ssl, timeout=30.0
@@ -166,47 +216,37 @@ async def _probe_portal_get(path_segment: str) -> dict[str, Any]:
         return {"path": f"/api/v1/{segment}/", "httpStatus": 0, "bodyPreview": str(e)[:240]}
 
 
-async def probe_all_deliveries_auth() -> dict[str, Any]:
-    return await _probe_portal_get("all_deliveries_data")
-
-
-async def probe_program_report_auth() -> dict[str, Any]:
-    return await _probe_portal_get("program-report")
-
-
 async def diagnose_delivery_portal() -> dict[str, Any]:
-    token, token_source = resolve_delivery_portal_token_pair()
+    pr_token, pr_source = resolve_delivery_portal_program_report_token_pair()
+    ad_token, ad_source = resolve_delivery_portal_all_deliveries_token_pair()
     base, base_source = resolve_delivery_portal_base_url_pair()
-    settings_token_len = len(_normalize_token(settings.delivery_portal_api_token))
-    dej_len = len(_normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN")))
     out: dict[str, Any] = {
-        "ok": bool(token),
+        "ok": bool(pr_token or ad_token),
         "baseUrl": base,
         "baseUrlSource": base_source,
-        "tokenConfigured": bool(token),
-        "tokenLength": len(token),
-        "tokenSource": token_source,
-        "tokenFingerprint": token_fingerprint(token),
-        "settingsTokenLength": settings_token_len,
-        "variablesGetTokenLength": dej_len,
-        "variablesGetDeliveryPortalToken": variables_get_length_detail("DELIVERY_PORTAL_API_TOKEN"),
         "verifySsl": settings.delivery_portal_verify_ssl,
+        "tokens": {
+            "programReport": _token_slot_diagnostic(
+                "DELIVERY_PORTAL_API_TOKEN", pr_token, pr_source
+            ),
+            "allDeliveries": _token_slot_diagnostic(
+                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN", ad_token, ad_source
+            ),
+        },
         "hint": (
-            "401: BASE_URL·JWT 환경 불일치 또는 stale .env 토큰. "
-            "403 on all_deliveries_data: JWT는 유효하나 해당 API GET 역할 없음 — "
-            "Delivery Portal 관리자에게 all_deliveries_data 접근 권한 또는 서비스 access token 발급 요청 "
-            "(브라우저 Milestone UI SSO 와 Bearer JWT 역할이 다를 수 있음)."
+            "Variables: DELIVERY_PORTAL_API_TOKEN=program-report JWT, "
+            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN=Gantt/all_deliveries_data JWT. "
+            "전용 토큰 없으면 all_deliveries 는 API_TOKEN 으로 폴백."
         ),
     }
-    if token:
-        out["jwtHints"] = jwt_payload_hints(token)
-        if token_source.startswith("variables:") and settings_token_len and settings_token_len != len(token):
-            out["staleSettingsTokenLikely"] = True
-        try:
-            out["portalProbeAllDeliveries"] = await probe_all_deliveries_auth()
-            out["portalProbeProgramReport"] = await probe_program_report_auth()
-        except HTTPException as e:
-            out["portalProbeAllDeliveries"] = {"httpStatus": e.status_code, "bodyPreview": str(e.detail)[:240]}
+    if ad_token:
+        out["portalProbeAllDeliveries"] = await _probe_portal_get(
+            "all_deliveries_data", token=ad_token
+        )
+    if pr_token:
+        out["portalProbeProgramReport"] = await _probe_portal_get(
+            "program-report", token=pr_token
+        )
     return out
 
 
@@ -214,9 +254,8 @@ def _portal_http_detail(status: int, body: str) -> str:
     base = f"Delivery Portal HTTP {status}: {body[:500]}"
     if status == 403 and "all_deliveries_data" in body:
         return (
-            f"{base} — JWT 인증은 통과했으나 GET /api/v1/all_deliveries_data/ API 권한 없음. "
-            "Variables 토큰 주체(jwtHints.sub)에 Delivery Portal API 역할 부여 또는 "
-            "Milestone Gantt 조회 가능 계정의 access token 으로 교체하세요."
+            f"{base} — GET /api/v1/all_deliveries_data/ 권한 없음. "
+            "Variables DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 확인."
         )
     return base
 
@@ -224,7 +263,7 @@ def _portal_http_detail(status: int, body: str) -> str:
 async def fetch_all_deliveries_data() -> dict:
     base = _base_url()
     url = f"{base}/api/v1/all_deliveries_data/"
-    token = _token()
+    token = _all_deliveries_token()
     try:
         async with httpx.AsyncClient(verify=settings.delivery_portal_verify_ssl, timeout=120.0) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
@@ -239,3 +278,8 @@ async def fetch_all_deliveries_data() -> dict:
             return data
     except httpx.HTTPError as e:
         raise HTTPException(status_code=502, detail=f"Delivery Portal 연결 실패: {e}") from e
+
+
+def program_report_bearer_token() -> str:
+    """routers/delivery_portal.py program-report 프록시."""
+    return _program_report_token()
