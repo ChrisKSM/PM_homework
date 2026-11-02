@@ -20,6 +20,8 @@ Admin 안내 요약:
 
 ## Pod 증거 수집 (토큰 값 출력 없음)
 
+구버전 `polarion_client.py`( `polarion_pat` 없음) pod 도 스크립트가 `resolve_polarion_pat()` 폴백으로 동작합니다.
+
 ```bash
 cd /workspace/project
 # uvicorn 기동 후
