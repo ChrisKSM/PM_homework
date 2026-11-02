@@ -51,6 +51,13 @@ def test_all_deliveries_token_uses_dedicated_variable(monkeypatch):
     assert pr_src == "variables:DELIVERY_PORTAL_API_TOKEN"
 
 
+def test_normalize_strips_bearer_prefix():
+    from services.delivery_portal_client import _normalize_token
+
+    assert _normalize_token("Bearer eyJabc") == "eyJabc"
+    assert _normalize_token('  "eyJx"  ') == "eyJx"
+
+
 def test_all_deliveries_works_when_settings_lacks_new_field(monkeypatch):
     class FakeVars:
         @staticmethod

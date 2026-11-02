@@ -33,8 +33,12 @@ def _normalize_token(raw: Any) -> str:
     if raw is None:
         return ""
     if isinstance(raw, bytes):
-        return raw.decode("utf-8", errors="ignore").strip()
-    return str(raw).strip().strip('"').strip("'")
+        t = raw.decode("utf-8", errors="ignore").strip()
+    else:
+        t = str(raw).strip().strip('"').strip("'")
+    if t.lower().startswith("bearer "):
+        t = t[7:].strip()
+    return t
 
 
 def _read_from_dotenv_keys(*env_keys: str) -> str:
@@ -254,27 +258,45 @@ async def diagnose_delivery_portal() -> dict[str, Any]:
     return out
 
 
-def _portal_http_detail(status: int, body: str) -> str:
+def _portal_http_detail(status: int, body: str, *, token_source: str = "") -> str:
     base = f"Delivery Portal HTTP {status}: {body[:500]}"
+    src = f" (BE tokenSource={token_source})" if token_source else ""
+    if status == 401:
+        return (
+            f"{base}{src} — JWT 거부. "
+            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 에 access JWT(eyJ…) 전체·Bearer 없이·"
+            "program-report 토큰과 바꿔 넣지 않았는지, BASE_URL(hedej/axstudio) 발급 환경과 "
+            "일치하는지, .env stale 값 삭제 후 restart 확인. GET /api/delivery-portal/diagnose"
+        )
     if status == 403 and "all_deliveries_data" in body:
         return (
-            f"{base} — GET /api/v1/all_deliveries_data/ 권한 없음. "
+            f"{base}{src} — GET /api/v1/all_deliveries_data/ 권한 없음. "
             "Variables DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 확인."
         )
-    return base
+    return base + src
 
 
 async def fetch_all_deliveries_data() -> dict:
     base = _base_url()
     url = f"{base}/api/v1/all_deliveries_data/"
-    token = _all_deliveries_token()
+    token, token_source = resolve_delivery_portal_all_deliveries_token_pair()
+    if not token:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 미설정 "
+                "(또는 DELIVERY_PORTAL_API_TOKEN 폴백)"
+            ),
+        )
     try:
         async with httpx.AsyncClient(verify=settings.delivery_portal_verify_ssl, timeout=120.0) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             if resp.status_code >= 400:
                 raise HTTPException(
                     status_code=502,
-                    detail=_portal_http_detail(resp.status_code, resp.text or ""),
+                    detail=_portal_http_detail(
+                        resp.status_code, resp.text or "", token_source=token_source
+                    ),
                 )
             data = resp.json()
             if not isinstance(data, dict):
