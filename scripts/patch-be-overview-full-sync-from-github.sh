@@ -1,11 +1,11 @@
 #!/bin/sh
 # BE pod — overview Portal sync 전체 패치 (events 교체 + multi-detail schedules + catalog lib)
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/<SHA>/scripts/patch-be-overview-full-sync-from-github.sh" | sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/3e4d4dc/scripts/patch-be-overview-full-sync-from-github.sh" | REF=3e4d4dc sh
 #
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
-REF="${REF:-HEAD}"
+REF="${REF:-3e4d4dc}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
 fetch() {
