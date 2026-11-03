@@ -68,6 +68,18 @@ def test_normalize_strips_bearer_prefix():
     assert _normalize_token("Bearer eyJabc") == "eyJabc"
 
 
+def test_b64_wrapped_jwt_decoded():
+    import base64
+
+    from services.delivery_portal_client import _normalize_token
+
+    jwt = "eyJ" + ("a" * 201) + "." + ("b" * 200) + "." + ("c" * 24)
+    assert len(jwt) >= 430
+    wrapped = base64.b64encode(jwt.encode()).decode()
+    assert len(wrapped) >= 500
+    assert _normalize_token(wrapped) == jwt
+
+
 def test_delivery_portal_base_url_prefers_dej(monkeypatch):
     class FakeVars:
         @staticmethod

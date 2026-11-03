@@ -29,6 +29,24 @@ _DELIVERY_PORTAL_TOKEN_KEYS = (
 _BASE_URL_KEYS = ("DELIVERY_PORTAL_BASE_URL",)
 
 
+def _maybe_b64_decode_delivery_jwt(value: str) -> str:
+    """
+    AxStudio Variables 가 JWT(432자 eyJ…) 대신 Base64(576자) 로 줄 때 — Jira PAT 60/44 와 동일 패턴.
+    """
+    t = (value or "").strip()
+    if t.startswith("eyJ") and t.count(".") >= 2:
+        return t
+    if len(t) < 500 or len(t) > 680:
+        return t
+    try:
+        decoded = base64.b64decode(t, validate=True).decode("utf-8").strip()
+    except Exception:
+        return t
+    if decoded.startswith("eyJ") and decoded.count(".") >= 2 and len(decoded) < len(t):
+        return decoded
+    return t
+
+
 def _normalize_token(raw: Any) -> str:
     if raw is None:
         return ""
@@ -38,7 +56,7 @@ def _normalize_token(raw: Any) -> str:
         t = str(raw).strip().strip('"').strip("'")
     if t.lower().startswith("bearer "):
         t = t[7:].strip()
-    return t
+    return _maybe_b64_decode_delivery_jwt(t)
 
 
 def _read_dotenv_value(key: str) -> str:
@@ -199,12 +217,24 @@ def delivery_portal_resolve_trace() -> dict[str, Any]:
     base, base_source = resolve_delivery_portal_base_url_pair()
     pr_len = len(_normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN")))
     ad_len = len(_normalize_token(dej_get("DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN")))
-    fp_api = token_fingerprint(_normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN")))
-    fp_ad = token_fingerprint(_normalize_token(dej_get("DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN")))
+    raw_api = _normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN"))
+    raw_ad = _normalize_token(dej_get("DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN"))
+    fp_api = token_fingerprint(raw_api)
+    fp_ad = token_fingerprint(raw_ad)
+    raw_api_len = len(_normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN") or ""))
+    # dej raw length (before b64 decode) — Variables UI 글자 수와 비교
+    try:
+        raw_dej_api = dej_get("DELIVERY_PORTAL_API_TOKEN")
+        raw_dej_len = len(str(raw_dej_api or ""))
+    except Exception:
+        raw_dej_len = 0
+    b64_decoded = raw_dej_len >= 500 and len(raw_api) < raw_dej_len and raw_api.startswith("eyJ")
     return {
         "effectiveTokenSource": source,
         "effectiveTokenLength": len(token),
         "effectiveTokenFingerprint": token_fingerprint(token),
+        "variablesRawApiTokenLength": raw_dej_len,
+        "looksB64WrappedJwt": b64_decoded,
         "variablesApiTokenLength": pr_len,
         "variablesAllDeliveriesTokenLength": ad_len,
         "variablesFingerprintsMatch": bool(fp_api and fp_ad and fp_api == fp_ad),
