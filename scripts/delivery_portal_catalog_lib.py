@@ -275,16 +275,26 @@ def merge_schedules_from_details(details: list[dict[str, Any]]) -> list[dict[str
             if not test:
                 continue
             key = _norm_test_key(test)
-            start = str(s.get("plan_start_date") or s.get("actual_start_date") or "")[:10]
-            end = str(s.get("plan_end_date") or s.get("actual_end_date") or start)[:10]
+            plan_s = str(s.get("plan_start_date") or "")[:10]
+            plan_e = str(s.get("plan_end_date") or "")[:10]
+            if plan_s:
+                start, end = plan_s, plan_e or plan_s
+            else:
+                start = str(s.get("actual_start_date") or "")[:10]
+                end = str(s.get("actual_end_date") or start)[:10]
             span = _schedule_span_days(start, end)
+            has_plan = bool(plan_s)
             prev = best.get(key)
             if prev is None:
-                best[key] = (s, span, pri)
+                best[key] = (s, span, pri, has_plan)
                 continue
-            _ps, prev_span, prev_pri = prev
-            if span < prev_span or (span == prev_span and pri > prev_pri):
-                best[key] = (s, span, pri)
+            _ps, prev_span, prev_pri, prev_plan = prev
+            if has_plan and not prev_plan:
+                best[key] = (s, span, pri, has_plan)
+            elif has_plan == prev_plan and (
+                span < prev_span or (span == prev_span and pri > prev_pri)
+            ):
+                best[key] = (s, span, pri, has_plan)
     return [t[0] for t in best.values()]
 
 

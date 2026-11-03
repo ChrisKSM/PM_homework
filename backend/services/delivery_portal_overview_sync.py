@@ -177,6 +177,17 @@ def merge_overview_events(
     return merged
 
 
+def _portal_schedule_start_end(s: dict[str, Any]) -> tuple[str, str]:
+    """Program Report Gantt 와 동일: plan_* 우선 (actual_* 는 plan 없을 때만)."""
+    start = _norm_date(s.get("plan_start_date"))
+    end = _norm_date(s.get("plan_end_date"))
+    if start:
+        return start, end or start
+    start = _norm_date(s.get("actual_start_date"))
+    end = _norm_date(s.get("actual_end_date") or start)
+    return start, end or start
+
+
 def _event_span_days(start: str, end: str) -> int:
     if not start:
         return 999999
@@ -195,8 +206,7 @@ def schedules_to_events(schedules: list[dict[str, Any]]) -> list[dict[str, Any]]
     seen: set[tuple] = set()
     for s in schedules or []:
         name = _event_name(str(s.get("test_name") or ""))
-        start = _norm_date(s.get("plan_start_date") or s.get("actual_start_date"))
-        end = _norm_date(s.get("plan_end_date") or s.get("actual_end_date") or start)
+        start, end = _portal_schedule_start_end(s)
         if not start:
             continue
         if not end:
@@ -435,6 +445,10 @@ def apply_delivery_portal_audio_products(
     skipped: list[str] = []
 
     saved_hw_by_oid = snapshot_hw_events_by_overview_id(models)
+    if not dry_run:
+        for m in models:
+            oid = str(m.get("id") or "")
+            m["events"] = list(saved_hw_by_oid.get(oid, []))
 
     for rid in OVERVIEW_IDS_TO_REMOVE:
         if rid in by_id:

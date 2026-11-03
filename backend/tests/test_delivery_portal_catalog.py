@@ -61,6 +61,22 @@ def test_iter_portal_merges_schedules_from_all_audio_details():
     assert qp[0]["end"] == "2026-12-24"
 
 
+def test_schedules_to_events_prefers_plan_dates_over_actual():
+    raw = [
+        {
+            "test_name": "QP1",
+            "plan_start_date": "2026-12-14",
+            "plan_end_date": "2026-12-24",
+            "actual_start_date": "2026-06-12",
+            "actual_end_date": "2027-01-22",
+        }
+    ]
+    ev = schedules_to_events(raw)
+    assert len(ev) == 1
+    assert ev[0]["start"] == "2026-12-14"
+    assert ev[0]["end"] == "2026-12-24"
+
+
 def test_apply_audio_products_preserves_mongo_hw_replaces_sw():
     portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
     models = [
