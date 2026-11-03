@@ -108,6 +108,48 @@ def _infer_bar_type(test_name: str) -> str | None:
     return None
 
 
+def _is_hw_event(ev: dict[str, Any]) -> bool:
+    return str(ev.get("kind") or "").lower() == "hw"
+
+
+def _split_hw_sw_events(events: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    hw: list[dict[str, Any]] = []
+    sw: list[dict[str, Any]] = []
+    for ev in events or []:
+        if _is_hw_event(ev):
+            hw.append(ev)
+        else:
+            sw.append(ev)
+    return hw, sw
+
+
+def snapshot_hw_events_by_overview_id(models: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = {}
+    for m in models or []:
+        oid = str(m.get("id") or "")
+        if not oid:
+            continue
+        hw = [dict(e) for e in (m.get("events") or []) if _is_hw_event(e)]
+        if hw:
+            out[oid] = hw
+    return out
+
+
+def combine_portal_events_with_saved_hw(
+    saved_hw: list[dict[str, Any]] | None,
+    portal_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Delivery Portal / program-report 에 HW milestone 이 없을 때 Mongo·seed HW 유지.
+    Portal 에서 HW 가 오면 saved 가 비어 있을 때만 Portal HW 사용.
+    """
+    portal_hw, portal_sw = _split_hw_sw_events(portal_events)
+    hw = list(saved_hw or [])
+    if not hw and portal_hw:
+        hw = portal_hw
+    return merge_overview_events(hw, portal_sw)
+
+
 def merge_overview_events(
     existing: list[dict[str, Any]],
     incoming: list[dict[str, Any]],
@@ -236,6 +278,7 @@ def _apply_linked_program_overrides(
     *,
     dry_run: bool,
     portal_events_acc: dict[str, list[dict[str, Any]]],
+    saved_hw_by_oid: dict[str, list[dict[str, Any]]],
 ) -> list[dict[str, str]]:
     """PO 확정 UUID — merged schedules 로 events 덮어씀 (중복 S90C program 방지)."""
     by_id = {m.get("id"): m for m in models if m.get("id")}
@@ -253,7 +296,10 @@ def _apply_linked_program_overrides(
         portal_events_acc[oid] = events
         applied.append({"overview_id": oid, "program_id": link["program_id"]})
         if not dry_run:
-            model["events"] = events
+            model["events"] = combine_portal_events_with_saved_hw(
+                saved_hw_by_oid.get(oid),
+                events,
+            )
     return applied
 
 
@@ -277,6 +323,8 @@ def apply_delivery_portal_to_models(
                 models[:] = [m for m in models if m.get("id") != rid]
                 by_id.pop(rid, None)
 
+    saved_hw_by_oid = snapshot_hw_events_by_overview_id(models)
+
     for link in OVERVIEW_PROGRAM_LINKS:
         oid = link["overview_id"]
         prog_id = link["program_id"]
@@ -289,7 +337,8 @@ def apply_delivery_portal_to_models(
             missing_portal.append(f"{oid}:{prog_id}")
             continue
         platform, pi, detail, _pd = found
-        events = schedules_to_events(detail.get("schedules") or [])
+        portal_events = schedules_to_events(detail.get("schedules") or [])
+        events = combine_portal_events_with_saved_hw(saved_hw_by_oid.get(oid), portal_events)
         prev_n = len(model.get("events") or [])
         summary = {
             "overview_id": oid,
@@ -385,9 +434,7 @@ def apply_delivery_portal_audio_products(
     created: list[dict[str, Any]] = []
     skipped: list[str] = []
 
-    if not dry_run:
-        for m in models:
-            m["events"] = []
+    saved_hw_by_oid = snapshot_hw_events_by_overview_id(models)
 
     for rid in OVERVIEW_IDS_TO_REMOVE:
         if rid in by_id:
@@ -457,6 +504,8 @@ def apply_delivery_portal_audio_products(
             "created": is_new,
         }
 
+        combined = combine_portal_events_with_saved_hw(saved_hw_by_oid.get(oid), events)
+
         if is_new:
             created.append(summary)
             if not dry_run:
@@ -466,7 +515,7 @@ def apply_delivery_portal_audio_products(
                     model_name=mongo_model,
                     soc=str(row.get("soc") or ""),
                     sw_pm=str(row.get("pl") or ""),
-                    events=events,
+                    events=combined,
                 )
                 models.append(model)
                 by_id[oid] = model
@@ -476,7 +525,7 @@ def apply_delivery_portal_audio_products(
         else:
             updated.append(summary)
             if not dry_run:
-                model["events"] = events
+                model["events"] = combined
                 model["model"] = mongo_model
                 if category and not model.get("category"):
                     model["category"] = category
@@ -492,6 +541,7 @@ def apply_delivery_portal_audio_products(
         portal,
         dry_run=dry_run,
         portal_events_acc=portal_events_acc,
+        saved_hw_by_oid=saved_hw_by_oid,
     )
 
     return {

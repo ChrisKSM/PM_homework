@@ -61,6 +61,44 @@ def test_iter_portal_merges_schedules_from_all_audio_details():
     assert qp[0]["end"] == "2026-12-24"
 
 
+def test_apply_audio_products_preserves_mongo_hw_replaces_sw():
+    portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    models = [
+        {
+            "id": "ov-s90c",
+            "category": "사운드바(Wi-Fi)",
+            "model": "S90C",
+            "events": [
+                {
+                    "name": "PrePV",
+                    "start": "2026-10-30",
+                    "end": "2026-11-09",
+                    "kind": "hw",
+                },
+                {
+                    "name": "PV1",
+                    "start": "2026-11-18",
+                    "end": "2026-11-24",
+                    "kind": "hw",
+                },
+                {
+                    "name": "QP 1",
+                    "start": "2026-06-12",
+                    "end": "2027-01-22",
+                    "kind": "sw",
+                },
+            ],
+        }
+    ]
+    apply_delivery_portal_audio_products(models, portal, dry_run=False)
+    ev = models[0]["events"]
+    assert any(e.get("kind") == "hw" and e.get("name") == "PrePV" for e in ev)
+    assert any(e.get("kind") == "hw" and e.get("name") == "PV1" for e in ev)
+    assert not any(e.get("start") == "2026-06-12" for e in ev)
+    qp = [e for e in ev if "QP" in e.get("name", "") and "1" in e.get("name", "")]
+    assert qp and qp[0]["start"] == "2026-12-14"
+
+
 def test_apply_audio_products_replaces_seed_events_not_merge_stale():
     """Portal sync must not keep stale seed QP dates merged with portal schedules."""
     portal = json.loads(FIXTURE.read_text(encoding="utf-8"))

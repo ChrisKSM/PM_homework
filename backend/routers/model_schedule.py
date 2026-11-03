@@ -211,7 +211,8 @@ async def sync_overview_from_delivery_portal(
     """
     Delivery Portal all_deliveries_data → overview models events 갱신.
     scope=linked: PO 확정 program UUID 5건. scope=audio_products: Audio_* product category 전체.
-    audio_products: 기존 Mongo events 전부 비운 뒤 Portal schedules 만 반영 (seed 잔존 없음).
+    audio_products: SW events 는 Portal schedules 로 교체. HW(kind=hw) 는 Mongo/seed 에 있던 값 유지
+    (Program Report·Portal 에 HW milestone 없음).
     program 내 Audio detail 이 여러 개면 schedules 병합 (HW/SW 분리 detail).
     ov-m5-vi 제거. dry_run=true 이면 Mongo 저장 없음.
     """
