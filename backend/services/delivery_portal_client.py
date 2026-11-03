@@ -4,6 +4,8 @@ from __future__ import annotations
 import base64
 import json
 import os
+import socket
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -172,12 +174,21 @@ def jwt_payload_hints(token: str) -> dict[str, Any]:
         return {"looksLikeJwt": True, "payloadDecodeOk": False}
     if not isinstance(payload, dict):
         return {"looksLikeJwt": True, "payloadDecodeOk": False}
+    exp = payload.get("exp")
+    exp_utc = ""
+    if isinstance(exp, (int, float)) and exp > 0:
+        try:
+            exp_utc = datetime.fromtimestamp(int(exp), tz=timezone.utc).isoformat()
+        except (OSError, OverflowError, ValueError):
+            exp_utc = ""
     return {
         "looksLikeJwt": True,
         "payloadDecodeOk": True,
+        "jwtPartCount": len(parts),
         "token_type": payload.get("token_type"),
         "sub": payload.get("sub") or payload.get("user_id"),
-        "exp": payload.get("exp"),
+        "exp": exp,
+        "expUtc": exp_utc,
         "iat": payload.get("iat"),
     }
 
@@ -236,6 +247,7 @@ async def diagnose_delivery_portal() -> dict[str, Any]:
     token, source = resolve_delivery_portal_token_pair()
     trace = delivery_portal_resolve_trace()
     out: dict[str, Any] = {
+        "hostname": socket.gethostname(),
         "ok": bool(token),
         "baseUrl": trace["baseUrl"],
         "baseUrlSource": trace["baseUrlSource"],
@@ -281,9 +293,15 @@ def _portal_http_detail(status: int, body: str, *, token_source: str = "") -> st
     base = f"Delivery Portal HTTP {status}: {body[:500]}"
     src = f" (BE tokenSource={token_source})" if token_source else ""
     if status == 401:
+        token, _ = resolve_delivery_portal_token_pair()
+        hints = jwt_payload_hints(token) if token else {}
+        fp = token_fingerprint(token) if token else ""
+        parts = len((token or "").split("."))
         return (
-            f"{base}{src} — JWT 거부. trace.baseUrl·Variables DELIVERY_PORTAL_API_TOKEN, "
-            "GET /api/delivery-portal/diagnose"
+            f"{base}{src} — JWT 거부 (fingerprint={fp} len={len(token)} jwtParts={parts}, "
+            f"jwtHints={hints}). Pod: GET /api/delivery-portal/diagnose 의 hostname·portalProbe 와 "
+            "브라우저 BE URL 동일 Pod 인지 확인. Variables 변경 후 restart-be-route-port·Publish. "
+            "성공 시 fingerprint f029e46d16cf4990 len=432 참고."
         )
     if status == 403 and "all_deliveries_data" in body:
         return (
