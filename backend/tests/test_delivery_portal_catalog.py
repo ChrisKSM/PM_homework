@@ -40,6 +40,38 @@ def test_iter_portal_program_rows_fixture():
     assert models == {"S90C", "XT7S"}
 
 
+def test_apply_audio_products_replaces_seed_events_not_merge_stale():
+    """Portal sync must not keep stale seed QP dates merged with portal schedules."""
+    portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    models = [
+        {
+            "id": "ov-s90c",
+            "category": "사운드바(Wi-Fi)",
+            "model": "S90C",
+            "variant": "",
+            "soc": "ax26sb",
+            "swPm": "",
+            "spec": "",
+            "pv": "",
+            "mp": "",
+            "events": [
+                {
+                    "name": "QP 1",
+                    "start": "2026-06-12",
+                    "end": "2027-01-22",
+                    "kind": "sw",
+                }
+            ],
+        }
+    ]
+    apply_delivery_portal_audio_products(models, portal, dry_run=False)
+    ev = models[0]["events"]
+    assert len(ev) == 1
+    assert ev[0]["name"] == "FC 1"
+    assert ev[0]["start"] == "2026-10-30"
+    assert not any(e.get("start") == "2026-06-12" for e in ev)
+
+
 def test_apply_audio_products_creates_xt7s():
     portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
     models = [

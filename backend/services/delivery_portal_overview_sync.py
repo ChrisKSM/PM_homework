@@ -314,6 +314,8 @@ def apply_delivery_portal_audio_products(
                 by_id.pop(rid, None)
 
     cat_set = set(product_categories)
+    # 같은 overview_id 에 Portal program 이 여러 개일 때만 events 병합 (Mongo seed 와 merge 금지)
+    portal_events_acc: dict[str, list[dict[str, Any]]] = {}
     for row in iter_portal_program_rows(
         portal,
         product_categories=cat_set,
@@ -325,8 +327,8 @@ def apply_delivery_portal_audio_products(
             skipped.append("missing_program_id")
             continue
 
-        events = schedules_to_events(row.get("schedules") or [])
-        if not events:
+        incoming = schedules_to_events(row.get("schedules") or [])
+        if not incoming:
             skipped.append(prog_id)
             continue
 
@@ -341,8 +343,11 @@ def apply_delivery_portal_audio_products(
 
         model = by_id.get(oid)
         is_new = model is None
-        if model and model.get("events"):
-            events = merge_overview_events(model.get("events") or [], events)
+        if oid in portal_events_acc:
+            events = merge_overview_events(portal_events_acc[oid], incoming)
+        else:
+            events = incoming
+        portal_events_acc[oid] = events
 
         category = overview_category_from_portal(
             str(row.get("product_category") or ""),
