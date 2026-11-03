@@ -6,7 +6,7 @@
 |-------------|-------------|-------------------------|------------|
 | ov-h7-vi | H7_VI | H7_VI(ax26sb) | e8463fbd-8c96-4344-8343-f6e696876cc5 |
 | ov-m7-vi | M7_VI | M7_VI, M7_VI 모델 (AMLogic) | 44e5829c-baf6-49d1-b06f-6a37a75ed4ed |
-| ov-s90c | S90C | S90C (AMLogic) | b39d2ab0-e63c-44ad-8945-54f7ec1561b7 |
+| ov-s90c | S90C | S90C (AMLogic) | 7a4e1363-a5de-450f-adbe-3aa023e273b6 |
 | ov-h7-mr10-11 | H7 MR10(11월) | H7_MR10(11월) | eedfcd5c-a434-40d3-b9db-75ea8532bda5 |
 | ov-h5 | H5 | H5(ax26sb) | 61fb6f57-8fb3-4468-8607-7a9fdf5a9482 |
 

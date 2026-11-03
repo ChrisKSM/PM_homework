@@ -5,7 +5,10 @@ Delivery Portal all_deliveries_data → Mongo model_schedule_overview events 동
 """
 from __future__ import annotations
 
+import json
 import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 from services.delivery_portal_catalog import (
@@ -30,8 +33,8 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
     },
     {
         "overview_id": "ov-s90c",
-        "program_id": "b39d2ab0-e63c-44ad-8945-54f7ec1561b7",
-        "label": "Initial S90C (AMLogic)",
+        "program_id": "7a4e1363-a5de-450f-adbe-3aa023e273b6",
+        "label": "S90C (AMLogic)",
     },
     {
         "overview_id": "ov-h7-mr10-11",
@@ -48,7 +51,10 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
 OVERVIEW_IDS_TO_REMOVE: set[str] = {"ov-m5-vi"}
 
 # BE pod 배포 확인용 (sync API 응답에 포함)
-OVERVIEW_SYNC_LOGIC_VERSION = "20260404-multiprogram-schedules"
+OVERVIEW_SYNC_LOGIC_VERSION = "20260404-seed-sw-fallback"
+
+# Portal all_deliveries 에 placeholder QP(6mo+) 가 올 때 seed milestone 날짜 사용
+SW_MILESTONE_MAX_DAYS = 90
 
 _SW_PREFIXES = ("SIT", "FC", "DEV", "QP", "PREQP", "PRE QP", "SU", "INT", "BUG", "ATS_SW")
 _HW_PREFIXES = ("PV", "PREPV", "PRE PV", "MP", "HW", "ATS", "EVT", "BRINGUP")
@@ -152,6 +158,64 @@ def combine_portal_events_with_saved_hw(
     if not hw and portal_hw:
         hw = portal_hw
     return merge_overview_events(hw, portal_sw)
+
+
+def _sw_event_label_key(name: str) -> str:
+    return re.sub(r"\s+", "", (name or "").lower())
+
+
+def _is_sw_milestone_name(name: str) -> bool:
+    u = (name or "").upper().replace("_", " ")
+    return any(
+        u.startswith(p.replace("_", " "))
+        for p in ("SIT", "FC", "QP", "PREQP", "PRE QP", "DEV", "SU", "개발")
+    )
+
+
+@lru_cache(maxsize=1)
+def _overview_seed_by_id() -> dict[str, dict[str, Any]]:
+    here = Path(__file__).resolve().parent
+    candidates = [
+        here.parent / "scripts" / "seed-model-schedule-overview.json",
+        here / ".." / "scripts" / "seed-model-schedule-overview.json",
+        Path("/workspace/project/scripts/seed-model-schedule-overview.json"),
+    ]
+    for p in candidates:
+        path = p.resolve()
+        if not path.is_file():
+            continue
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        models = raw.get("models") if isinstance(raw, dict) else raw
+        if not isinstance(models, list):
+            continue
+        return {str(m.get("id")): m for m in models if m.get("id")}
+    return {}
+
+
+def reconcile_portal_sw_with_seed(overview_id: str, events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """
+    Portal SW 중 비정상 장기 milestone(>90d) 은 overview seed 의 동일 이름 SW 로 대체.
+    (Program Report UI 와 API raw QP placeholder 불일치 — S90C QP 1 등)
+    """
+    seed_model = _overview_seed_by_id().get(overview_id)
+    if not seed_model:
+        return events
+    seed_sw = {
+        _sw_event_label_key(str(e.get("name") or "")): dict(e)
+        for e in seed_model.get("events") or []
+        if not _is_hw_event(e)
+    }
+    hw, sw = _split_hw_sw_events(events)
+    fixed_sw: list[dict[str, Any]] = []
+    for ev in sw:
+        span = _event_span_days(str(ev.get("start") or ""), str(ev.get("end") or ""))
+        key = _sw_event_label_key(str(ev.get("name") or ""))
+        if span > SW_MILESTONE_MAX_DAYS and _is_sw_milestone_name(str(ev.get("name") or "")):
+            if key in seed_sw:
+                fixed_sw.append(seed_sw[key])
+            continue
+        fixed_sw.append(ev)
+    return merge_overview_events(hw, fixed_sw)
 
 
 def merge_overview_events(
@@ -493,6 +557,7 @@ def apply_delivery_portal_audio_products(
         portal_schedules_acc.setdefault(oid, []).append(row_schedules)
         merged_scheds = merge_portal_schedule_lists(portal_schedules_acc[oid])
         events = schedules_to_events(merged_scheds)
+        events = reconcile_portal_sw_with_seed(oid, events)
         if not events:
             skipped.append(prog_id)
             continue
@@ -594,6 +659,7 @@ def debug_portal_schedules_for_overview(
     schedule_lists = [r["schedules"] for r in rows if r["schedules"]]
     merged = merge_portal_schedule_lists(schedule_lists)
     preview = schedules_to_events(merged)
+    preview = reconcile_portal_sw_with_seed(oid, preview)
     qp_rows = [s for s in merged if "qp" in str(s.get("test_name") or "").lower()]
 
     return {

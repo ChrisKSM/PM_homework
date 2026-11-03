@@ -9,6 +9,7 @@ from services.delivery_portal_catalog import (
 )
 from services.delivery_portal_overview_sync import (
     apply_delivery_portal_audio_products,
+    reconcile_portal_sw_with_seed,
     schedules_to_events,
 )
 
@@ -145,6 +146,30 @@ def test_apply_audio_products_replaces_seed_events_not_merge_stale():
     qp = [e for e in ev if "QP" in e.get("name", "")]
     assert any(e.get("start") == "2026-12-14" for e in qp)
     assert any(e.get("kind") == "hw" for e in ev)
+
+
+def test_reconcile_portal_sw_replaces_absurd_qp_with_seed(monkeypatch):
+    seed = {
+        "ov-s90c": {
+            "events": [
+                {"name": "QP 1", "start": "2026-12-14", "end": "2026-12-24", "kind": "sw", "barType": "qp"},
+            ]
+        }
+    }
+    monkeypatch.setattr(
+        "services.delivery_portal_overview_sync._overview_seed_by_id",
+        lambda: seed,
+    )
+    portal_ev = [
+        {"name": "QP 1", "start": "2026-06-12", "end": "2027-01-22", "kind": "sw", "barType": "qp"},
+        {"name": "FC 1", "start": "2026-10-28", "end": "2026-11-28", "kind": "sw"},
+    ]
+    out = reconcile_portal_sw_with_seed("ov-s90c", portal_ev)
+    qp = [e for e in out if e.get("name") == "QP 1"]
+    assert len(qp) == 1
+    assert qp[0]["start"] == "2026-12-14"
+    fc = [e for e in out if e.get("name") == "FC 1"]
+    assert fc[0]["start"] == "2026-10-28"
 
 
 def test_merge_portal_programs_for_same_overview_id_prefers_short_qp():
