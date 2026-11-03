@@ -55,8 +55,10 @@ def test_iter_portal_merges_schedules_from_all_audio_details():
     assert "FC 1" in names
     assert "PV1" in names or "PV 1" in names
     assert any("QP" in n for n in names)
-    qp_starts = [e["start"] for e in schedules_to_events(row["schedules"]) if "QP" in e["name"]]
-    assert "2026-12-14" in qp_starts
+    qp = [e for e in schedules_to_events(row["schedules"]) if "QP" in e["name"] and "1" in e["name"]]
+    assert len(qp) == 1
+    assert qp[0]["start"] == "2026-12-14"
+    assert qp[0]["end"] == "2026-12-24"
 
 
 def test_apply_audio_products_replaces_seed_events_not_merge_stale():

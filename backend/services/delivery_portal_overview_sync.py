@@ -135,6 +135,19 @@ def merge_overview_events(
     return merged
 
 
+def _event_span_days(start: str, end: str) -> int:
+    if not start:
+        return 999999
+    try:
+        from datetime import date
+
+        a = date.fromisoformat(start[:10])
+        b = date.fromisoformat(end[:10] if end else start[:10])
+        return max(0, (b - a).days)
+    except ValueError:
+        return 999999
+
+
 def schedules_to_events(schedules: list[dict[str, Any]]) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     seen: set[tuple] = set()
@@ -156,6 +169,16 @@ def schedules_to_events(schedules: list[dict[str, Any]]) -> list[dict[str, Any]]
         if bt:
             ev["barType"] = bt
         events.append(ev)
+
+    # QP1 등 동일 이벤트명·kind 가 기간만 다른 중복 → 짧은 milestone 유지
+    by_label: dict[tuple[str, str], dict[str, Any]] = {}
+    for ev in events:
+        label_key = (ev["kind"], ev["name"].lower().replace(" ", ""))
+        span = _event_span_days(ev["start"], ev["end"])
+        prev = by_label.get(label_key)
+        if prev is None or span < prev["_span"]:
+            by_label[label_key] = {**ev, "_span": span}
+    events = [{k: v for k, v in ev.items() if k != "_span"} for ev in by_label.values()]
     events.sort(key=lambda e: (e["start"], e["name"]))
     return events
 

@@ -19,8 +19,8 @@
               "schedules": [
                 {
                   "test_name": "QP1",
-                  "plan_start_date": "2026-10-20",
-                  "plan_end_date": "2026-11-11"
+                  "plan_start_date": "2026-06-12",
+                  "plan_end_date": "2027-01-22"
                 }
               ]
             },

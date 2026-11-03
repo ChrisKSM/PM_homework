@@ -226,21 +226,66 @@ def slug_overview_id(model_name: str, program_detail: str = "") -> str:
     return f"ov-{base}"
 
 
+def _norm_test_key(test_name: str) -> str:
+    t = re.sub(r"\s+", "", (test_name or "").strip().lower())
+    t = re.sub(r"^fc_?", "fc", t)
+    t = re.sub(r"^sit_?", "sit", t)
+    t = re.sub(r"^qp_?", "qp", t)
+    return t
+
+
+def _schedule_span_days(start: str, end: str) -> int:
+    if not start:
+        return 999999
+    if not end:
+        end = start
+    try:
+        from datetime import date
+
+        a = date.fromisoformat(start[:10])
+        b = date.fromisoformat(end[:10])
+        return max(0, (b - a).days)
+    except ValueError:
+        return 999999
+
+
+def _detail_merge_priority(d: dict[str, Any]) -> int:
+    """Others/@que4media detail 에 milestone 이 더 정확한 경우가 많음."""
+    model = str(d.get("model") or "").lower()
+    if model in ("others", "common"):
+        return 3
+    n = len(d.get("schedules") or [])
+    if n >= 5:
+        return 2
+    if n >= 2:
+        return 1
+    return 0
+
+
 def merge_schedules_from_details(details: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Same program_info 내 여러 Audio detail schedules 를 합침 (HW/SW 분리 detail 대응)."""
-    merged: list[dict[str, Any]] = []
-    seen: set[tuple[str, str, str]] = set()
+    """
+    Same program_info 내 여러 Audio detail schedules 를 합침.
+    동일 test_name 이 여러 기간이면 **짧은 구간** 우선 (Portal UI milestone vs 장기 placeholder).
+    """
+    best: dict[str, tuple[dict[str, Any], int, int]] = {}
     for d in details or []:
+        pri = _detail_merge_priority(d)
         for s in d.get("schedules") or []:
-            test = str(s.get("test_name") or "").strip().lower()
+            test = str(s.get("test_name") or "").strip()
+            if not test:
+                continue
+            key = _norm_test_key(test)
             start = str(s.get("plan_start_date") or s.get("actual_start_date") or "")[:10]
             end = str(s.get("plan_end_date") or s.get("actual_end_date") or start)[:10]
-            key = (test, start, end)
-            if not test or key in seen:
+            span = _schedule_span_days(start, end)
+            prev = best.get(key)
+            if prev is None:
+                best[key] = (s, span, pri)
                 continue
-            seen.add(key)
-            merged.append(s)
-    return merged
+            _ps, prev_span, prev_pri = prev
+            if span < prev_span or (span == prev_span and pri > prev_pri):
+                best[key] = (s, span, pri)
+    return [t[0] for t in best.values()]
 
 
 def should_skip_portal_program(program: str, program_detail: str) -> bool:
