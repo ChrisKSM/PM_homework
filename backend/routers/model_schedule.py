@@ -18,8 +18,10 @@ from services.model_schedule_recipients import dev_emails_from_models
 from services.schedule_snapshot_email import build_snapshot_html, build_snapshot_subject
 from services.delivery_portal_client import fetch_all_deliveries_data
 from services.delivery_portal_overview_sync import (
+    OVERVIEW_SYNC_LOGIC_VERSION,
     apply_delivery_portal_audio_products,
     apply_delivery_portal_to_models,
+    debug_portal_schedules_for_overview,
 )
 
 router = APIRouter(prefix="/api/model-schedule", tags=["model-schedule"])
@@ -241,12 +243,24 @@ async def sync_overview_from_delivery_portal(
                 detail="scope must be linked or audio_products",
             )
         if dry_run:
-            return {"message": "dry_run", **summary}
+            return {"message": "dry_run", "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION, **summary}
         if not mongo_helper.delete_all_documents(COLLECTION_OVERVIEW):
             raise HTTPException(status_code=502, detail="overview 삭제 실패")
         if not mongo_helper.insert_documents(COLLECTION_OVERVIEW, docs):
             raise HTTPException(status_code=502, detail="overview 저장 실패")
-        return {"message": "sync 완료", **summary}
+        return {"message": "sync 완료", "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION, **summary}
+
+
+@router.get("/overview/debug-portal-schedules")
+async def debug_overview_portal_schedules(overview_id: str = "ov-s90c"):
+    """Delivery Portal raw schedules → overview events 변환 진단 (Pod/토큰 확인)."""
+    try:
+        portal = await fetch_all_deliveries_data()
+        return debug_portal_schedules_for_overview(portal, overview_id)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"debug 오류: {e}") from e
     except HTTPException:
         raise
     except Exception as e:

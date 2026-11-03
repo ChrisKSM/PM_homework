@@ -147,6 +147,20 @@ def test_apply_audio_products_replaces_seed_events_not_merge_stale():
     assert any(e.get("kind") == "hw" for e in ev)
 
 
+def test_merge_portal_programs_for_same_overview_id_prefers_short_qp():
+    from services.delivery_portal_catalog import merge_portal_schedule_lists
+
+    lists = [
+        [{"test_name": "QP1", "plan_start_date": "2026-06-12", "plan_end_date": "2027-01-22"}],
+        [{"test_name": "QP1", "plan_start_date": "2026-12-14", "plan_end_date": "2026-12-24"}],
+    ]
+    merged = merge_portal_schedule_lists(lists)
+    ev = schedules_to_events(merged)
+    qp = [e for e in ev if "QP" in e["name"]]
+    assert len(qp) == 1
+    assert qp[0]["start"] == "2026-12-14"
+
+
 def test_apply_audio_products_creates_xt7s():
     portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
     models = [

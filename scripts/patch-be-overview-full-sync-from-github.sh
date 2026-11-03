@@ -19,6 +19,7 @@ mkdir -p services scripts
 fetch backend/services/delivery_portal_overview_sync.py services/delivery_portal_overview_sync.py
 fetch scripts/delivery_portal_catalog_lib.py scripts/delivery_portal_catalog_lib.py
 fetch backend/services/delivery_portal_catalog.py services/delivery_portal_catalog.py
+fetch backend/routers/model_schedule.py routers/model_schedule.py
 
 echo ""
 echo "  sh scripts/restart-be-route-port.sh"

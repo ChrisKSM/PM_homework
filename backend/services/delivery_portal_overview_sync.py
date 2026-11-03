@@ -11,6 +11,7 @@ from typing import Any
 from services.delivery_portal_catalog import (
     AUDIO_PRODUCT_CATEGORIES,
     iter_portal_program_rows,
+    merge_portal_schedule_lists,
     overview_category_from_portal,
     slug_overview_id,
 )
@@ -45,6 +46,9 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
 ]
 
 OVERVIEW_IDS_TO_REMOVE: set[str] = {"ov-m5-vi"}
+
+# BE pod 배포 확인용 (sync API 응답에 포함)
+OVERVIEW_SYNC_LOGIC_VERSION = "20260404-multiprogram-schedules"
 
 _SW_PREFIXES = ("SIT", "FC", "DEV", "QP", "PREQP", "PRE QP", "SU", "INT", "BUG", "ATS_SW")
 _HW_PREFIXES = ("PV", "PREPV", "PRE PV", "MP", "HW", "ATS", "EVT", "BRINGUP")
@@ -438,7 +442,6 @@ def apply_delivery_portal_audio_products(
             by_model_key[mk] = str(mid)
 
     pid_to_oid = _program_id_to_overview_id()
-    oid_to_preferred_pid = _overview_id_to_preferred_program_id()
     removed: list[str] = []
     updated: list[dict[str, Any]] = []
     created: list[dict[str, Any]] = []
@@ -458,8 +461,8 @@ def apply_delivery_portal_audio_products(
                 by_id.pop(rid, None)
 
     cat_set = set(product_categories)
-    # 같은 overview_id 에 Portal program 이 여러 개일 때만 events 병합 (Mongo seed 와 merge 금지)
-    portal_events_acc: dict[str, list[dict[str, Any]]] = {}
+    # overview_id 당 여러 program UUID schedules → raw 병합 후 events 변환
+    portal_schedules_acc: dict[str, list[list[dict[str, Any]]]] = {}
     for row in iter_portal_program_rows(
         portal,
         product_categories=cat_set,
@@ -471,8 +474,8 @@ def apply_delivery_portal_audio_products(
             skipped.append("missing_program_id")
             continue
 
-        incoming = schedules_to_events(row.get("schedules") or [])
-        if not incoming:
+        row_schedules = row.get("schedules") or []
+        if not row_schedules:
             skipped.append(prog_id)
             continue
 
@@ -485,20 +488,14 @@ def apply_delivery_portal_audio_products(
                 str(row.get("program_detail") or ""),
             )
 
-        preferred_pid = oid_to_preferred_pid.get(oid)
-        if preferred_pid and prog_id != preferred_pid:
-            pref = merged_audio_schedules_for_program(portal, preferred_pid)
-            if pref and pref[2]:
-                skipped.append(f"{prog_id}:duplicate_{oid}")
-                continue
-
         model = by_id.get(oid)
         is_new = model is None
-        if oid in portal_events_acc:
-            events = merge_overview_events(portal_events_acc[oid], incoming)
-        else:
-            events = incoming
-        portal_events_acc[oid] = events
+        portal_schedules_acc.setdefault(oid, []).append(row_schedules)
+        merged_scheds = merge_portal_schedule_lists(portal_schedules_acc[oid])
+        events = schedules_to_events(merged_scheds)
+        if not events:
+            skipped.append(prog_id)
+            continue
 
         category = overview_category_from_portal(
             str(row.get("product_category") or ""),
@@ -550,23 +547,62 @@ def apply_delivery_portal_audio_products(
                 if pl:
                     model["swPm"] = pl
 
-    linked_overrides = _apply_linked_program_overrides(
-        models,
-        portal,
-        dry_run=dry_run,
-        portal_events_acc=portal_events_acc,
-        saved_hw_by_oid=saved_hw_by_oid,
-    )
-
     return {
         "dry_run": dry_run,
         "scope": "audio_products",
+        "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION,
         "product_categories": list(product_categories),
         "removed_ids": removed,
         "updated": updated,
         "created": created,
         "skipped_no_events": skipped[:20],
-        "linked_program_overrides": linked_overrides,
         "portal_program_count": len(updated) + len(created),
         "model_count": len(models),
+    }
+
+
+def debug_portal_schedules_for_overview(
+    portal: dict[str, Any],
+    overview_id: str,
+) -> dict[str, Any]:
+    """Pod 진단: overview_id 에 매핑되는 Portal program raw schedules + 변환 preview."""
+    oid = overview_id.strip()
+    pid_to_oid = _program_id_to_overview_id()
+    oid_to_pids = {v: k for k, v in pid_to_oid.items()}
+    linked_pid = oid_to_pids.get(oid)
+
+    rows: list[dict[str, Any]] = []
+    for row in iter_portal_program_rows(
+        portal,
+        product_categories=set(AUDIO_PRODUCT_CATEGORIES),
+        department="Audio",
+        require_schedules=False,
+    ):
+        prog_id = str(row["program_id"] or "").lower()
+        row_oid = pid_to_oid.get(prog_id) or str(row.get("overview_id") or "")
+        if row_oid != oid:
+            continue
+        rows.append(
+            {
+                "program_id": row["program_id"],
+                "program_detail": row.get("program_detail"),
+                "schedule_count": len(row.get("schedules") or []),
+                "schedules": row.get("schedules") or [],
+            }
+        )
+
+    schedule_lists = [r["schedules"] for r in rows if r["schedules"]]
+    merged = merge_portal_schedule_lists(schedule_lists)
+    preview = schedules_to_events(merged)
+    qp_rows = [s for s in merged if "qp" in str(s.get("test_name") or "").lower()]
+
+    return {
+        "overview_id": oid,
+        "linked_program_id": linked_pid,
+        "portal_program_rows": len(rows),
+        "programs": rows,
+        "merged_schedule_count": len(merged),
+        "qp_schedule_rows_raw": qp_rows,
+        "events_preview": preview,
+        "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION,
     }

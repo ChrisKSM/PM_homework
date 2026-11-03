@@ -298,6 +298,14 @@ def merge_schedules_from_details(details: list[dict[str, Any]]) -> list[dict[str
     return [t[0] for t in best.values()]
 
 
+def merge_portal_schedule_lists(schedule_lists: list[list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    """여러 program_info / detail 에서 모은 schedule[] → dedupe 병합."""
+    fake_details = [{"schedules": sl} for sl in schedule_lists if sl]
+    if not fake_details:
+        return []
+    return merge_schedules_from_details(fake_details)
+
+
 def should_skip_portal_program(program: str, program_detail: str) -> bool:
     """PO rules: no M5 Initial overview; H7 MR rows except MR10."""
     blob = f"{program} {program_detail}".upper().replace("_", " ")
