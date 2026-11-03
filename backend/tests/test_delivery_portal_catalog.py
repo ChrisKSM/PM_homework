@@ -40,6 +40,25 @@ def test_iter_portal_program_rows_fixture():
     assert models == {"S90C", "XT7S"}
 
 
+def test_iter_portal_merges_schedules_from_all_audio_details():
+    portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    row = next(
+        r
+        for r in iter_portal_program_rows(
+            portal,
+            product_categories=set(AUDIO_PRODUCT_CATEGORIES),
+            department="Audio",
+        )
+        if r.get("model") == "S90C"
+    )
+    names = {e["name"] for e in schedules_to_events(row["schedules"])}
+    assert "FC 1" in names
+    assert "PV1" in names or "PV 1" in names
+    assert any("QP" in n for n in names)
+    qp_starts = [e["start"] for e in schedules_to_events(row["schedules"]) if "QP" in e["name"]]
+    assert "2026-12-14" in qp_starts
+
+
 def test_apply_audio_products_replaces_seed_events_not_merge_stale():
     """Portal sync must not keep stale seed QP dates merged with portal schedules."""
     portal = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -66,10 +85,10 @@ def test_apply_audio_products_replaces_seed_events_not_merge_stale():
     ]
     apply_delivery_portal_audio_products(models, portal, dry_run=False)
     ev = models[0]["events"]
-    assert len(ev) == 1
-    assert ev[0]["name"] == "FC 1"
-    assert ev[0]["start"] == "2026-10-30"
     assert not any(e.get("start") == "2026-06-12" for e in ev)
+    qp = [e for e in ev if "QP" in e.get("name", "")]
+    assert any(e.get("start") == "2026-12-14" for e in qp)
+    assert any(e.get("kind") == "hw" for e in ev)
 
 
 def test_apply_audio_products_creates_xt7s():
@@ -93,7 +112,7 @@ def test_apply_audio_products_creates_xt7s():
     by_id = {m["id"]: m for m in models}
     assert len(schedules_to_events([])) == 0
     assert "ov-s90c" in by_id
-    assert len(by_id["ov-s90c"]["events"]) == 1
+    assert len(by_id["ov-s90c"]["events"]) >= 3
     xt7 = next(m for m in models if m.get("model") == "XT7S")
     assert xt7["category"] == "무선스피커"
     assert xt7["events"][0]["name"] == "QP"

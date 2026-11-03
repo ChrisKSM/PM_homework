@@ -1,8 +1,8 @@
 #!/bin/sh
 # BE pod — overview Portal sync: Mongo seed 와 merge 하지 않고 Portal events 로 교체 (QP 날짜 오류)
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/02508b2/scripts/patch-be-overview-sync-events-replace-from-github.sh" | sh
-#   REF=02508b2 sh scripts/patch-be-overview-sync-events-replace-from-github.sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/<SHA>/scripts/patch-be-overview-sync-events-replace-from-github.sh" | sh
+#   REF=<SHA> sh scripts/patch-be-overview-sync-events-replace-from-github.sh
 #
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1

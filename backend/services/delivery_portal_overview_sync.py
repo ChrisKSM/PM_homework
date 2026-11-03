@@ -160,23 +160,78 @@ def schedules_to_events(schedules: list[dict[str, Any]]) -> list[dict[str, Any]]
     return events
 
 
-def find_audio_detail_by_program_id(
+def merged_audio_schedules_for_program(
     portal: dict[str, Any],
     program_id: str,
-) -> tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]] | None:
+) -> tuple[str, dict[str, Any], list[dict[str, Any]], dict[str, Any]] | None:
+    """program UUID → (platform, program_info, merged schedules, platform_data)."""
+    from services.delivery_portal_catalog import merge_schedules_from_details
+
     pid = program_id.strip().lower()
     for pd in portal.get("platform_data") or []:
         platform = str(pd.get("platform") or "")
         for pi in pd.get("program_info") or []:
             if str(pi.get("id") or "").lower() != pid:
                 continue
-            for d in pi.get("details") or []:
-                if str(d.get("department") or "") != "Audio":
-                    continue
-                if d.get("show") == "N":
-                    continue
-                return platform, pi, d, pd
+            audio_details = [
+                d
+                for d in pi.get("details") or []
+                if str(d.get("department") or "") == "Audio" and d.get("show") != "N"
+            ]
+            if not audio_details:
+                return None
+            schedules = merge_schedules_from_details(audio_details)
+            return platform, pi, schedules, pd
     return None
+
+
+def find_audio_detail_by_program_id(
+    portal: dict[str, Any],
+    program_id: str,
+) -> tuple[str, dict[str, Any], dict[str, Any], dict[str, Any]] | None:
+    found = merged_audio_schedules_for_program(portal, program_id)
+    if not found:
+        return None
+    platform, pi, schedules, pd = found
+    audio_details = [
+        d
+        for d in pi.get("details") or []
+        if str(d.get("department") or "") == "Audio" and d.get("show") != "N"
+    ]
+    chosen = max(audio_details, key=lambda d: len(d.get("schedules") or []))
+    detail = {**chosen, "schedules": schedules}
+    return platform, pi, detail, pd
+
+
+def _overview_id_to_preferred_program_id() -> dict[str, str]:
+    return {link["overview_id"]: link["program_id"].lower() for link in OVERVIEW_PROGRAM_LINKS}
+
+
+def _apply_linked_program_overrides(
+    models: list[dict[str, Any]],
+    portal: dict[str, Any],
+    *,
+    dry_run: bool,
+    portal_events_acc: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, str]]:
+    """PO 확정 UUID — merged schedules 로 events 덮어씀 (중복 S90C program 방지)."""
+    by_id = {m.get("id"): m for m in models if m.get("id")}
+    applied: list[dict[str, str]] = []
+    for link in OVERVIEW_PROGRAM_LINKS:
+        oid = link["overview_id"]
+        model = by_id.get(oid)
+        if not model:
+            continue
+        found = merged_audio_schedules_for_program(portal, link["program_id"])
+        if not found:
+            continue
+        _platform, _pi, schedules, _pd = found
+        events = schedules_to_events(schedules)
+        portal_events_acc[oid] = events
+        applied.append({"overview_id": oid, "program_id": link["program_id"]})
+        if not dry_run:
+            model["events"] = events
+    return applied
 
 
 def apply_delivery_portal_to_models(
@@ -301,10 +356,15 @@ def apply_delivery_portal_audio_products(
             by_model_key[mk] = str(mid)
 
     pid_to_oid = _program_id_to_overview_id()
+    oid_to_preferred_pid = _overview_id_to_preferred_program_id()
     removed: list[str] = []
     updated: list[dict[str, Any]] = []
     created: list[dict[str, Any]] = []
     skipped: list[str] = []
+
+    if not dry_run:
+        for m in models:
+            m["events"] = []
 
     for rid in OVERVIEW_IDS_TO_REMOVE:
         if rid in by_id:
@@ -340,6 +400,13 @@ def apply_delivery_portal_audio_products(
                 mongo_model,
                 str(row.get("program_detail") or ""),
             )
+
+        preferred_pid = oid_to_preferred_pid.get(oid)
+        if preferred_pid and prog_id != preferred_pid:
+            pref = merged_audio_schedules_for_program(portal, preferred_pid)
+            if pref and pref[2]:
+                skipped.append(f"{prog_id}:duplicate_{oid}")
+                continue
 
         model = by_id.get(oid)
         is_new = model is None
@@ -397,6 +464,13 @@ def apply_delivery_portal_audio_products(
                 if pl:
                     model["swPm"] = pl
 
+    linked_overrides = _apply_linked_program_overrides(
+        models,
+        portal,
+        dry_run=dry_run,
+        portal_events_acc=portal_events_acc,
+    )
+
     return {
         "dry_run": dry_run,
         "scope": "audio_products",
@@ -405,6 +479,7 @@ def apply_delivery_portal_audio_products(
         "updated": updated,
         "created": created,
         "skipped_no_events": skipped[:20],
+        "linked_program_overrides": linked_overrides,
         "portal_program_count": len(updated) + len(created),
         "model_count": len(models),
     }

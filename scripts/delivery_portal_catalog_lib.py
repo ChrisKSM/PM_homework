@@ -175,13 +175,16 @@ def infer_model_from_program_detail(program_detail: str) -> str:
 
 
 def infer_model_name(program_info: dict[str, Any], detail: dict[str, Any]) -> str:
-    direct = _get_first(detail, _MODEL_KEYS) or _get_first(program_info, _MODEL_KEYS)
-    if direct:
-        return normalize_portal_display_model(direct)
     pd = str(program_info.get("program_detail") or "")
     from_pd = infer_model_from_program_detail(pd)
+    direct = _get_first(detail, _MODEL_KEYS) or _get_first(program_info, _MODEL_KEYS)
+    direct_norm = normalize_portal_display_model(direct) if direct else ""
+    if direct_norm and direct_norm.lower() not in ("others", "common", "hq"):
+        return direct_norm
     if from_pd:
         return from_pd
+    if direct_norm:
+        return direct_norm
     soc = str(detail.get("soc") or "").strip()
     if soc and soc.lower() not in ("others", "common", "hq"):
         return soc
@@ -223,6 +226,23 @@ def slug_overview_id(model_name: str, program_detail: str = "") -> str:
     return f"ov-{base}"
 
 
+def merge_schedules_from_details(details: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Same program_info 내 여러 Audio detail schedules 를 합침 (HW/SW 분리 detail 대응)."""
+    merged: list[dict[str, Any]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for d in details or []:
+        for s in d.get("schedules") or []:
+            test = str(s.get("test_name") or "").strip().lower()
+            start = str(s.get("plan_start_date") or s.get("actual_start_date") or "")[:10]
+            end = str(s.get("plan_end_date") or s.get("actual_end_date") or start)[:10]
+            key = (test, start, end)
+            if not test or key in seen:
+                continue
+            seen.add(key)
+            merged.append(s)
+    return merged
+
+
 def should_skip_portal_program(program: str, program_detail: str) -> bool:
     """PO rules: no M5 Initial overview; H7 MR rows except MR10."""
     blob = f"{program} {program_detail}".upper().replace("_", " ")
@@ -257,7 +277,7 @@ def iter_portal_program_rows(
             if should_skip_portal_program(program, program_detail):
                 continue
 
-            chosen: dict[str, Any] | None = None
+            matching: list[dict[str, Any]] = []
             product_category = ""
             product_sub = ""
 
@@ -269,14 +289,15 @@ def iter_portal_program_rows(
                 pc = extract_product_category(pi, d)
                 if cats and pc not in cats:
                     continue
-                if require_schedules and not (d.get("schedules") or []):
-                    continue
-                chosen = d
-                product_category = pc
-                product_sub = extract_product_sub(pi, d)
-                break
+                matching.append(d)
+                if pc and not product_category:
+                    product_category = pc
+                    product_sub = extract_product_sub(pi, d)
 
-            if not chosen:
+            schedules = merge_schedules_from_details(matching)
+            if require_schedules and not schedules:
+                continue
+            if not matching:
                 continue
             if cats and not product_category:
                 pc = extract_product_category(pi, {})
@@ -285,6 +306,7 @@ def iter_portal_program_rows(
                 product_category = pc
                 product_sub = extract_product_sub(pi, {})
 
+            chosen = max(matching, key=lambda d: len(d.get("schedules") or []))
             portal_model = infer_model_name(pi, chosen)
             base_row = {
                 "platform": platform,
@@ -297,7 +319,7 @@ def iter_portal_program_rows(
                 "soc": str(chosen.get("soc") or ""),
                 "site": str(chosen.get("site") or ""),
                 "pl": str(chosen.get("pl") or ""),
-                "schedules": chosen.get("schedules") or [],
+                "schedules": schedules,
                 "detail": chosen,
                 "program_info": pi,
             }
