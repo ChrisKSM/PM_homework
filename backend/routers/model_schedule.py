@@ -249,6 +249,10 @@ async def sync_overview_from_delivery_portal(
         if not mongo_helper.insert_documents(COLLECTION_OVERVIEW, docs):
             raise HTTPException(status_code=502, detail="overview 저장 실패")
         return {"message": "sync 완료", "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION, **summary}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"sync 오류: {e}")
 
 
 @router.get("/overview/debug-portal-schedules")
@@ -261,10 +265,6 @@ async def debug_overview_portal_schedules(overview_id: str = "ov-s90c"):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"debug 오류: {e}") from e
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"sync 오류: {e}")
 
 
 def _is_overview_share(req: ScheduleShareRequest) -> bool:
