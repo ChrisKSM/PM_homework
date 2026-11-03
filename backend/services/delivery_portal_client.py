@@ -19,12 +19,10 @@ _DOTENV_PATHS = (
     Path(".env"),
 )
 
-# program-report · 기본 프록시
-_PROGRAM_REPORT_TOKEN_KEYS = ("DELIVERY_PORTAL_API_TOKEN",)
-# Gantt / 전 모델 일정 sync — 전용 토큰 우선, 없으면 API_TOKEN 폴백
-_ALL_DELIVERIES_TOKEN_KEYS = (
-    "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN",
+# Portal 정책: program-report · all_deliveries_data 동일 JWT (Variables 키 2개는 같은 값 허용)
+_DELIVERY_PORTAL_TOKEN_KEYS = (
     "DELIVERY_PORTAL_API_TOKEN",
+    "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN",
 )
 _BASE_URL_KEYS = ("DELIVERY_PORTAL_BASE_URL",)
 
@@ -41,8 +39,8 @@ def _normalize_token(raw: Any) -> str:
     return t
 
 
-def _read_from_dotenv_keys(*env_keys: str) -> str:
-    keys_set = {k.strip() for k in env_keys if k.strip()}
+def _read_dotenv_value(key: str) -> str:
+    want = key.strip()
     for path in _DOTENV_PATHS:
         if not path.is_file():
             continue
@@ -54,13 +52,22 @@ def _read_from_dotenv_keys(*env_keys: str) -> str:
             line = line.strip()
             if not line or line.startswith("#") or "=" not in line:
                 continue
-            key, _, val = line.partition("=")
-            if key.strip() not in keys_set:
+            k, _, val = line.partition("=")
+            if k.strip() != want:
                 continue
             token = _normalize_token(val)
             if token:
                 return token
     return ""
+
+
+def _read_from_dotenv_keys(*env_keys: str) -> tuple[str, str]:
+    """env_keys 순서대로 .env 조회 (파일 줄 순서가 아님)."""
+    for key in env_keys:
+        token = _read_dotenv_value(key)
+        if token:
+            return token, key
+    return "", ""
 
 
 def _token_from_dej_or_env_for_keys(*keys: str) -> tuple[str, str]:
@@ -85,24 +92,32 @@ def _base_url_from_dej_or_env() -> tuple[str, str]:
     return "", "none"
 
 
-def _resolve_token_for_keys(
-    *keys: str,
-    settings_fallback: str = "",
-) -> tuple[str, str]:
-    """AxStudio Variables(dej) 우선 — settings 는 import 시 .env 캐시."""
-    token, source = _token_from_dej_or_env_for_keys(*keys)
+def _settings_delivery_portal_token_fallback() -> str:
+    """pydantic settings — api_token 우선, 구버전 pod(all_deliveries 필드 없음) 대응."""
+    primary = _normalize_token(getattr(settings, "delivery_portal_api_token", ""))
+    if primary:
+        return primary
+    return _normalize_token(getattr(settings, "delivery_portal_all_deliveries_api_token", ""))
+
+
+def resolve_delivery_portal_token_pair() -> tuple[str, str]:
+    """
+    program-report · all_deliveries_data 공통 JWT.
+    AxStudio Variables(dej) → os.environ → .env(키 우선순위) → settings.
+    """
+    token, source = _token_from_dej_or_env_for_keys(*_DELIVERY_PORTAL_TOKEN_KEYS)
     if token:
         return token, source
-    token = _read_from_dotenv_keys(*keys)
+    token, dot_key = _read_from_dotenv_keys(*_DELIVERY_PORTAL_TOKEN_KEYS)
     if token:
         for path in _DOTENV_PATHS:
             if path.is_file():
-                return token, f"dotenv:{path}"
-        return token, "dotenv"
-    token = _normalize_token(settings_fallback)
+                return token, f"dotenv:{path}#{dot_key}"
+        return token, f"dotenv#{dot_key}"
+    token = _settings_delivery_portal_token_fallback()
     if token:
         return token, "settings"
-    for key in keys:
+    for key in _DELIVERY_PORTAL_TOKEN_KEYS:
         token = _normalize_token(runtime_get(key))
         if token:
             return token, f"runtime_get:{key}"
@@ -110,36 +125,18 @@ def _resolve_token_for_keys(
 
 
 def resolve_delivery_portal_program_report_token_pair() -> tuple[str, str]:
-    return _resolve_token_for_keys(
-        *_PROGRAM_REPORT_TOKEN_KEYS,
-        settings_fallback=settings.delivery_portal_api_token,
-    )
-
-
-def _settings_all_deliveries_token() -> str:
-    return _normalize_token(getattr(settings, "delivery_portal_all_deliveries_api_token", ""))
+    return resolve_delivery_portal_token_pair()
 
 
 def resolve_delivery_portal_all_deliveries_token_pair() -> tuple[str, str]:
-    token, source = _resolve_token_for_keys(
-        *_ALL_DELIVERIES_TOKEN_KEYS,
-        settings_fallback=_settings_all_deliveries_token(),
-    )
-    if token:
-        return token, source
-    return "", "none"
-
-
-def resolve_delivery_portal_token_pair() -> tuple[str, str]:
-    """하위 호환 — program-report 와 동일."""
-    return resolve_delivery_portal_program_report_token_pair()
+    return resolve_delivery_portal_token_pair()
 
 
 def resolve_delivery_portal_base_url_pair() -> tuple[str, str]:
     url, source = _base_url_from_dej_or_env()
     if url:
         return url, source
-    url = _read_from_dotenv_keys(*_BASE_URL_KEYS)
+    url, _ = _read_from_dotenv_keys(*_BASE_URL_KEYS)
     if url:
         return url.rstrip("/"), "dotenv"
     url = _normalize_token(settings.delivery_portal_base_url).rstrip("/")
@@ -148,22 +145,12 @@ def resolve_delivery_portal_base_url_pair() -> tuple[str, str]:
     return "https://delivery-portal-backend.apps.axstudio.lge.com", "default"
 
 
-def _program_report_token() -> str:
-    token, _ = resolve_delivery_portal_program_report_token_pair()
-    if not token:
-        raise HTTPException(status_code=503, detail="DELIVERY_PORTAL_API_TOKEN 미설정")
-    return token
-
-
-def _all_deliveries_token() -> str:
-    token, _ = resolve_delivery_portal_all_deliveries_token_pair()
+def _delivery_portal_token() -> str:
+    token, _ = resolve_delivery_portal_token_pair()
     if not token:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 미설정 "
-                "(또는 DELIVERY_PORTAL_API_TOKEN 폴백)"
-            ),
+            detail="DELIVERY_PORTAL_API_TOKEN 미설정 (all_deliveries 와 동일 토큰)",
         )
     return token
 
@@ -174,7 +161,6 @@ def _base_url() -> str:
 
 
 def jwt_payload_hints(token: str) -> dict[str, Any]:
-    """JWT payload 일부만 노출 (서명 검증 없음) — exp·token_type 진단."""
     parts = (token or "").split(".")
     if len(parts) < 2:
         return {"looksLikeJwt": False}
@@ -196,14 +182,30 @@ def jwt_payload_hints(token: str) -> dict[str, Any]:
     }
 
 
-def _token_slot_diagnostic(var_key: str, token: str, source: str) -> dict[str, Any]:
+def delivery_portal_resolve_trace() -> dict[str, Any]:
+    """토큰/BASE resolve 경로 — 값 노출 없이 길이·fingerprint 만."""
+    token, source = resolve_delivery_portal_token_pair()
+    base, base_source = resolve_delivery_portal_base_url_pair()
+    pr_len = len(_normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN")))
+    ad_len = len(_normalize_token(dej_get("DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN")))
+    fp_api = token_fingerprint(_normalize_token(dej_get("DELIVERY_PORTAL_API_TOKEN")))
+    fp_ad = token_fingerprint(_normalize_token(dej_get("DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN")))
     return {
-        "configured": bool(token),
-        "tokenLength": len(token),
-        "tokenSource": source,
-        "tokenFingerprint": token_fingerprint(token),
-        "variablesGet": variables_get_length_detail(var_key),
-        "jwtHints": jwt_payload_hints(token) if token else {},
+        "effectiveTokenSource": source,
+        "effectiveTokenLength": len(token),
+        "effectiveTokenFingerprint": token_fingerprint(token),
+        "variablesApiTokenLength": pr_len,
+        "variablesAllDeliveriesTokenLength": ad_len,
+        "variablesFingerprintsMatch": bool(fp_api and fp_ad and fp_api == fp_ad),
+        "settingsApiTokenLength": len(_normalize_token(getattr(settings, "delivery_portal_api_token", ""))),
+        "settingsAllDeliveriesTokenLength": len(
+            _normalize_token(getattr(settings, "delivery_portal_all_deliveries_api_token", ""))
+        ),
+        "baseUrl": base,
+        "baseUrlSource": base_source,
+        "allDeliveriesUrl": f"{base}/api/v1/all_deliveries_data/",
+        "programReportUrl": f"{base}/api/v1/program-report/",
+        "verifySsl": settings.delivery_portal_verify_ssl,
     }
 
 
@@ -216,56 +218,62 @@ async def _probe_portal_get(path_segment: str, *, token: str) -> dict[str, Any]:
         ) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
             return {
+                "requestUrl": url,
                 "path": f"/api/v1/{segment}/",
                 "httpStatus": resp.status_code,
                 "bodyPreview": (resp.text or "")[:240],
             }
     except httpx.HTTPError as e:
-        return {"path": f"/api/v1/{segment}/", "httpStatus": 0, "bodyPreview": str(e)[:240]}
+        return {
+            "requestUrl": url,
+            "path": f"/api/v1/{segment}/",
+            "httpStatus": 0,
+            "bodyPreview": str(e)[:240],
+        }
 
 
 async def diagnose_delivery_portal() -> dict[str, Any]:
-    pr_token, pr_source = resolve_delivery_portal_program_report_token_pair()
-    ad_token, ad_source = resolve_delivery_portal_all_deliveries_token_pair()
-    base, base_source = resolve_delivery_portal_base_url_pair()
+    token, source = resolve_delivery_portal_token_pair()
+    trace = delivery_portal_resolve_trace()
     out: dict[str, Any] = {
-        "ok": bool(pr_token or ad_token),
-        "baseUrl": base,
-        "baseUrlSource": base_source,
-        "verifySsl": settings.delivery_portal_verify_ssl,
-        "tokens": {
-            "programReport": _token_slot_diagnostic(
-                "DELIVERY_PORTAL_API_TOKEN", pr_token, pr_source
-            ),
-            "allDeliveries": _token_slot_diagnostic(
-                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN", ad_token, ad_source
+        "ok": bool(token),
+        "baseUrl": trace["baseUrl"],
+        "baseUrlSource": trace["baseUrlSource"],
+        "verifySsl": trace["verifySsl"],
+        "trace": trace,
+        "tokenLength": len(token),
+        "tokenSource": source,
+        "tokenFingerprint": token_fingerprint(token),
+        "jwtHints": jwt_payload_hints(token) if token else {},
+        "variablesGet": {
+            "DELIVERY_PORTAL_API_TOKEN": variables_get_length_detail("DELIVERY_PORTAL_API_TOKEN"),
+            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN": variables_get_length_detail(
+                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN"
             ),
         },
         "hint": (
-            "Variables: DELIVERY_PORTAL_API_TOKEN=program-report JWT, "
-            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN=Gantt/all_deliveries_data JWT. "
-            "전용 토큰 없으면 all_deliveries 는 API_TOKEN 으로 폴백."
+            "Portal: program-report 와 all_deliveries_data 는 동일 JWT. "
+            "Variables 두 키에 같은 값 OK. program 200 + all_deliveries 403 이면 "
+            "토큰 분리 문제가 아니라 BASE_URL(hedej/axstudio)·JWT exp·Portal 쪽 API ACL 확인."
         ),
     }
-    if (
-        pr_token
-        and ad_token
-        and token_fingerprint(pr_token) == token_fingerprint(ad_token)
+    if trace.get("variablesFingerprintsMatch") is False and trace.get("variablesApiTokenLength") and trace.get(
+        "variablesAllDeliveriesTokenLength"
     ):
-        out["sameTokenInBothSlots"] = True
         out["warn"] = (
-            "programReport 와 allDeliveries fingerprint 가 동일 — "
-            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 에 Gantt용 access JWT(다른 fingerprint)를 넣어야 "
-            "all_deliveries_data 403 이 해소됩니다. program-report 200 만으로는 Gantt 권한이 없습니다."
+            "Variables API_TOKEN 과 ALL_DELIVERIES_API_TOKEN fingerprint 불일치 — "
+            "담당자 안내대로 동일 토큰이면 두 Variables 값을 같게 맞추세요."
         )
-    if ad_token:
-        out["portalProbeAllDeliveries"] = await _probe_portal_get(
-            "all_deliveries_data", token=ad_token
-        )
-    if pr_token:
-        out["portalProbeProgramReport"] = await _probe_portal_get(
-            "program-report", token=pr_token
-        )
+    if token:
+        out["portalProbeProgramReport"] = await _probe_portal_get("program-report", token=token)
+        out["portalProbeAllDeliveries"] = await _probe_portal_get("all_deliveries_data", token=token)
+        pr_st = out["portalProbeProgramReport"].get("httpStatus")
+        ad_st = out["portalProbeAllDeliveries"].get("httpStatus")
+        if pr_st == 200 and ad_st and ad_st >= 400:
+            out["splitProbeHint"] = (
+                "동일 effectiveToken 으로 program-report 는 200, all_deliveries 는 실패 — "
+                "BE resolve 버그 가능성 낮음(URL·동일 Bearer). Portal 또는 BASE_URL 불일치를 Portal 팀과 확인."
+            )
     return out
 
 
@@ -274,15 +282,13 @@ def _portal_http_detail(status: int, body: str, *, token_source: str = "") -> st
     src = f" (BE tokenSource={token_source})" if token_source else ""
     if status == 401:
         return (
-            f"{base}{src} — JWT 거부. "
-            "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 에 access JWT(eyJ…) 전체·Bearer 없이·"
-            "program-report 토큰과 바꿔 넣지 않았는지, BASE_URL(hedej/axstudio) 발급 환경과 "
-            "일치하는지, .env stale 값 삭제 후 restart 확인. GET /api/delivery-portal/diagnose"
+            f"{base}{src} — JWT 거부. trace.baseUrl·Variables DELIVERY_PORTAL_API_TOKEN, "
+            "GET /api/delivery-portal/diagnose"
         )
     if status == 403 and "all_deliveries_data" in body:
         return (
-            f"{base}{src} — GET /api/v1/all_deliveries_data/ 권한 없음. "
-            "Variables DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 확인."
+            f"{base}{src} — all_deliveries_data 403 (program-report 는 동일 토큰). "
+            "BASE_URL·Portal ACL 또는 담당자 curl 과 requestUrl 비교 (diagnose.trace)."
         )
     return base + src
 
@@ -290,15 +296,9 @@ def _portal_http_detail(status: int, body: str, *, token_source: str = "") -> st
 async def fetch_all_deliveries_data() -> dict:
     base = _base_url()
     url = f"{base}/api/v1/all_deliveries_data/"
-    token, token_source = resolve_delivery_portal_all_deliveries_token_pair()
+    token, token_source = resolve_delivery_portal_token_pair()
     if not token:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "DELIVERY_PORTAL_ALL_DELIVERIES_API_TOKEN 미설정 "
-                "(또는 DELIVERY_PORTAL_API_TOKEN 폴백)"
-            ),
-        )
+        raise HTTPException(status_code=503, detail="DELIVERY_PORTAL_API_TOKEN 미설정")
     try:
         async with httpx.AsyncClient(verify=settings.delivery_portal_verify_ssl, timeout=120.0) as client:
             resp = await client.get(url, headers={"Authorization": f"Bearer {token}"})
@@ -318,5 +318,4 @@ async def fetch_all_deliveries_data() -> dict:
 
 
 def program_report_bearer_token() -> str:
-    """routers/delivery_portal.py program-report 프록시."""
-    return _program_report_token()
+    return _delivery_portal_token()
