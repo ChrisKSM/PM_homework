@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     tvjira_verify_ssl: bool = False
 
     # Delivery Portal — 릴리즈 마일스톤 Gantt (Davis MilestonePage)
-    delivery_portal_base_url: str = "https://delivery-portal-backend.apps.axstudio.lge.com"
+    delivery_portal_base_url: str = "https://delivery-portal-backend.apps.hedej.lge.com"
     delivery_portal_api_token: str = ""
     delivery_portal_all_deliveries_api_token: str = ""
     delivery_portal_verify_ssl: bool = True

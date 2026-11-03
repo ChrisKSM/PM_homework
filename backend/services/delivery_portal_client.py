@@ -144,7 +144,7 @@ def resolve_delivery_portal_base_url_pair() -> tuple[str, str]:
     url = _normalize_token(settings.delivery_portal_base_url).rstrip("/")
     if url:
         return url, "settings.delivery_portal_base_url"
-    return "https://delivery-portal-backend.apps.axstudio.lge.com", "default"
+    return "https://delivery-portal-backend.apps.hedej.lge.com", "default"
 
 
 def _delivery_portal_token() -> str:
@@ -264,11 +264,23 @@ async def diagnose_delivery_portal() -> dict[str, Any]:
             ),
         },
         "hint": (
-            "Portal: program-report 와 all_deliveries_data 는 동일 JWT. "
-            "Variables 두 키에 같은 값 OK. program 200 + all_deliveries 403 이면 "
-            "토큰 분리 문제가 아니라 BASE_URL(hedej/axstudio)·JWT exp·Portal 쪽 API ACL 확인."
+            "Portal: program-report 와 all_deliveries_data 는 동일 JWT(eyJ… 3 segment). "
+            "Variables DELIVERY_PORTAL_BASE_URL=hedej 권장. public(axstudio default) vs local(.env hedej) "
+            "불일치 시 UI 401."
         ),
     }
+    hints = out.get("jwtHints") or {}
+    if token and hints.get("looksLikeJwt") is False:
+        out["invalidJwtWarning"] = (
+            f"Variables 토큰 len={len(token)} 이 JWT 형식이 아님(looksLikeJwt=false). "
+            "Delivery Portal access JWT(eyJ…) 전체를 DELIVERY_PORTAL_API_TOKEN 에 넣으세요. "
+            "public BE 가 576자 등 잘못된 값이면 브라우저 sync 401."
+        )
+    if trace.get("baseUrlSource") == "settings.delivery_portal_base_url":
+        out["baseUrlWarning"] = (
+            "DELIVERY_PORTAL_BASE_URL Variables/env 없음 — pydantic default 사용. "
+            "Variables 에 https://delivery-portal-backend.apps.hedej.lge.com 설정 권장."
+        )
     if trace.get("variablesFingerprintsMatch") is False and trace.get("variablesApiTokenLength") and trace.get(
         "variablesAllDeliveriesTokenLength"
     ):
