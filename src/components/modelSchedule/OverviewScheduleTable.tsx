@@ -72,7 +72,25 @@ function monthSpans(dates: Date[]) {
   return spans
 }
 
-const STICKY_LEFT = [0, OVERVIEW_META_COLUMNS[0].minW]
+const META_STICKY_LEFT = OVERVIEW_META_COLUMNS.map((_, i) =>
+  OVERVIEW_META_COLUMNS.slice(0, i).reduce((sum, c) => sum + c.minW, 0),
+)
+const DELETE_COL_W = 32
+const LAST_META_IDX = OVERVIEW_META_COLUMNS.length - 1
+
+function stickyMetaThClass(i: number) {
+  return clsx(
+    'sticky z-[12] bg-gray-50',
+    i === LAST_META_IDX && 'shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]',
+  )
+}
+
+function stickyMetaTdClass(i: number) {
+  return clsx(
+    'sticky z-[11] bg-white',
+    i === LAST_META_IDX && 'shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]',
+  )
+}
 
 export default function OverviewScheduleTable({
   displayRows,
@@ -96,7 +114,8 @@ export default function OverviewScheduleTable({
   const catMerge = calcOverviewMerge(displayRows, overviewCategoryKey)
   const modelMerge = calcOverviewMerge(displayRows, overviewGroupKey)
   const monthHdr = monthSpans(dates)
-  const leftW = OVERVIEW_META_COLUMNS.reduce((s, c) => s + c.minW, 0) + (showDeleteCol ? 32 : 0)
+  const leftW = OVERVIEW_META_COLUMNS.reduce((s, c) => s + c.minW, 0) + (showDeleteCol ? DELETE_COL_W : 0)
+  const metaKeys = OVERVIEW_META_COLUMNS.map((c) => c.key)
 
   const isModelLast = (ri: number) => {
     if (ri >= displayRows.length - 1) return true
@@ -121,7 +140,7 @@ export default function OverviewScheduleTable({
         <tr className="bg-gray-50 border-b border-gray-200">
           <th
             colSpan={OVERVIEW_META_COLUMNS.length + (showDeleteCol ? 1 : 0)}
-            className="border-r border-surface-border px-2 py-1 text-left text-[10px] text-gray-500 sticky left-0 z-20 bg-gray-50"
+            className="border-r border-surface-border px-2 py-1 text-left text-[10px] text-gray-500 sticky left-0 z-[13] bg-gray-50 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]"
           />
           {monthHdr.map((m, i) => (
             <th
@@ -139,21 +158,25 @@ export default function OverviewScheduleTable({
               key={col.key}
               className={clsx(
                 'border-r border-surface-border px-1.5 py-2 text-gray-500 font-semibold text-[10px] whitespace-nowrap text-center',
-                i === 0 && 'sticky left-0 z-10 bg-gray-50',
-                i === 1 && 'sticky z-10 bg-gray-50',
+                stickyMetaThClass(i),
               )}
               style={{
                 width: col.minW,
                 minWidth: col.minW,
                 maxWidth: 'maxW' in col ? col.maxW : col.minW,
-                ...(i === 1 ? { left: STICKY_LEFT[1] } : {}),
+                left: META_STICKY_LEFT[i],
               }}
             >
               {col.label}
             </th>
           ))}
           {showDeleteCol && (
-            <th className="border-r border-surface-border px-1 py-2 text-gray-400 text-[9px] w-8 text-center">삭제</th>
+            <th
+              className="sticky z-[12] bg-gray-50 border-r border-surface-border px-1 py-2 text-gray-400 text-[9px] text-center shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]"
+              style={{ width: DELETE_COL_W, minWidth: DELETE_COL_W, left: leftW - DELETE_COL_W }}
+            >
+              삭제
+            </th>
           )}
           {dates.map((d, i) => (
             <th
@@ -185,46 +208,51 @@ export default function OverviewScheduleTable({
               {!cm.hidden && row.lineIndex === 0 && (
                 <td
                   rowSpan={cm.rowSpan}
-                  className="sticky left-0 z-10 bg-white border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle text-center"
+                  className={clsx(
+                    'border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle text-center',
+                    stickyMetaTdClass(0),
+                  )}
+                  style={{ left: META_STICKY_LEFT[0] }}
                 >
                   {cell(row, 'category')}
                 </td>
               )}
               {!mm.hidden && row.lineIndex === 0 && (
                 <>
-                  <td
-                    rowSpan={mm.rowSpan}
-                    className="sticky z-10 bg-white border-r border-surface-border px-1.5 text-[11px] font-semibold align-middle text-center"
-                    style={{ left: STICKY_LEFT[1] }}
-                  >
-                    {cell(row, 'model')}
-                  </td>
-                  <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle text-center">
-                    {cell(row, 'variant')}
-                  </td>
-                  <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] font-mono align-middle text-center">
-                    {cell(row, 'soc')}
-                  </td>
-                  <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] align-middle text-center">
-                    {cell(row, 'swPm')}
-                  </td>
-                  <td
-                    rowSpan={mm.rowSpan}
-                    className="border-r border-surface-border px-1 text-[9px] text-gray-600 align-middle text-center overflow-visible"
-                    style={{ width: OVERVIEW_META_COLUMNS[5].minW, maxWidth: OVERVIEW_META_COLUMNS[5].minW }}
-                  >
-                    {cell(row, 'spec')}
-                  </td>
-                  <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] align-middle text-center">
-                    {cell(row, 'pv')}
-                  </td>
-                  <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1.5 text-[10px] align-middle text-center">
-                    {cell(row, 'mp')}
-                  </td>
+                  {metaKeys.slice(1).map((key, idx) => {
+                    const i = idx + 1
+                    const col = OVERVIEW_META_COLUMNS[i]
+                    const isModel = key === 'model'
+                    return (
+                      <td
+                        key={key}
+                        rowSpan={mm.rowSpan}
+                        className={clsx(
+                          'border-r border-surface-border px-1.5 align-middle text-center',
+                          isModel ? 'text-[11px] font-semibold' : 'text-[10px] text-gray-600',
+                          key === 'soc' && 'font-mono',
+                          key === 'spec' && 'px-1 text-[9px] overflow-visible',
+                          stickyMetaTdClass(i),
+                        )}
+                        style={{
+                          left: META_STICKY_LEFT[i],
+                          width: col.minW,
+                          minWidth: col.minW,
+                          maxWidth: 'maxW' in col ? col.maxW : col.minW,
+                        }}
+                      >
+                        {cell(row, key)}
+                      </td>
+                    )
+                  })}
                 </>
               )}
               {showDeleteCol && row.lineIndex === 0 && !mm.hidden && (
-                <td rowSpan={mm.rowSpan} className="border-r border-surface-border px-1 text-center align-middle">
+                <td
+                  rowSpan={mm.rowSpan}
+                  className="sticky z-[11] bg-white border-r border-surface-border px-1 text-center align-middle shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]"
+                  style={{ left: leftW - DELETE_COL_W, width: DELETE_COL_W, minWidth: DELETE_COL_W }}
+                >
                   {editing && onDeleteModel ? (
                     <button type="button" onClick={() => onDeleteModel(row.modelId)} className="text-red-400 hover:text-red-600">
                       <Trash2 size={12} />
