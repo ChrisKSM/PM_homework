@@ -1,12 +1,12 @@
 #!/bin/sh
 # BE pod — Delivery Portal export + Mongo sync 스크립트/BE 코드 한 번에 받기
 #
-#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/1245e29/scripts/fetch-delivery-portal-pod-scripts.sh" | REF=1245e29 sh
-#   REF=1245e29 sh scripts/fetch-delivery-portal-pod-scripts.sh
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/02508b2/scripts/fetch-delivery-portal-pod-scripts.sh" | REF=02508b2 sh
+#   REF=02508b2 sh scripts/fetch-delivery-portal-pod-scripts.sh
 #
 set -e
 cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.." || exit 1
-REF="${REF:-1245e29}"
+REF="${REF:-02508b2}"
 BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF}"
 
 mkdir -p scripts services routers 2>/dev/null || true
