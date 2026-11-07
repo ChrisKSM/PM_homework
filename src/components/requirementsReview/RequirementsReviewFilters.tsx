@@ -171,7 +171,7 @@ export default function RequirementsReviewFilters({
           {almQuery}
         </code>
         <p className="text-xs text-gray-500 mt-2">
-          ALM REST 연동 전 mock · Mongo Labels/메타는 로컬 overlay (추후 Workspace DB sync)
+          BE winningQuery (Polarion REST) · Label 필터는 Milvus/로컬 UI 전용
         </p>
       </div>
     </div>

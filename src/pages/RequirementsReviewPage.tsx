@@ -1,15 +1,13 @@
 import { useCallback, useMemo, useState } from 'react'
-import { Database, Shield } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { AlertCircle, Database, Loader2, RefreshCw, Shield } from 'lucide-react'
 import Header from '../components/layout/Header'
 import RequirementsReviewFilters from '../components/requirementsReview/RequirementsReviewFilters'
 import RequirementsReviewTable from '../components/requirementsReview/RequirementsReviewTable'
 import RequirementsReviewEditDrawer from '../components/requirementsReview/RequirementsReviewEditDrawer'
 import {
   buildAlmQueryPreview,
-  DEFAULT_MONGO_OVERLAY,
   MOCK_CUSTOM_LABEL_POOL,
-  MOCK_MONGO_SEED,
-  REQUIREMENTS_REVIEW_ALM_MOCK,
 } from '../data/requirementsReviewMock'
 import type {
   OsType,
@@ -25,6 +23,12 @@ import {
   setMockRequirementsReviewRole,
   type RequirementsReviewMockRole,
 } from '../utils/requirementsReviewAuth'
+import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
+import { modelStatusApi } from '../api/modelStatusApi'
+import {
+  listRequirementsReviewModelCodes,
+  mapPrdItemToReviewRow,
+} from '../utils/requirementsReviewFromPrd'
 
 const OVERLAY_STORAGE_KEY = 'req-review-mongo-overlay-v1'
 
@@ -37,27 +41,6 @@ function loadOverlayMap(): Record<string, RequirementsReviewMongoOverlay> {
   } catch {
     return {}
   }
-}
-
-function mergeRows(overlayMap: Record<string, RequirementsReviewMongoOverlay>): RequirementsReviewRow[] {
-  return REQUIREMENTS_REVIEW_ALM_MOCK.map((alm) => {
-    const seed = MOCK_MONGO_SEED[alm.id]
-    const stored = overlayMap[alm.id]
-    const base: RequirementsReviewMongoOverlay = {
-      ...DEFAULT_MONGO_OVERLAY,
-      ...seed,
-      customLabels: [...(seed?.customLabels ?? DEFAULT_MONGO_OVERLAY.customLabels)],
-    }
-    if (stored) {
-      return {
-        ...alm,
-        ...base,
-        ...stored,
-        customLabels: stored.customLabels ?? base.customLabels,
-      }
-    }
-    return { ...alm, ...base }
-  })
 }
 
 function sortRows(
@@ -93,6 +76,8 @@ function sortRows(
 }
 
 export default function RequirementsReviewPage() {
+  const modelCodes = useMemo(() => listRequirementsReviewModelCodes(), [])
+  const [selectedModel, setSelectedModel] = useState(modelCodes[0] ?? 'H7_VI')
   const [mockRole, setMockRole] = useState<RequirementsReviewMockRole>(() => getMockRequirementsReviewRole())
   const [overlayMap, setOverlayMap] = useState<Record<string, RequirementsReviewMongoOverlay>>(() => loadOverlayMap())
 
@@ -107,12 +92,23 @@ export default function RequirementsReviewPage() {
   const [editRow, setEditRow] = useState<RequirementsReviewRow | null>(null)
   const [draft, setDraft] = useState<RequirementsReviewMongoOverlay | null>(null)
 
+  const qc = useQueryClient()
+  const { data, isPending, isFetching, isError, error, refetch } = useRequirementsReviewPrd(selectedModel)
+  const meta = data?.meta
+  const almQueryFragment =
+    meta?.winningQuery || buildAlmQueryPreview({ osType, productCategory, appliedModel, label: labelFilter })
+
   const canEdit = canEditRequirementsReview(mockRole)
 
-  const allRows = useMemo(() => mergeRows(overlayMap), [overlayMap])
+  const allRows = useMemo(() => {
+    const items = data?.items ?? []
+    return items.map((item) =>
+      mapPrdItemToReviewRow(item, selectedModel, overlayMap[item.id], almQueryFragment)
+    )
+  }, [data?.items, selectedModel, overlayMap, almQueryFragment])
 
   const modelOptions = useMemo(
-    () => [...new Set(allRows.map((r) => r.appliedModel))].sort(),
+    () => [...new Set(allRows.map((r) => r.appliedModel).filter(Boolean))].sort(),
     [allRows]
   )
 
@@ -132,16 +128,27 @@ export default function RequirementsReviewPage() {
     return sortRows(list, sortKey, sortLabel)
   }, [allRows, osType, productCategory, appliedModel, labelFilter, sortKey, sortLabel])
 
-  const almQuery = useMemo(
-    () =>
-      buildAlmQueryPreview({
-        osType,
-        productCategory,
-        appliedModel,
-        label: labelFilter,
+  const almQuery = useMemo(() => {
+    const base = meta?.winningQuery || buildAlmQueryPreview({ osType, productCategory, appliedModel, label: labelFilter })
+    if (labelFilter !== 'all') {
+      return `${base} /* UI label: ${labelFilter} (Milvus/local) */`
+    }
+    return base
+  }, [meta?.winningQuery, osType, productCategory, appliedModel, labelFilter])
+
+  const saveLabelMutation = useMutation({
+    mutationFn: async (args: { prdId: string; reviewLabel: string; almLabels: string[] }) =>
+      modelStatusApi.savePrdReviewLabel({
+        model: selectedModel,
+        prdId: args.prdId,
+        reviewLabel: args.reviewLabel,
+        almLabels: args.almLabels,
       }),
-    [osType, productCategory, appliedModel, labelFilter]
-  )
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['requirements-review-prd', selectedModel] })
+      void qc.invalidateQueries({ queryKey: ['model-status-prd', selectedModel] })
+    },
+  })
 
   const switchRole = (role: RequirementsReviewMockRole) => {
     setMockRequirementsReviewRole(role)
@@ -164,8 +171,9 @@ export default function RequirementsReviewPage() {
     [canEdit]
   )
 
-  const saveOverlay = () => {
+  const saveOverlay = async () => {
     if (!editRow || !draft) return
+    const reviewLabel = draft.customLabels.join(', ')
     const next: RequirementsReviewMongoOverlay = {
       ...draft,
       updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
@@ -174,26 +182,90 @@ export default function RequirementsReviewPage() {
     const map = { ...overlayMap, [editRow.id]: next }
     setOverlayMap(map)
     localStorage.setItem(OVERLAY_STORAGE_KEY, JSON.stringify(map))
+    try {
+      await saveLabelMutation.mutateAsync({
+        prdId: editRow.id,
+        reviewLabel,
+        almLabels: [],
+      })
+    } catch {
+      /* local overlay saved; BE label sync failed */
+    }
     setEditRow(null)
     setDraft(null)
   }
+
+  const apiTotal = meta?.total ?? data?.items?.length ?? 0
 
   return (
     <>
       <Header
         title="요구사항 검토"
-        subtitle="ALM query + Mongo Labels/메타 overlay (mock) · OS / 카테고리 / 적용모델 / Label 정렬"
+        subtitle="Polarion PRD (GET /api/model-status/prd) · Labels는 Milvus BE + 로컬 메타 overlay"
       />
 
       <div className="pt-16 p-6 space-y-6 max-w-[1400px]">
+        <div className="flex flex-wrap items-end gap-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
+              Polarion 적용모델 (API)
+            </label>
+            <select
+              className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white min-w-[160px]"
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+            >
+              {modelCodes.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-border text-sm text-gray-700 hover:bg-surface-page"
+          >
+            {isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+            새로고침
+          </button>
+          {meta?.source && (
+            <p className="text-xs text-gray-500 pb-2">
+              source: <span className="font-mono">{meta.source}</span>
+              {meta.polarionUrl && (
+                <>
+                  {' '}
+                  ·{' '}
+                  <a href={meta.polarionUrl} target="_blank" rel="noreferrer" className="text-indigo-600 underline">
+                    Polarion UI
+                  </a>
+                </>
+              )}
+            </p>
+          )}
+        </div>
+
+        {(isError || meta?.error) && (
+          <div className="flex gap-2 items-start bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-800">
+            <AlertCircle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold">PRD API 오류</p>
+              <p className="mt-1">{meta?.error || (error instanceof Error ? error.message : String(error))}</p>
+              <p className="text-xs mt-1 text-red-700">Network: GET /api/model-status/prd?model={selectedModel}</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
             <Database className="text-indigo-600 shrink-0 mt-0.5" size={18} />
             <div className="text-sm text-gray-800">
-              <p className="font-semibold text-gray-900">MongoDB overlay (mock)</p>
+              <p className="font-semibold text-gray-900">ALM + Milvus labels</p>
               <p className="text-gray-600 mt-1 leading-relaxed">
-                ALM 쓰기 권한 없이 Labels, 적용시점, 개발기간, 개발 주체를 Workspace DB에 저장·동기화할 예정입니다.
-                지금은 localStorage로 편집 결과를 유지합니다.
+                목록은 BE Polarion PRD API. 검토 라벨은 PUT /api/model-status/prd/labels (Milvus). 적용시점·개발기간·주체는
+                localStorage overlay.
               </p>
             </div>
           </div>
@@ -228,9 +300,6 @@ export default function RequirementsReviewPage() {
                 >
                   Editor ({REQ_REVIEW_EDITOR_ROLE})
                 </button>
-                <span className="text-xs text-gray-500 self-center">
-                  또는 URL <code className="bg-white px-1 rounded">?role=editor</code>
-                </span>
               </div>
             </div>
           </div>
@@ -256,8 +325,16 @@ export default function RequirementsReviewPage() {
 
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-600">
-            <span className="font-semibold text-gray-900">{filteredRows.length}</span>건 · ALM mock{' '}
-            {REQUIREMENTS_REVIEW_ALM_MOCK.length}건
+            {isPending ? (
+              <span className="inline-flex items-center gap-2">
+                <Loader2 size={14} className="animate-spin" /> Polarion 로딩…
+              </span>
+            ) : (
+              <>
+                <span className="font-semibold text-gray-900">{filteredRows.length}</span>건 표시 · API{' '}
+                <span className="font-semibold text-gray-900">{apiTotal}</span>건
+              </>
+            )}
           </p>
           <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
             <input
@@ -287,7 +364,7 @@ export default function RequirementsReviewPage() {
           setDraft(null)
         }}
         onChange={(patch) => draft && setDraft({ ...draft, ...patch })}
-        onSave={saveOverlay}
+        onSave={() => void saveOverlay()}
       />
     </>
   )

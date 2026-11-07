@@ -20,10 +20,10 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/model-schedule/verification" replace />} />
+          <Route index element={<Navigate to="/model-schedule/overview" replace />} />
 
           {/* 모델 현황 프로젝트 */}
-          <Route path="model-schedule" element={<Navigate to="/model-schedule/verification" replace />} />
+          <Route path="model-schedule" element={<Navigate to="/model-schedule/overview" replace />} />
           <Route path="model-schedule/overview" element={<ModelScheduleOverviewPage />} />
           <Route path="model-schedule/verification" element={<ModelSchedulePage />} />
           <Route path="model-schedule/status" element={<ModelScheduleStatusPage />} />

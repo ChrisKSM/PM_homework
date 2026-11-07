@@ -36,6 +36,13 @@ fetch src/components/modelStatus/ModelStatusPrdPanel.tsx src/components/modelSta
 fetch src/components/modelStatus/ModelIntegratedDashboard.tsx src/components/modelStatus/ModelIntegratedDashboard.tsx
 fetch src/components/modelStatus/ModelStatusOverviewEventTimeline.tsx src/components/modelStatus/ModelStatusOverviewEventTimeline.tsx
 fetch src/components/modelStatus/ModelStatusLlmSummaryPanel.tsx src/components/modelStatus/ModelStatusLlmSummaryPanel.tsx
+fetch src/pages/RequirementsReviewPage.tsx src/pages/RequirementsReviewPage.tsx
+fetch src/hooks/useRequirementsReviewPrd.ts src/hooks/useRequirementsReviewPrd.ts
+fetch src/utils/requirementsReviewFromPrd.ts src/utils/requirementsReviewFromPrd.ts
+fetch src/store/dashboardStore.ts src/store/dashboardStore.ts
+fetch src/App.tsx src/App.tsx
+fetch src/components/requirementsReview/RequirementsReviewFilters.tsx src/components/requirementsReview/RequirementsReviewFilters.tsx
+fetch scripts/patch-fe-requirements-review-from-github.sh scripts/patch-fe-requirements-review-from-github.sh
 fetch src/components/modelStatus/ModelStatusSprintPanel.tsx src/components/modelStatus/ModelStatusSprintPanel.tsx
 fetch src/hooks/useModelStatusSprint.ts src/hooks/useModelStatusSprint.ts
 fetch src/types/modelStatusSprint.ts src/types/modelStatusSprint.ts
