@@ -118,7 +118,8 @@ class Settings(BaseSettings):
     smtp_verify_ssl: bool = False  # 사내 relay — 인증서 검증 생략
 
     # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
-    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
+    # OOTB REST (project_admin 불필요). customs: .../restful/customs/v1
+    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/rest/v1"
     polarion_project_key: str = "AVSWRelProjMgmt"
     polarion_pat: str = ""
     polarion_verify_ssl: bool = False

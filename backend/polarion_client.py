@@ -93,8 +93,34 @@ def _safe_text(attrs: dict, key: str) -> str:
     return str(val).strip()
 
 
+def _unwrap_ootb_workitem(row: dict[str, Any]) -> dict[str, Any]:
+    """Polarion rest/v1 JSON:API → flat row (attributes + id + links)."""
+    if "attributes" in row and isinstance(row.get("attributes"), dict):
+        flat = dict(row["attributes"])
+        if row.get("id") and not flat.get("id"):
+            flat["id"] = row["id"]
+        if row.get("links"):
+            flat["links"] = row["links"]
+        return flat
+    return row
+
+
 def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
-    """Polarion customs list JSON → (workitems, totalCount)."""
+    """Polarion rest/v1 (JSON:API) · customs list JSON → (workitems, totalCount)."""
+    if isinstance(data, dict) and isinstance(data.get("data"), list):
+        raw_list = data["data"]
+        if raw_list and isinstance(raw_list[0], dict) and (
+            "attributes" in raw_list[0] or raw_list[0].get("type") == "workitems"
+        ):
+            workitems = [_unwrap_ootb_workitem(it) for it in raw_list if isinstance(it, dict)]
+            meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+            total_raw = meta.get("totalCount", meta.get("total", meta.get("totalItems")))
+            try:
+                total_count = int(total_raw) if total_raw is not None else len(workitems)
+            except (TypeError, ValueError):
+                total_count = len(workitems)
+            return workitems, total_count
+
     obj: dict[str, Any] | None = None
     if isinstance(data, dict) and "data" in data:
         inner = data["data"]
@@ -114,7 +140,7 @@ def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
     for key in ("workitems", "workItems", "items", "Workitems", "WorkItems"):
         raw = obj.get(key)
         if isinstance(raw, list):
-            workitems = raw
+            workitems = [_unwrap_ootb_workitem(it) if isinstance(it, dict) else it for it in raw]
             break
 
     total_raw = obj.get("totalCount", obj.get("total", obj.get("totalItems")))

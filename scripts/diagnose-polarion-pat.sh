@@ -1,5 +1,5 @@
 #!/bin/sh
-# Polarion PAT / Bearer 토큰이 REST customs API 에서 통하는지 진단 (BE pod).
+# Polarion PAT / Bearer — OOTB REST v1 (.../polarion/rest/v1) 진단 (BE pod).
 # UI(브라우저)로 PRD 목록이 보여도 REST 403 일 수 있음 — 토큰 종류·프로젝트 역할이 다름.
 #
 #   sh scripts/diagnose-polarion-pat.sh
@@ -17,7 +17,7 @@ if [ -f .env ] && [ -z "${POLARION_PAT:-}" ]; then
   set +a
 fi
 
-BASE="${POLARION_BASE_URL:-https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1}"
+BASE="${POLARION_BASE_URL:-https://alm-lge-hlm.singlex.com/polarion/rest/v1}"
 BASE="${BASE%/}"
 VERIFY="${POLARION_VERIFY_SSL:-false}"
 CURL_K=""
@@ -107,7 +107,7 @@ probe "PRD REST alt path (ReqMgmt/workitems/PRD)" \
 
 echo "=== 해석 ==="
 echo "1) MR 200 + PRD 403 → PAT 계정에 AVSWReqMgmt REST 읽기 역할 없음 (UI SSO 와 Bearer PAT 역할 다름)."
-echo "   Polarion 관리자: AVSWReqMgmt 프로젝트 Reader + REST/customs API 사용 권한 요청."
+echo "   OOTB: POLARION_BASE_URL=.../polarion/rest/v1 · customs 는 project_admin 필요."
 echo "2) 둘 다 403 Administration → 토큰이 Polarion Personal Access Token 이 아니거나 만료/잘못된 JWT."
 echo "   Polarion: User Settings → Personal Access Token 발급 후 POLARION_PAT 교체."
 echo "3) MR 도 403 → .env POLARION_PAT 와 curl 에 넣은 Bearer 가 동일한지 확인 (pod 재시작)."

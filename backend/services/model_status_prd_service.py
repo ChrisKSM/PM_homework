@@ -38,7 +38,7 @@ APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
 
 # UI 목록 최대 건수 (Polarion page fetch 상한)
 PRD_LIST_LIMIT = 80
-PRD_FETCH_IMPL_VERSION = "components-ui-space-v6"
+PRD_FETCH_IMPL_VERSION = "ootb-rest-v1-components"
 
 PRD_TYPE_TOKENS: tuple[str, ...] = (
     "PRD",
@@ -561,7 +561,8 @@ def _summarize_polarion_fetch_attempts(
         return {
             "polarionRestBlocked": True,
             "polarionRestHint": (
-                "AVSWReqMgmt REST customs API 403 — query 문제 아님. "
+                "AVSWReqMgmt Polarion REST 403 — query 문제 아님. "
+                "OOTB base: .../polarion/rest/v1/projects/AVSWReqMgmt/workitems — "
                 "Polarion PAT 계정에 ReqMgmt 프로젝트 Reader(및 REST) 권한 요청. "
                 "브라우저 UI SSO 와 Bearer PAT 역할이 다를 수 있음."
             ),

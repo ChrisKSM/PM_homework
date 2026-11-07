@@ -3,7 +3,7 @@
 #
 # UI hash URL 과 REST URL 은 다릅니다:
 #   UI:  .../polarion/#/project/AVSWReqMgmt/workitems/PRD?query=components%3A(SoundSuite_H7%5C(VI%5C)%20H7_VI)
-#   REST: .../polarion/restful/customs/v1/projects/AVSWReqMgmt/workitems?query=...&page=1&pageSize=10
+#   REST: .../polarion/rest/v1/projects/AVSWReqMgmt/workitems?query=...&page=1&pageSize=10
 #
 # REST 의 query 파라미터 값은 Lucene 문자열 그대로 (--data-urlencode 로 인코딩).
 # UI v6 와 동일한 본문: components:(SoundSuite_H7\(VI\) H7_VI)
@@ -30,7 +30,7 @@ cd "$ROOT"
 
 MODEL="${MODEL:-H7_VI}"
 PROJECT="${POLARION_PRD_PROJECT_KEY:-AVSWReqMgmt}"
-BASE="${POLARION_BASE_URL:-https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1}"
+BASE="${POLARION_BASE_URL:-https://alm-lge-hlm.singlex.com/polarion/rest/v1}"
 BASE="${BASE%/}"
 VERIFY="${POLARION_VERIFY_SSL:-false}"
 PAGE_SIZE="${PAGE_SIZE:-10}"

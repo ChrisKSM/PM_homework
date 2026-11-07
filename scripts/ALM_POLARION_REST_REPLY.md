@@ -1,61 +1,50 @@
 # ALM Admin — Polarion REST / PRD Workitem 회신 가이드
 
-Admin 안내 요약:
+Admin 안내 (2026-11):
 
-- REST API 권한은 **Global** — 권한 있는 프로젝트에서 호출 가능
-- **토큰을 다르게 썼는지**, **HLM URL**로 호출했는지 확인 요청
-- **PRD Workitem** UI에서 수정/생성/조회 가능한지 확인 요청
+- **customs v1** (`/polarion/restful/customs/v1`) 는 **project_admin** 권한 필요 — 일반 PAT 로는 403
+- **OOTB REST v1** 사용 권장
 
-## 우리 BE가 쓰는 값 (HLM)
+## BE 기본 설정 (OOTB)
 
 | 항목 | 값 |
 |------|-----|
-| REST Base | `https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1` |
-| MR 목록 | `GET .../projects/AVSWRelProjMgmt/workitems?query=...` |
-| PRD 목록 | `GET .../projects/AVSWReqMgmt/workitems?query=...` |
-| 인증 | `Authorization: Bearer <POLARION_PAT>` — **MR·PRD 동일 PAT 1개** (Jira처럼 Variables `POLARION_PAT`) |
+| REST Base | `https://alm-lge-hlm.singlex.com/polarion/rest/v1` |
+| PRD 목록 | `GET .../projects/AVSWReqMgmt/workitems?query=components:(H7_VI)` |
+| MR 목록 | `GET .../projects/AVSWRelProjMgmt/workitems?query=type:testDefect` |
+| 인증 | `Authorization: Bearer <POLARION_PAT>` |
 | UI (PRD) | `https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD` |
 
-다른 ALM 호스트/구 URL 로 부르지 **않음**.
+예시 (Admin 제공):
 
-## Pod 증거 수집 (토큰 값 출력 없음)
+```text
+https://alm-lge-hlm.singlex.com/polarion/rest/v1/projects/AVSWReqMgmt/workitems?query=components:(H7_VI)
+```
 
-구버전 `polarion_client.py`( `polarion_pat` 없음) pod 도 스크립트가 `resolve_polarion_pat()` 폴백으로 동작합니다.
+## Pod / Variables
+
+```env
+POLARION_BASE_URL=https://alm-lge-hlm.singlex.com/polarion/rest/v1
+POLARION_PRD_PROJECT_KEY=AVSWReqMgmt
+POLARION_PRD_REST_LIST_PATH=workitems
+POLARION_PAT=<Personal Access Token>
+```
+
+구 customs 로 돌아가야 하면 `POLARION_BASE_URL` 만 `.../restful/customs/v1` 로 설정 (project_admin 필요).
+
+## 진단
 
 ```bash
 cd /workspace/project
-# uvicorn 기동 후
-sh scripts/collect-polarion-alm-evidence.sh
-```
-
-또는 `.env` PAT 로 직접 curl (Variables 와 len 이 다르면 BE 와 불일치):
-
-```bash
 set -a && . ./.env && set +a
 sh scripts/diagnose-polarion-pat.sh
+sh scripts/probe-polarion-prd-rest.sh
+curl -s "http://127.0.0.1:8000/api/model-status/prd?model=H7_VI" | python3 -m json.tool | head -30
 ```
 
-BE Variables 와 동일 PAT 로 보려면 **collect-polarion-alm-evidence.sh** (Python `polarion_pat()`).
+## Admin 회신 초안
 
-## 해석
-
-| MR HTTP | PRD HTTP | 의미 |
-|---------|----------|------|
-| 200 | 200 | REST OK — FE/쿼리 이슈만 남음 |
-| 200 | 403 Administration | PAT 유효, **AVSWReqMgmt REST/customs** 거부 (Global REST ≠ ReqMgmt 프로젝트) |
-| 403 | 403 | PAT 종류/만료 또는 잘못된 JWT |
-| 401 | — | PAT 만료·오타·Variables ≠ pod .env |
-
-## UI 확인 (Admin 요청 — 스크린샷용)
-
-1. 브라우저 SSO 로 `alm-lge-hlm.singlex.com` Polarion 로그인
-2. **AVSWReqMgmt** → **PRD** workitem 목록 열기
-3. PRD 1건 **조회** → (권한 있으면) **수정** / **생성** 시도
-4. 결과를 Admin 에게: “UI 조회 O/X, 수정 O/X, 생성 O/X” + 사용 계정 ID
-
-UI는 되는데 REST 403 이면 **SSO 계정 역할 ≠ PAT 발급 계정** 인 경우가 많음 → PAT 를 UI 와 **동일 사용자**로 재발급 요청.
-
-## AxStudio Variables
-
-- 키: **`POLARION_PAT`** (Polarion User Settings → Personal Access Token)
-- `.env` stale PAT 제거 후 Publish (Jira PAT 와 동일 패턴)
+> 확인 감사합니다.  
+> customs v1 대신 안내해 주신 **OOTB REST v1** (`/polarion/rest/v1/projects/AVSWReqMgmt/workitems`) 로 BE·진단 스크립트를 변경했습니다.  
+> `query=components:(H7_VI)` 형태로 PAT Bearer 호출 시 **HTTP 200·totalCount 확인** 후 공유드리겠습니다.  
+> UI(SSO)에서 AVSWReqMgmt PRD 조회/수정은 별도로 [가능/불가] 확인했습니다.
