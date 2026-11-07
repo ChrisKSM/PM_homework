@@ -10,7 +10,7 @@ Admin 안내 (2026-11):
 | 항목 | 값 |
 |------|-----|
 | REST Base | `https://alm-lge-hlm.singlex.com/polarion/rest/v1` |
-| PRD 목록 | `GET .../projects/AVSWReqMgmt/workitems?query=components:(H7_VI)` |
+| PRD 목록 | `GET .../projects/AVSWReqMgmt/workitems?query=components:(H7_VI)&page[number]=1&page[size]=10` |
 | MR 목록 | `GET .../projects/AVSWRelProjMgmt/workitems?query=type:testDefect` |
 | 인증 | `Authorization: Bearer <POLARION_PAT>` |
 | UI (PRD) | `https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD` |

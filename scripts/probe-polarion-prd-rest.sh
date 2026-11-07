@@ -100,8 +100,8 @@ echo "    -H \"Authorization: Bearer \$POLARION_PAT\" \\"
 echo "    -H \"Accept: application/json\" \\"
 echo "    --get \"${BASE}/projects/${PROJECT}/workitems\" \\"
 echo "    --data-urlencode 'query=components:(SoundSuite_H7\\(VI\\) H7_VI)' \\"
-echo "    --data-urlencode 'page=1' \\"
-echo "    --data-urlencode 'pageSize=${PAGE_SIZE}' | python3 -m json.tool | head"
+echo "    --data-urlencode 'page[number]=1' \\"
+echo "    --data-urlencode 'page[size]=${PAGE_SIZE}' | python3 -m json.tool | head"
 echo ""
 
 export PROJECT BASE PAGE_SIZE CURL_K POLARION_PAT MODEL REST_PATHS
@@ -166,6 +166,7 @@ for rest_path in rest_paths:
         cmd = ["curl", "-sS", "-w", "\n__HTTP__%{http_code}"]
         if curl_k.strip() == "-k":
             cmd.append("-k")
+        ootb = "/rest/v1" in base and "restful/customs" not in base
         cmd += [
             "-H",
             f"Authorization: Bearer {pat}",
@@ -175,11 +176,11 @@ for rest_path in rest_paths:
             url,
             "--data-urlencode",
             f"query={q}",
-            "--data-urlencode",
-            "page=1",
-            "--data-urlencode",
-            f"pageSize={page_size}",
         ]
+        if ootb:
+            cmd += ["--data-urlencode", "page[number]=1", "--data-urlencode", f"page[size]={page_size}"]
+        else:
+            cmd += ["--data-urlencode", "page=1", "--data-urlencode", f"pageSize={page_size}"]
         try:
             out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as e:

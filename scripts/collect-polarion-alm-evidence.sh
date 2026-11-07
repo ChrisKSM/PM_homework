@@ -106,7 +106,9 @@ async def probe(label, project, path, query):
     async with httpx.AsyncClient(
         verify=settings.polarion_verify_ssl, timeout=60.0, headers=bearer_headers(pat)
     ) as client:
-        r = await client.get(url, params={"query": query, "page": 1, "pageSize": 3})
+        from polarion_client import _list_query_params
+
+        r = await client.get(url, params=_list_query_params(query, 1, 3))
     if "RelProj" in project or project == settings.polarion_project_key:
         MR_HTTP = r.status_code
     if "ReqMgmt" in project or project == getattr(settings, "polarion_prd_project_key", ""):

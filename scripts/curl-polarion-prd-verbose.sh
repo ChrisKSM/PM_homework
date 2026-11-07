@@ -60,14 +60,17 @@ def one(query: str, path: str) -> None:
     cmd = ["curl", "-sS", "-w", "\n__META__http=%{http_code} bytes=%{size_download} err=%{errormsg}\n"]
     if curl_k == "-k":
         cmd.append("-k")
+    ootb = "/rest/v1" in base and "restful/customs" not in base
     cmd += [
         "-H", f"Authorization: Bearer {pat}",
         "-H", "Accept: application/json",
         "--get", url,
         "--data-urlencode", f"query={query}",
-        "--data-urlencode", "page=1",
-        "--data-urlencode", "pageSize=5",
     ]
+    if ootb:
+        cmd += ["--data-urlencode", "page[number]=1", "--data-urlencode", "page[size]=5"]
+    else:
+        cmd += ["--data-urlencode", "page=1", "--data-urlencode", "pageSize=5"]
     try:
         out = subprocess.check_output(cmd, text=True, stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError as e:

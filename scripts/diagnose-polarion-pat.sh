@@ -45,15 +45,27 @@ probe() {
   echo "query: ${QUERY}"
 
   RESP_FILE=$(mktemp)
-  HTTP=$(
-    curl $CURL_K -sS -w "%{http_code}" -o "$RESP_FILE" \
-      -H "Authorization: Bearer ${POLARION_PAT}" \
-      -H "Accept: application/json" \
-      --get "${BASE}/projects/${PROJECT}/${PATH_SEG}" \
-      --data-urlencode "query=${QUERY}" \
-      --data-urlencode "page=1" \
-      --data-urlencode "pageSize=3" 2>/dev/null || echo "000"
-  )
+  if echo "$BASE" | grep -q '/rest/v1'; then
+    HTTP=$(
+      curl $CURL_K -sS -w "%{http_code}" -o "$RESP_FILE" \
+        -H "Authorization: Bearer ${POLARION_PAT}" \
+        -H "Accept: application/json" \
+        --get "${BASE}/projects/${PROJECT}/${PATH_SEG}" \
+        --data-urlencode "query=${QUERY}" \
+        --data-urlencode "page[number]=1" \
+        --data-urlencode "page[size]=3" 2>/dev/null || echo "000"
+    )
+  else
+    HTTP=$(
+      curl $CURL_K -sS -w "%{http_code}" -o "$RESP_FILE" \
+        -H "Authorization: Bearer ${POLARION_PAT}" \
+        -H "Accept: application/json" \
+        --get "${BASE}/projects/${PROJECT}/${PATH_SEG}" \
+        --data-urlencode "query=${QUERY}" \
+        --data-urlencode "page=1" \
+        --data-urlencode "pageSize=3" 2>/dev/null || echo "000"
+    )
+  fi
 
   "$PY" <<PY
 import json

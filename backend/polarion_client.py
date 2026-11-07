@@ -75,6 +75,22 @@ def _base_url() -> str:
     return settings.polarion_base_url.rstrip("/")
 
 
+def _is_ootb_rest_v1() -> bool:
+    """OOTB .../polarion/rest/v1 vs customs .../restful/customs/v1."""
+    u = _base_url().lower()
+    return "/rest/v1" in u and "restful/customs" not in u
+
+
+def _list_query_params(query: str, page: int, page_size: int) -> dict[str, Any]:
+    if _is_ootb_rest_v1():
+        return {
+            "query": query,
+            "page[number]": page,
+            "page[size]": page_size,
+        }
+    return {"query": query, "page": page, "pageSize": page_size}
+
+
 def _list_endpoint(project_key: str | None = None, list_path: str | None = None) -> str:
     path = (list_path or getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
     key = (project_key or settings.polarion_project_key).strip()
@@ -159,11 +175,7 @@ async def fetch_list_page(
     list_path: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
-    params: dict[str, Any] = {
-        "query": query,
-        "page": page,
-        "pageSize": page_size,
-    }
+    params = _list_query_params(query, page, page_size)
     resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
     return _parse_polarion_list_page(resp.json())
 
