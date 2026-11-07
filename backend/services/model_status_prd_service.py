@@ -553,16 +553,41 @@ def _polarion_pat_meta_fields() -> dict[str, Any]:
         "polarionPatSource": polarion_pat_source(),
         "variables_get_polarion_pat": vg,
     }
+    import os
+
     settings_pat = (settings.polarion_pat or "").strip()
-    if settings_pat and pat and token_fingerprint(settings_pat) != token_fingerprint(pat):
+    env_pat = (os.getenv("POLARION_PAT") or "").strip()
+    vg_len = int(vg.get("len_stripped") or 0)
+    vg_fp = str(vg.get("fingerprint") or "")
+    eff_fp = token_fingerprint(pat) if pat else ""
+
+    if vg_len > 80 and eff_fp and vg_fp and eff_fp != vg_fp:
         out["polarionPatMismatch"] = (
-            "settings.polarion_pat(.env) ≠ effective PAT — BE 는 Variables/env 우선. "
-            ".env 의 오래된 POLARION_PAT 를 비우거나 curl 과 동일 값으로 맞추세요."
+            f"AxStudio POLARION_PAT variables.get len={vg_len} (fingerprint ≠ effective). "
+            "Polarion User Settings PAT 만 ~44자로 Variables 교체·Publish. "
+            "지금 BE 는 .env/env 의 토큰을 쓰는 중이면 Worker Route pod 도 동일하게 맞출 것."
         )
-    elif settings_pat and pat and vg.get("fingerprint") and token_fingerprint(pat) != vg.get("fingerprint"):
+    elif settings_pat and pat and token_fingerprint(settings_pat) != eff_fp:
         out["polarionPatMismatch"] = (
-            "effective PAT fingerprint ≠ variables.get — Pod 재시작 또는 Variables 재등록."
+            "settings.polarion_pat(.env) ≠ effective PAT. curl $POLARION_PAT fingerprint 와 맞추세요."
         )
+
+    if len(pat) > 128:
+        out["polarionPatLikelyMisconfigured"] = (
+            f"effective POLARION_PAT len={len(pat)} — 44자 전후가 아님. REST 401 원인. "
+            "sh scripts/diagnose-polarion-pat.sh 와 shell len ${#POLARION_PAT} 비교."
+        )
+    elif vg_len > 80 and len(pat) <= 80:
+        out["polarionPatLikelyMisconfigured"] = (
+            f"variables.get POLARION_PAT len={vg_len} — AxStudio Variables 값이 PAT 전체가 아님. "
+            "44자 Personal Access Token 만 등록 후 Publish."
+        )
+
+    if env_pat and eff_fp and token_fingerprint(env_pat) == eff_fp:
+        out["polarionPatEnvLength"] = len(env_pat)
+    if settings_pat and eff_fp and token_fingerprint(settings_pat) == eff_fp:
+        out["polarionPatSettingsLength"] = len(settings_pat)
+
     return out
 
 
@@ -587,9 +612,9 @@ def _summarize_polarion_fetch_attempts(
     if "401" in blob or "unauthorized" in blob:
         return {
             "polarionRestHint": (
-                "REST 401 — POLARION_PAT 만료·오타, 또는 stale Worker .env(settings.polarion_pat) ≠ Variables. "
-                "Polarion User Settings → Personal Access Token 재발급 후 Variables 삭제·재등록. "
-                "sh scripts/diagnose-polarion-pat.sh · meta.polarionPatSource / polarionPatFingerprint."
+                "REST 401 — POLARION_PAT 만료·오타, 또는 Variables len≫44(오입력). "
+                "meta.polarionPatLength·polarionPatLikelyMisconfigured 확인. "
+                "curl Bearer ${#POLARION_PAT}≈44 와 meta.polarionPatFingerprint 일치·Variables Publish."
             ),
             "polarionRestSampleError": errors[0][:220],
         }

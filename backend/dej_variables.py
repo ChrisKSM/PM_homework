@@ -85,6 +85,12 @@ def process_env_lengths_for_keys(*keys: str) -> dict[str, int]:
     return {k: len(_normalize(os.getenv(k))) for k in keys}
 
 
+def polarion_pat_plausible(token: str) -> bool:
+    """Polarion User Settings PAT — 보통 36~80자 (760자 Variables 오입력 거부)."""
+    n = len(_normalize(token))
+    return 36 <= n <= 80
+
+
 def token_fingerprint(token: str) -> str:
     """PAT 값 노출 없이 Worker vs dpl Variables 일치 여부 비교용."""
     t = _normalize(token)

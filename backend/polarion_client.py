@@ -51,30 +51,55 @@ async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> htt
     raise last_exc or RuntimeError("Polarion request failed")
 
 
+_RESOLVED_POLARION_PAT_SOURCE = "none"
+
+
+def _polarion_pat_candidates() -> list[tuple[str, str]]:
+    import os
+
+    from dej_variables import dej_get
+
+    out: list[tuple[str, str]] = []
+    v = dej_get("POLARION_PAT")
+    if v:
+        out.append(("variables:POLARION_PAT", v))
+    e = (os.getenv("POLARION_PAT") or "").strip()
+    if e:
+        out.append(("env:POLARION_PAT", e))
+    s = (settings.polarion_pat or "").strip()
+    if s:
+        out.append(("settings.polarion_pat", s))
+    return out
+
+
+def _pick_polarion_pat(candidates: list[tuple[str, str]]) -> tuple[str, str]:
+    from dej_variables import polarion_pat_plausible
+
+    if not candidates:
+        return "", "none"
+    plausible = [c for c in candidates if polarion_pat_plausible(c[1])]
+    pool = plausible or candidates
+    source, token = max(pool, key=lambda pair: (-abs(len(pair[1]) - 44), pair[0]))
+    return token, source
+
+
 def polarion_pat() -> str:
     """
-    AxStudio: variables.get / os.environ 이 settings.polarion_pat(.env import 캐시) 보다 우선.
-    (stale .env 가 Variables 보다 앞서면 REST 401 — Jira 토큰 해석과 동일.)
+    variables.get · env · settings 중 Polarion PAT 길이가 타당한 값 선택.
+    Variables 에 760자 등 잘못 넣으면 .env/export 의 ~44자 PAT 로 폴백 (401 방지).
     """
-    token = runtime_get("POLARION_PAT")
-    if token:
-        return token
-    return (settings.polarion_pat or "").strip()
+    global _RESOLVED_POLARION_PAT_SOURCE
+    token, source = _pick_polarion_pat(_polarion_pat_candidates())
+    _RESOLVED_POLARION_PAT_SOURCE = source
+    return token
 
 
 def polarion_pat_source() -> str:
-    """PAT 출처 — 값 없이 진단용."""
-    from dej_variables import dej_get
-
-    if dej_get("POLARION_PAT"):
-        return "variables:POLARION_PAT"
-    import os
-
-    if (os.getenv("POLARION_PAT") or "").strip():
-        return "env:POLARION_PAT"
-    if (settings.polarion_pat or "").strip():
-        return "settings.polarion_pat"
-    return "none"
+    """실제 REST 에 쓰인 PAT 출처 (polarion_pat() 호출 후 의미 있음)."""
+    if _RESOLVED_POLARION_PAT_SOURCE != "none":
+        return _RESOLVED_POLARION_PAT_SOURCE
+    _, source = _pick_polarion_pat(_polarion_pat_candidates())
+    return source
 
 
 def polarion_pat_configured() -> bool:
