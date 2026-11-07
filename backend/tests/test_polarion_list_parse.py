@@ -21,10 +21,20 @@ def test_ootb_list_query_params_use_bracket_pagination(monkeypatch):
     from config import settings
 
     monkeypatch.setattr(settings, "polarion_base_url", "https://alm.example/polarion/rest/v1")
-    p = _list_query_params("type:PRD", 2, 25)
+    p = _list_query_params("type:PRD", 2, 25, list_path="workitems")
     assert p["page[number]"] == 2
     assert p["page[size]"] == 25
     assert "pageSize" not in p
+
+
+def test_ootb_workitems_prd_uses_legacy_page_params(monkeypatch):
+    from config import settings
+
+    monkeypatch.setattr(settings, "polarion_base_url", "https://alm.example/polarion/rest/v1")
+    p = _list_query_params("components:(H7_VI)", 1, 3, list_path="workitems/PRD")
+    assert p["page"] == 1
+    assert p["pageSize"] == 3
+    assert "page[number]" not in p
 
 
 def test_parse_ootb_rest_v1_json_api():

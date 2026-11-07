@@ -46,14 +46,21 @@ probe() {
 
   RESP_FILE=$(mktemp)
   if echo "$BASE" | grep -q '/rest/v1'; then
+    if echo "$PATH_SEG" | grep -q '/'; then
+      PAGE_NUMBER_KEY="page"
+      PAGE_SIZE_KEY="pageSize"
+    else
+      PAGE_NUMBER_KEY="page[number]"
+      PAGE_SIZE_KEY="page[size]"
+    fi
     HTTP=$(
       curl $CURL_K -sS -w "%{http_code}" -o "$RESP_FILE" \
         -H "Authorization: Bearer ${POLARION_PAT}" \
         -H "Accept: application/json" \
         --get "${BASE}/projects/${PROJECT}/${PATH_SEG}" \
         --data-urlencode "query=${QUERY}" \
-        --data-urlencode "page[number]=1" \
-        --data-urlencode "page[size]=3" 2>/dev/null || echo "000"
+        --data-urlencode "${PAGE_NUMBER_KEY}=1" \
+        --data-urlencode "${PAGE_SIZE_KEY}=3" 2>/dev/null || echo "000"
     )
   else
     HTTP=$(
@@ -124,4 +131,7 @@ echo "2) 둘 다 403 Administration → 토큰이 Polarion Personal Access Token
 echo "   Polarion: User Settings → Personal Access Token 발급 후 POLARION_PAT 교체."
 echo "3) MR 도 403 → .env POLARION_PAT 와 curl 에 넣은 Bearer 가 동일한지 확인 (pod 재시작)."
 echo ""
-echo "BE 경유 (동일 PAT): curl -s http://127.0.0.1:8000/api/model-status/prd?model=H7_VI | python3 -m json.tool | head -20"
+echo "BE 경유 (uvicorn 필수 — pkill 후 빈 응답이면):"
+echo "  sh scripts/be-restart-uvicorn-standalone.sh"
+echo "  curl -s http://127.0.0.1:8000/health && curl -s http://127.0.0.1:8000/api/model-status/prd?model=H7_VI | python3 -m json.tool | head -30"
+echo "OOTB PRD REST는 .../workitems 만 사용 (POLARION_PRD_REST_LIST_PATH=workitems). workitems/PRD 는 UI hash 용."

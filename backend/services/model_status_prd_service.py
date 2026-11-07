@@ -170,15 +170,23 @@ def build_prd_component_queries(model: str | None) -> list[str]:
 
 
 def _prd_list_path_candidates(primary: str) -> list[str]:
-    """REST customs — `workitems` 우선 (UI `workitems/PRD` 와 endpoint 다름)."""
+    """REST — `workitems` 우선 (UI `workitems/PRD` 는 hash 전용; OOTB REST 는 page[number] 400)."""
+    from polarion_client import _is_ootb_rest_v1
+
     seen: set[str] = set()
     out: list[str] = []
-    for p in (primary, "workitems", "workitems/PRD", "PRD"):
+    if _is_ootb_rest_v1():
+        seq = (primary, "workitems")
+    else:
+        seq = (primary, "workitems", "workitems/PRD", "PRD")
+    for p in seq:
         s = (p or "").strip().strip("/")
+        if _is_ootb_rest_v1() and s not in ("workitems",):
+            continue
         if s and s not in seen:
             seen.add(s)
             out.append(s)
-    return out
+    return out or ["workitems"]
 
 
 def _workitem_self_url(row: dict[str, Any], flat: dict[str, Any] | None = None) -> str:

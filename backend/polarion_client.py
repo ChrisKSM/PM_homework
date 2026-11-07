@@ -102,13 +102,40 @@ def _is_ootb_rest_v1() -> bool:
     return "/rest/v1" in u and "restful/customs" not in u
 
 
-def _list_query_params(query: str, page: int, page_size: int) -> dict[str, Any]:
-    if _is_ootb_rest_v1():
+def _list_path_segment(list_path: str | None) -> str:
+    return (
+        list_path
+        or getattr(settings, "polarion_list_path", "")
+        or "workitems"
+    ).strip().strip("/")
+
+
+def _ootb_uses_jsonapi_pagination(list_path: str | None) -> bool:
+    """
+    OOTB .../projects/{key}/workitems — page[number]/page[size].
+    UI alias .../workitems/PRD 는 page[number] 400 (diagnose 스크립트 확인).
+    """
+    if not _is_ootb_rest_v1():
+        return False
+    seg = _list_path_segment(list_path)
+    return seg == "workitems"
+
+
+def _list_query_params(
+    query: str,
+    page: int,
+    page_size: int,
+    *,
+    list_path: str | None = None,
+) -> dict[str, Any]:
+    if _ootb_uses_jsonapi_pagination(list_path):
         return {
             "query": query,
             "page[number]": page,
             "page[size]": page_size,
         }
+    if _is_ootb_rest_v1():
+        return {"query": query, "page": page, "pageSize": page_size}
     return {"query": query, "page": page, "pageSize": page_size}
 
 
@@ -196,7 +223,7 @@ async def fetch_list_page(
     list_path: str | None = None,
 ) -> tuple[list[dict[str, Any]], int]:
     """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
-    params = _list_query_params(query, page, page_size)
+    params = _list_query_params(query, page, page_size, list_path=list_path)
     resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
     return _parse_polarion_list_page(resp.json())
 
