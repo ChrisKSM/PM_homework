@@ -42,7 +42,7 @@ def test_h7_polarion_component_and_query():
 
 def test_build_prd_queries_contains_components():
     qs = build_prd_probe_queries(["Sound Suite H7"], model="H7_VI")
-    assert qs[0] == r'components:(SoundSuite_H7\(VI\) H7_VI)'
+    assert qs == [r"components:(SoundSuite_H7\(VI\) H7_VI)"]
     assert not any(q.startswith("title:") for q in qs)
 
 

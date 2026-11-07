@@ -61,7 +61,7 @@ if meta.get("polarionUrl"):
 wq = meta.get("winningQuery") or ""
 if "components:" not in wq:
     print("WARN: winningQuery에 components: 없음 — BE 패치/재시작 확인")
-expected = ("ootb-rest-v1-components",)
+expected = ("ootb-rest-v1-components-canonical", "ootb-rest-v1-components")
 pver = meta.get("prdFetchVersion") or ""
 if pver not in expected:
     print("WARN: prdFetchVersion=", repr(pver), "— patch-be-model-status-prd-from-github.sh 재실행·uvicorn 재시작")

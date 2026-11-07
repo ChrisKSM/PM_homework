@@ -39,7 +39,7 @@ APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
 
 # UI 목록 최대 건수 (Polarion page fetch 상한)
 PRD_LIST_LIMIT = 80
-PRD_FETCH_IMPL_VERSION = "ootb-rest-v1-components"
+PRD_FETCH_IMPL_VERSION = "ootb-rest-v1-components-canonical"
 
 PRD_TYPE_TOKENS: tuple[str, ...] = (
     "PRD",
@@ -165,8 +165,16 @@ def build_components_lucene_queries(comps: list[str]) -> list[str]:
     return _dedupe_queries(queries + typed, limit=16)
 
 
+def build_components_fetch_queries(comps: list[str]) -> list[str]:
+    """운영 PRD fetch — Polarion UI canonical 1개 (다중 Lucene probe → 429·지연 방지)."""
+    cleaned = [(c or "").strip() for c in comps if (c or "").strip()]
+    if not cleaned:
+        return []
+    return [build_components_query(cleaned)]
+
+
 def build_prd_component_queries(model: str | None) -> list[str]:
-    return build_components_lucene_queries(polarion_component_values_for_model(model))
+    return build_components_fetch_queries(polarion_component_values_for_model(model))
 
 
 def _prd_list_path_candidates(primary: str) -> list[str]:
@@ -302,7 +310,7 @@ def build_prd_probe_queries(terms: list[str], *, model: str | None = None) -> li
     """Lucene 후보 — 매핑된 모델은 components 만."""
     comps = polarion_component_values_for_model(model)
     if comps:
-        return build_components_lucene_queries(comps)
+        return build_components_fetch_queries(comps)
     queries: list[str] = []
     if not terms:
         return queries or ["type:PRD"]
@@ -324,7 +332,7 @@ def build_prd_discovery_queries(terms: list[str], *, model: str | None = None) -
     """type/필드명 불명일 때 — 매핑된 모델은 components 만."""
     comps = polarion_component_values_for_model(model)
     if comps:
-        return build_components_lucene_queries(comps)
+        return build_components_fetch_queries(comps)
     queries: list[str] = []
     for term in terms[:5]:
         qv = _quote_polarion_value(term)
@@ -682,22 +690,27 @@ async def _fetch_polarion_items(
     client_filter: bool = False,
     strict_model_scope: bool = False,
     enrich_details: bool = True,
+    preload_rows: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict] = []
     total = 0
-    for page in range(1, 6):
-        batch, total = await fetch_list_page(
-            page=page,
-            query=query,
-            page_size=100,
-            project_key=project_key,
-            list_path=list_path,
-        )
-        if not batch:
-            break
-        rows.extend(batch)
-        if len(rows) >= total or len(rows) >= limit * 3:
-            break
+    if preload_rows is not None:
+        rows = list(preload_rows)
+        total = len(rows)
+    else:
+        for page in range(1, 6):
+            batch, total = await fetch_list_page(
+                page=page,
+                query=query,
+                page_size=100,
+                project_key=project_key,
+                list_path=list_path,
+            )
+            if not batch:
+                break
+            rows.extend(batch)
+            if len(rows) >= total or len(rows) >= limit * 3:
+                break
     if client_filter and terms:
         match_fn = workitem_matches_model_scope if strict_model_scope else workitem_matches_apply_terms
         filtered = []
@@ -821,24 +834,13 @@ async def _try_components_queries(
     winning_path: str | None = None
     attempts: list[dict[str, Any]] = []
 
-    async def _pull(q: str, path: str) -> list[dict[str, Any]]:
-        return await _fetch_polarion_items(
-            q,
-            project_key,
-            limit=PRD_LIST_LIMIT,
-            list_path=path,
-            client_filter=False,
-            enrich_details=True,
-        )
-
     canonical = build_components_query(comps) if comps else None
-    lucene_qs = build_components_lucene_queries(comps) if comps else []
+    lucene_qs = build_components_fetch_queries(comps) if comps else []
 
     if comps and lucene_qs:
         for path in paths:
             for q in lucene_qs:
                 batch: list[dict[str, Any]] = []
-                err: str | None = None
                 try:
                     _rows, total = await fetch_list_page(
                         page=1,
@@ -855,15 +857,35 @@ async def _try_components_queries(
                             "listed": len(_rows),
                         }
                     )
-                    batch = await _pull(q, path)
+                    if not _rows and not total:
+                        continue
+                    page_size = min(PRD_LIST_LIMIT, 100)
+                    preload = _rows if _rows and total <= len(_rows) and total <= page_size else None
+                    batch = await _fetch_polarion_items(
+                        q,
+                        project_key,
+                        limit=PRD_LIST_LIMIT,
+                        list_path=path,
+                        client_filter=False,
+                        enrich_details=True,
+                        preload_rows=preload,
+                    )
                 except Exception as e:
-                    err = str(e)[:160]
-                    attempts.append({"restPath": path, "query": q, "error": err})
+                    attempts.append(
+                        {
+                            "restPath": path,
+                            "query": q,
+                            "error": str(e)[:160],
+                        }
+                    )
+                    continue
                 for it in batch:
                     merged[it["id"]] = it
+                if batch:
+                    winning_query = canonical or q
+                    winning_path = path
+                    break
             if merged:
-                winning_query = canonical
-                winning_path = path
                 break
 
     if merged:
