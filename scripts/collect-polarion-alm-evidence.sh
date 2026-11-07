@@ -108,7 +108,7 @@ async def probe(label, project, path, query):
     ) as client:
         from polarion_client import _list_query_params
 
-        r = await client.get(url, params=_list_query_params(query, 1, 3))
+        r = await client.get(url, params=_list_query_params(query, 1, 3, list_path=path))
     if "RelProj" in project or project == settings.polarion_project_key:
         MR_HTTP = r.status_code
     if "ReqMgmt" in project or project == getattr(settings, "polarion_prd_project_key", ""):
