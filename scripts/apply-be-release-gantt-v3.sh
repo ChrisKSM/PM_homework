@@ -1,0 +1,68 @@
+#!/bin/sh
+# BE pod — 릴리즈 Gantt 패치 (CDN 구버전 apply/fix 스크립트 우회)
+# 커밋 핀 URL — raw cache miss:
+#   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/efe837f/scripts/apply-be-release-gantt-v3.sh" | sh
+#
+# 또는 pod:
+#   REF_SHA=efe837f sh scripts/apply-be-release-gantt-v3.sh
+set -e
+cd /workspace/project 2>/dev/null || cd "$(dirname "$0")/.."
+REF_SHA="${REF_SHA:-825b737}"
+BASE="https://raw.githubusercontent.com/ChrisKSM/PM_homework/${REF_SHA}"
+ROOT="${ROOT:-/workspace/project}"
+cd "$ROOT"
+
+echo "=== apply-be-release-gantt-v3 (git $REF_SHA) ==="
+
+fetch() {
+  curl -fsSL -H "Cache-Control: no-cache" -H "Pragma: no-cache" "$BASE/$1" -o "$2"
+  echo "  + $2"
+}
+
+mkdir -p scripts services routers
+fetch backend/jira_client.py jira_client.py
+fetch backend/tvjira_client.py tvjira_client.py
+fetch backend/services/release_gantt_service.py services/release_gantt_service.py
+if grep -E 'AND cf\[[0-9]+\]' services/release_gantt_service.py >/dev/null 2>&1; then
+  echo "  NG  release_gantt_service.py uses cf[…] in JQL (TV Jira 400). REF_SHA=$REF_SHA 확인"
+  exit 1
+fi
+grep -q '"Epic Link"' services/release_gantt_service.py \
+  && grep -q 'RELEASE_GANTT_SERVICE_BUILD' services/release_gantt_service.py \
+  && echo "  OK  Milestone JQL uses Epic Link (not cf[10801])" \
+  || { echo "  NG  Epic Link milestone JQL missing — wrong REF_SHA?"; exit 1; }
+fetch backend/services/release_sprint_calendar_2026.py services/release_sprint_calendar_2026.py
+grep -q 'def nearest_sprint_for_day' services/release_sprint_calendar_2026.py \
+  && echo "  OK  release_sprint_calendar_2026 (nearest_sprint_for_day)" \
+  || {
+    echo "  NG  calendar 파일 구버전 — release_gantt_service 와 쌍으로 배포 필요"
+    exit 1
+  }
+fetch backend/services/initiative_sp_kpi_service.py services/initiative_sp_kpi_service.py
+fetch backend/routers/model_status.py routers/model_status.py
+fetch scripts/patch-config-release-gantt-fixversion.sh scripts/patch-config-release-gantt-fixversion.sh
+chmod +x scripts/patch-config-release-gantt-fixversion.sh 2>/dev/null || true
+sh scripts/patch-config-release-gantt-fixversion.sh
+fetch scripts/diagnose-release-gantt-jira.sh scripts/diagnose-release-gantt-jira.sh
+fetch scripts/verify-release-gantt-be.sh scripts/verify-release-gantt-be.sh
+chmod +x scripts/diagnose-release-gantt-jira.sh scripts/verify-release-gantt-be.sh
+
+PY="uv run --frozen python"
+command -v uv >/dev/null 2>&1 || PY="python3"
+$PY -c "from services import release_gantt_service; import main; print('  OK  import main')"
+
+grep -q 'diagnose-counts' routers/model_status.py && echo "  OK  diagnose-counts route" || echo "  !!  router missing diagnose-counts"
+grep -q 'demo-milestones' routers/model_status.py && echo "  OK  demo-milestones route" || echo "  !!  demo-milestones route missing"
+grep -q 'story-sp-kpi' routers/model_status.py && echo "  OK  story-sp-kpi route" || echo "  !!  story-sp-kpi missing — REF_SHA bump"
+test -f services/initiative_sp_kpi_service.py && echo "  OK  initiative_sp_kpi_service.py" || exit 1
+
+if [ -x scripts/restart-be-route-port.sh ]; then
+  sh scripts/restart-be-route-port.sh
+else
+  echo "  → sh scripts/restart-be-route-port.sh 수동 실행"
+fi
+
+echo ""
+echo "=== next ==="
+echo "  sh scripts/diagnose-release-gantt-jira.sh"
+echo "  curl -sG http://127.0.0.1:8000/api/model-status/release/gantt/diagnose-counts --data-urlencode model=H7_VI --data-urlencode label=SoundSuite_H7\\(VI\\) | python3 -m json.tool"

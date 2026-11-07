@@ -11,6 +11,7 @@ from typing import Any
 import httpx
 
 from config import settings
+from dej_variables import runtime_get
 
 if not settings.polarion_verify_ssl:
     warnings.filterwarnings("ignore", message="Unverified HTTPS request")
@@ -50,9 +51,85 @@ async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> htt
     raise last_exc or RuntimeError("Polarion request failed")
 
 
+_RESOLVED_POLARION_PAT_SOURCE = "none"
+
+
+def _polarion_pat_candidates() -> list[tuple[str, str]]:
+    import os
+
+    from dej_variables import dej_get
+
+    out: list[tuple[str, str]] = []
+    v = dej_get("POLARION_PAT")
+    if v:
+        out.append(("variables:POLARION_PAT", v))
+    e = (os.getenv("POLARION_PAT") or "").strip()
+    if e:
+        out.append(("env:POLARION_PAT", e))
+    s = (settings.polarion_pat or "").strip()
+    if s:
+        out.append(("settings.polarion_pat", s))
+    return out
+
+
+_POLARION_PAT_SOURCE_PRIORITY = (
+    "variables:POLARION_PAT",
+    "env:POLARION_PAT",
+    "settings.polarion_pat",
+)
+
+
+def _pick_polarion_pat(candidates: list[tuple[str, str]]) -> tuple[str, str]:
+    from dej_variables import normalize_polarion_pat, polarion_pat_plausible
+
+    normed: list[tuple[str, str]] = []
+    for source, raw in candidates:
+        token = normalize_polarion_pat(raw)
+        if token:
+            normed.append((source, token))
+    if not normed:
+        return "", "none"
+    for prefer in _POLARION_PAT_SOURCE_PRIORITY:
+        for source, token in normed:
+            if source == prefer and polarion_pat_plausible(token):
+                return token, source
+    for prefer in _POLARION_PAT_SOURCE_PRIORITY:
+        for source, token in normed:
+            if source == prefer:
+                return token, source
+    return normed[0][1], normed[0][0]
+
+
+def polarion_pat() -> str:
+    """
+    variables.get → env → settings (Worker 기준). JWT(eyJ…) 또는 classic PAT 정규화.
+    .env 의 다른 토큰으로 Variables JWT 를 덮어쓰지 않음.
+    """
+    global _RESOLVED_POLARION_PAT_SOURCE
+    token, source = _pick_polarion_pat(_polarion_pat_candidates())
+    _RESOLVED_POLARION_PAT_SOURCE = source
+    return token
+
+
+def polarion_pat_source() -> str:
+    """실제 REST 에 쓰인 PAT 출처 (polarion_pat() 호출 후 의미 있음)."""
+    if _RESOLVED_POLARION_PAT_SOURCE != "none":
+        return _RESOLVED_POLARION_PAT_SOURCE
+    _, source = _pick_polarion_pat(_polarion_pat_candidates())
+    return source
+
+
+def polarion_pat_configured() -> bool:
+    return bool(polarion_pat())
+
+
+def _polarion_pat() -> str:
+    return polarion_pat()
+
+
 def _headers() -> dict[str, str]:
     return {
-        "Authorization": f"Bearer {settings.polarion_pat}",
+        "Authorization": f"Bearer {_polarion_pat()}",
         "Accept": "application/json",
     }
 
@@ -61,9 +138,53 @@ def _base_url() -> str:
     return settings.polarion_base_url.rstrip("/")
 
 
-def _list_endpoint() -> str:
-    path = (getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
-    return f"{_base_url()}/projects/{settings.polarion_project_key}/{path}"
+def _is_ootb_rest_v1() -> bool:
+    """OOTB .../polarion/rest/v1 vs customs .../restful/customs/v1."""
+    u = _base_url().lower()
+    return "/rest/v1" in u and "restful/customs" not in u
+
+
+def _list_path_segment(list_path: str | None) -> str:
+    return (
+        list_path
+        or getattr(settings, "polarion_list_path", "")
+        or "workitems"
+    ).strip().strip("/")
+
+
+def _ootb_uses_jsonapi_pagination(list_path: str | None) -> bool:
+    """
+    OOTB .../projects/{key}/workitems — page[number]/page[size].
+    UI alias .../workitems/PRD 는 page[number] 400 (diagnose 스크립트 확인).
+    """
+    if not _is_ootb_rest_v1():
+        return False
+    seg = _list_path_segment(list_path)
+    return seg == "workitems"
+
+
+def _list_query_params(
+    query: str,
+    page: int,
+    page_size: int,
+    *,
+    list_path: str | None = None,
+) -> dict[str, Any]:
+    if _ootb_uses_jsonapi_pagination(list_path):
+        return {
+            "query": query,
+            "page[number]": page,
+            "page[size]": page_size,
+        }
+    if _is_ootb_rest_v1():
+        return {"query": query, "page": page, "pageSize": page_size}
+    return {"query": query, "page": page, "pageSize": page_size}
+
+
+def _list_endpoint(project_key: str | None = None, list_path: str | None = None) -> str:
+    path = (list_path or getattr(settings, "polarion_list_path", "") or "workitems").strip("/")
+    key = (project_key or settings.polarion_project_key).strip()
+    return f"{_base_url()}/projects/{key}/{path}"
 
 
 def _safe_text(attrs: dict, key: str) -> str:
@@ -78,39 +199,75 @@ def _safe_text(attrs: dict, key: str) -> str:
     return str(val).strip()
 
 
-async def fetch_list_page(
-    page: int = 1,
-    query: str = "type:testDefect",
-    page_size: int = 100,
-) -> tuple[list[dict[str, Any]], int]:
-    """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
-    params: dict[str, Any] = {
-        "query": query,
-        "page": page,
-        "pageSize": page_size,
-    }
-    resp = await _get_with_retry(_list_endpoint(), params=params)
-    data = resp.json()
+def _unwrap_ootb_workitem(row: dict[str, Any]) -> dict[str, Any]:
+    """Polarion rest/v1 JSON:API → flat row (attributes + id + links)."""
+    if "attributes" in row and isinstance(row.get("attributes"), dict):
+        flat = dict(row["attributes"])
+        if row.get("id") and not flat.get("id"):
+            flat["id"] = row["id"]
+        if row.get("links"):
+            flat["links"] = row["links"]
+        return flat
+    return row
 
-    # 응답 구조: {"data": [{"page":1, "totalCount":N, "workitems":[...]}]}
-    #         또는 [{"page":1, ...}]
-    #         또는 {"workitems":[...]}
+
+def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
+    """Polarion rest/v1 (JSON:API) · customs list JSON → (workitems, totalCount)."""
+    if isinstance(data, dict) and isinstance(data.get("data"), list):
+        raw_list = data["data"]
+        if raw_list and isinstance(raw_list[0], dict) and (
+            "attributes" in raw_list[0] or raw_list[0].get("type") == "workitems"
+        ):
+            workitems = [_unwrap_ootb_workitem(it) for it in raw_list if isinstance(it, dict)]
+            meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+            total_raw = meta.get("totalCount", meta.get("total", meta.get("totalItems")))
+            try:
+                total_count = int(total_raw) if total_raw is not None else len(workitems)
+            except (TypeError, ValueError):
+                total_count = len(workitems)
+            return workitems, total_count
+
+    obj: dict[str, Any] | None = None
     if isinstance(data, dict) and "data" in data:
         inner = data["data"]
-        obj = inner[0] if isinstance(inner, list) and inner else inner
+        if isinstance(inner, list) and inner:
+            obj = inner[0] if isinstance(inner[0], dict) else None
+        elif isinstance(inner, dict):
+            obj = inner
     elif isinstance(data, list) and data and isinstance(data[0], dict):
         obj = data[0]
     elif isinstance(data, dict):
         obj = data
-    else:
+
+    if not obj:
         return [], 0
 
-    if not isinstance(obj, dict):
-        return [], 0
+    workitems: list[dict[str, Any]] = []
+    for key in ("workitems", "workItems", "items", "Workitems", "WorkItems"):
+        raw = obj.get(key)
+        if isinstance(raw, list):
+            workitems = [_unwrap_ootb_workitem(it) if isinstance(it, dict) else it for it in raw]
+            break
 
-    workitems = obj.get("workitems", [])
-    total_count = obj.get("totalCount", len(workitems))
+    total_raw = obj.get("totalCount", obj.get("total", obj.get("totalItems")))
+    try:
+        total_count = int(total_raw) if total_raw is not None else len(workitems)
+    except (TypeError, ValueError):
+        total_count = len(workitems)
     return workitems, total_count
+
+
+async def fetch_list_page(
+    page: int = 1,
+    query: str = "type:testDefect",
+    page_size: int = 100,
+    project_key: str | None = None,
+    list_path: str | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
+    params = _list_query_params(query, page, page_size, list_path=list_path)
+    resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
+    return _parse_polarion_list_page(resp.json())
 
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:

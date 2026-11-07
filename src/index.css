@@ -1,3 +1,26 @@
+/* 전 모델 일정 — 가로 스크롤바 (기본 thin 스크롤보다 크게) */
+.overview-schedule-scroll {
+  scrollbar-width: auto;
+  scrollbar-color: #64748b #e2e8f0;
+}
+.overview-schedule-scroll::-webkit-scrollbar {
+  height: 16px;
+}
+.overview-schedule-scroll::-webkit-scrollbar-track {
+  background: #e2e8f0;
+  border-radius: 8px;
+  margin: 0 4px;
+}
+.overview-schedule-scroll::-webkit-scrollbar-thumb {
+  background: #64748b;
+  border-radius: 8px;
+  border: 3px solid #e2e8f0;
+  min-width: 48px;
+}
+.overview-schedule-scroll::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
