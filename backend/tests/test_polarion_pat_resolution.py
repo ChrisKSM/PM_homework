@@ -1,8 +1,8 @@
-"""Polarion PAT — 길이 타당성 + variables/env/settings 선택."""
+"""Polarion PAT — JWT Variables · classic PAT · source 우선순위."""
 from polarion_client import polarion_pat, polarion_pat_source
 
 _PAT44 = "a" * 44
-_LONG760 = "b" * 760
+_FAKE_JWT = "eyJ" + "a" * 200 + "." + "b" * 200 + "." + "c" * 64
 
 
 def test_polarion_pat_prefers_plausible_variables(monkeypatch):
@@ -21,7 +21,7 @@ def test_polarion_pat_prefers_plausible_variables(monkeypatch):
     assert polarion_pat_source() == "variables:POLARION_PAT"
 
 
-def test_polarion_pat_skips_implausible_variables_for_env(monkeypatch):
+def test_polarion_pat_variables_jwt_over_stale_env(monkeypatch):
     from config import settings
 
     monkeypatch.setattr(settings, "polarion_pat", "stale-from-dotenv")
@@ -30,14 +30,14 @@ def test_polarion_pat_skips_implausible_variables_for_env(monkeypatch):
     import dej_variables
 
     monkeypatch.setattr(
-        dej_variables, "dej_get", lambda key: _LONG760 if key == "POLARION_PAT" else ""
+        dej_variables, "dej_get", lambda key: _FAKE_JWT if key == "POLARION_PAT" else ""
     )
 
-    assert polarion_pat() == _PAT44
-    assert polarion_pat_source() == "env:POLARION_PAT"
+    assert polarion_pat() == _FAKE_JWT
+    assert polarion_pat_source() == "variables:POLARION_PAT"
 
 
-def test_polarion_pat_env_before_settings(monkeypatch):
+def test_polarion_pat_env_when_no_variables(monkeypatch):
     from config import settings
 
     monkeypatch.setattr(settings, "polarion_pat", "stale-from-dotenv")

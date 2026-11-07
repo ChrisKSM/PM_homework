@@ -72,21 +72,38 @@ def _polarion_pat_candidates() -> list[tuple[str, str]]:
     return out
 
 
-def _pick_polarion_pat(candidates: list[tuple[str, str]]) -> tuple[str, str]:
-    from dej_variables import polarion_pat_plausible
+_POLARION_PAT_SOURCE_PRIORITY = (
+    "variables:POLARION_PAT",
+    "env:POLARION_PAT",
+    "settings.polarion_pat",
+)
 
-    if not candidates:
+
+def _pick_polarion_pat(candidates: list[tuple[str, str]]) -> tuple[str, str]:
+    from dej_variables import normalize_polarion_pat, polarion_pat_plausible
+
+    normed: list[tuple[str, str]] = []
+    for source, raw in candidates:
+        token = normalize_polarion_pat(raw)
+        if token:
+            normed.append((source, token))
+    if not normed:
         return "", "none"
-    plausible = [c for c in candidates if polarion_pat_plausible(c[1])]
-    pool = plausible or candidates
-    source, token = max(pool, key=lambda pair: (-abs(len(pair[1]) - 44), pair[0]))
-    return token, source
+    for prefer in _POLARION_PAT_SOURCE_PRIORITY:
+        for source, token in normed:
+            if source == prefer and polarion_pat_plausible(token):
+                return token, source
+    for prefer in _POLARION_PAT_SOURCE_PRIORITY:
+        for source, token in normed:
+            if source == prefer:
+                return token, source
+    return normed[0][1], normed[0][0]
 
 
 def polarion_pat() -> str:
     """
-    variables.get · env · settings 중 Polarion PAT 길이가 타당한 값 선택.
-    Variables 에 760자 등 잘못 넣으면 .env/export 의 ~44자 PAT 로 폴백 (401 방지).
+    variables.get → env → settings (Worker 기준). JWT(eyJ…) 또는 classic PAT 정규화.
+    .env 의 다른 토큰으로 Variables JWT 를 덮어쓰지 않음.
     """
     global _RESOLVED_POLARION_PAT_SOURCE
     token, source = _pick_polarion_pat(_polarion_pat_candidates())

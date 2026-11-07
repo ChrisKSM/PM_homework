@@ -541,7 +541,11 @@ def analyze_workitems_for_apply_fields(
 
 
 def _polarion_pat_meta_fields() -> dict[str, Any]:
-    from dej_variables import token_fingerprint, variables_get_length_detail
+    from dej_variables import (
+        polarion_pat_plausible,
+        token_fingerprint,
+        variables_get_length_detail,
+    )
     from polarion_client import polarion_pat, polarion_pat_source
 
     pat = polarion_pat()
@@ -564,24 +568,28 @@ def _polarion_pat_meta_fields() -> dict[str, Any]:
     if vg_len > 80 and eff_fp and vg_fp and eff_fp != vg_fp:
         out["polarionPatMismatch"] = (
             f"AxStudio POLARION_PAT variables.get len={vg_len} (fingerprint ≠ effective). "
-            "Polarion User Settings PAT 만 ~44자로 Variables 교체·Publish. "
-            "지금 BE 는 .env/env 의 토큰을 쓰는 중이면 Worker Route pod 도 동일하게 맞출 것."
+            "Worker .env POLARION_PAT 와 Variables 동일 JWT/PAT 로 맞추고 Publish 후 uvicorn 재시작."
         )
     elif settings_pat and pat and token_fingerprint(settings_pat) != eff_fp:
         out["polarionPatMismatch"] = (
             "settings.polarion_pat(.env) ≠ effective PAT. curl $POLARION_PAT fingerprint 와 맞추세요."
         )
 
-    if len(pat) > 128:
+    from dej_variables import looks_like_jwt_bearer
+
+    if pat and not polarion_pat_plausible(pat):
         out["polarionPatLikelyMisconfigured"] = (
-            f"effective POLARION_PAT len={len(pat)} — 44자 전후가 아님. REST 401 원인. "
-            "sh scripts/diagnose-polarion-pat.sh 와 shell len ${#POLARION_PAT} 비교."
+            f"effective POLARION_PAT len={len(pat)} — eyJ JWT 또는 classic PAT 형식이 아님. "
+            "sh scripts/diagnose-polarion-pat.sh"
         )
-    elif vg_len > 80 and len(pat) <= 80:
+    elif eff_fp and vg_fp and eff_fp != vg_fp:
         out["polarionPatLikelyMisconfigured"] = (
-            f"variables.get POLARION_PAT len={vg_len} — AxStudio Variables 값이 PAT 전체가 아님. "
-            "44자 Personal Access Token 만 등록 후 Publish."
+            "effective PAT ≠ variables.get — pod .env 가 Worker Variables 와 다름."
         )
+    elif pat and looks_like_jwt_bearer(pat):
+        out["polarionPatFormat"] = "jwt"
+    elif pat and 36 <= len(pat) <= 80:
+        out["polarionPatFormat"] = "classic"
 
     if env_pat and eff_fp and token_fingerprint(env_pat) == eff_fp:
         out["polarionPatEnvLength"] = len(env_pat)
@@ -612,9 +620,8 @@ def _summarize_polarion_fetch_attempts(
     if "401" in blob or "unauthorized" in blob:
         return {
             "polarionRestHint": (
-                "REST 401 — POLARION_PAT 만료·오타, 또는 Variables len≫44(오입력). "
-                "meta.polarionPatLength·polarionPatLikelyMisconfigured 확인. "
-                "curl Bearer ${#POLARION_PAT}≈44 와 meta.polarionPatFingerprint 일치·Variables Publish."
+                "REST 401 — POLARION_PAT 만료·오타, 또는 Worker .env ≠ Variables(JWT). "
+                "meta.polarionPatFingerprint = diagnose curl Bearer fingerprint · Publish · uvicorn 재시작."
             ),
             "polarionRestSampleError": errors[0][:220],
         }
