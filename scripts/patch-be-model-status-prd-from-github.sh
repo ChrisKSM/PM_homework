@@ -28,7 +28,8 @@ fetch() {
   echo "  + $2"
 }
 
-echo "=== model-status PRD + sprint (TV worklog) @ $REF (flat pod paths) ==="
+PATCH_BUNDLE_ID="prd-patch-2026-02-dej-variables"
+echo "=== model-status PRD + sprint (TV worklog) @ $REF ($PATCH_BUNDLE_ID) ==="
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
 fetch backend/services/model_status_prd_labels.py services/model_status_prd_labels.py
 fetch backend/services/model_status_prd_status.py services/model_status_prd_status.py
@@ -46,6 +47,7 @@ fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.s
 fetch scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-prd-fetch.sh
 fetch scripts/verify-model-status-sprint-be.sh scripts/verify-model-status-sprint-be.sh
 fetch scripts/diagnose-model-status-gantt-400.sh scripts/diagnose-model-status-gantt-400.sh
+fetch scripts/diagnose-model-status-prd-502.sh scripts/diagnose-model-status-prd-502.sh
 fetch scripts/print-prd-polarion-query-urls.sh scripts/print-prd-polarion-query-urls.sh
 fetch scripts/probe-polarion-prd-rest.sh scripts/probe-polarion-prd-rest.sh
 fetch scripts/diagnose-polarion-pat.sh scripts/diagnose-polarion-pat.sh
@@ -54,6 +56,18 @@ fetch scripts/fetch-polarion-diagnose-scripts.sh scripts/fetch-polarion-diagnose
 fetch scripts/patch-model-status-be-fe.sh scripts/patch-model-status-be-fe.sh
 chmod +x scripts/print-prd-polarion-query-urls.sh scripts/probe-polarion-prd-rest.sh scripts/diagnose-polarion-pat.sh scripts/curl-polarion-prd-verbose.sh scripts/fetch-polarion-diagnose-scripts.sh scripts/patch-model-status-be-fe.sh 2>/dev/null || true
 chmod +x scripts/patch-be-main-model-status.sh scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-sprint-be.sh scripts/diagnose-model-status-gantt-400.sh 2>/dev/null || true
+
+PY="${PY:-python3}"
+command -v "$PY" >/dev/null 2>&1 || PY=python
+
+echo "=== PRD patch preflight (dej_variables + polarion_client) ==="
+if ! "$PY" -c "from dej_variables import normalize_polarion_pat, looks_like_jwt_bearer; from polarion_client import polarion_pat" 2>/tmp/prd-patch-preflight.err; then
+  echo "ERROR: dej_variables.py / polarion_client.py 불일치 — 502 원인"
+  sed -n '1,12p' /tmp/prd-patch-preflight.err
+  echo "  수동: curl -fsSL \"${BASE}/backend/dej_variables.py\" -o dej_variables.py"
+  exit 1
+fi
+echo "  OK  dej_variables + polarion_client import"
 
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then
   echo "ERROR: routers/model_status.py 에 /prd 라우트 없음" >&2
@@ -79,6 +93,12 @@ if [ "$PRD_CODE" = "404" ]; then
   echo "  NG  still 404 — routers/model_status.py 가 uvicorn cwd와 일치하는지 확인 (pwd=$(pwd))"
   echo "      ls -la routers/model_status.py; grep prd routers/model_status.py"
   exit 1
+fi
+if [ "$PRD_CODE" = "502" ]; then
+  echo "  NG  model-status/prd HTTP 502 — detail:"
+  curl -s "http://127.0.0.1:8000/api/model-status/prd?model=H7_VI&probe=true" \
+    | "$PY" -m json.tool 2>/dev/null | head -12 || true
+  echo "  → grep normalize_polarion_pat dej_variables.py || curl .../dej_variables.py"
 fi
 
 echo "=== probe H7_VI ==="

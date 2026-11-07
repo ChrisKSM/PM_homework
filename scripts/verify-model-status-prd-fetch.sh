@@ -1,6 +1,7 @@
 #!/bin/sh
 # BE pod — PRD ALM fetch smoke (H7_VI → components on AVSWReqMgmt/workitems/PRD)
 set -e
+# PRD 502 시 curl -f 를 쓰지 않음 (본문 detail 확인)
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
 MODEL="${MODEL:-H7_VI}"
 
@@ -30,12 +31,15 @@ if [ "$PRD_HEAD" = "404" ]; then
   echo "NG  /prd 404 — patch-be-model-status-prd-from-github.sh 재실행"
   exit 1
 fi
+if [ "$LIST_HEAD" != "200" ]; then
+  echo "SKIP  UI list parse (HTTP $LIST_HEAD)"
+else
 if ! command -v python3 >/dev/null 2>&1; then
-  curl -fsS "$LIST_URL"
+  curl -sS "$LIST_URL"
   exit 0
 fi
 
-curl -fsS "$LIST_URL" | python3 -c '
+curl -sS "$LIST_URL" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 meta = d.get("meta") or {}
@@ -66,9 +70,14 @@ elif meta.get("source") != "polarion+components" and len(items) < 1:
 if len(items) < 1:
     print("WARN: 0건 — Polarion PAT / AVSWReqMgmt / workitems/PRD 확인")
 '
+fi
 
 echo ""
-curl -fsS "$PROBE_URL" | python3 -c '
+if [ "$PRD_HEAD" != "200" ]; then
+  echo "SKIP  probe parse (HTTP $PRD_HEAD)"
+  exit 0
+fi
+curl -sS "$PROBE_URL" | python3 -c '
 import json, sys
 d = json.load(sys.stdin)
 meta = d.get("meta") or {}
