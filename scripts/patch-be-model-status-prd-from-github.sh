@@ -40,6 +40,7 @@ fetch backend/tests/test_model_status_sprint.py tests/test_model_status_sprint.p
 fetch backend/tests/test_model_status_prd.py tests/test_model_status_prd.py
 fetch backend/routers/model_status.py routers/model_status.py
 fetch backend/config.py config.py
+fetch backend/dej_variables.py dej_variables.py
 fetch backend/polarion_client.py polarion_client.py
 fetch scripts/patch-be-main-model-status.sh scripts/patch-be-main-model-status.sh
 fetch scripts/verify-model-status-prd-fetch.sh scripts/verify-model-status-prd-fetch.sh

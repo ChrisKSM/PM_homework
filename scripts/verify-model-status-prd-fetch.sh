@@ -16,6 +16,14 @@ fi
 echo "GET $LIST_URL  (모델현황 PRD 탭 — probe 없음)"
 LIST_HEAD=$(curl -s -o /dev/null -w "%{http_code}" "$LIST_URL" 2>/dev/null || echo "000")
 echo "  HTTP $LIST_HEAD"
+if [ "$LIST_HEAD" = "502" ]; then
+  echo "  502 body (detail):"
+  curl -s "$LIST_URL" 2>/dev/null | python3 -m json.tool 2>/dev/null | head -8 || curl -s "$LIST_URL" 2>/dev/null | head -c 400
+  echo ""
+  if ! python3 -c "from dej_variables import normalize_polarion_pat" 2>/dev/null; then
+    echo "  NG  dej_variables.py 구버전 — patch 에서 dej_variables.py 포함 여부 확인"
+  fi
+fi
 echo "GET $PROBE_URL  (components probe — discover 사용 안 함)"
 PRD_HEAD=$(curl -s -o /dev/null -w "%{http_code}" "$PROBE_URL" 2>/dev/null || echo "000")
 if [ "$PRD_HEAD" = "404" ]; then
