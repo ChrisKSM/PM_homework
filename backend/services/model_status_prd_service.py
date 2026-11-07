@@ -18,6 +18,7 @@ from polarion_client import (
     _safe_text,
     fetch_list_page,
     flatten_workitem,
+    polarion_pat_configured,
     workitem_id,
 )
 from services.model_status_initiative_service import normalize_model_code
@@ -531,6 +532,32 @@ def analyze_workitems_for_apply_fields(
     }
 
 
+def _polarion_pat_meta_fields() -> dict[str, Any]:
+    from dej_variables import token_fingerprint, variables_get_length_detail
+    from polarion_client import polarion_pat, polarion_pat_source
+
+    pat = polarion_pat()
+    vg = variables_get_length_detail("POLARION_PAT")
+    out: dict[str, Any] = {
+        "polarionConfigured": polarion_pat_configured(),
+        "polarionPatLength": len(pat),
+        "polarionPatFingerprint": token_fingerprint(pat) if pat else "",
+        "polarionPatSource": polarion_pat_source(),
+        "variables_get_polarion_pat": vg,
+    }
+    settings_pat = (settings.polarion_pat or "").strip()
+    if settings_pat and pat and token_fingerprint(settings_pat) != token_fingerprint(pat):
+        out["polarionPatMismatch"] = (
+            "settings.polarion_pat(.env) ≠ effective PAT — BE 는 Variables/env 우선. "
+            ".env 의 오래된 POLARION_PAT 를 비우거나 curl 과 동일 값으로 맞추세요."
+        )
+    elif settings_pat and pat and vg.get("fingerprint") and token_fingerprint(pat) != vg.get("fingerprint"):
+        out["polarionPatMismatch"] = (
+            "effective PAT fingerprint ≠ variables.get — Pod 재시작 또는 Variables 재등록."
+        )
+    return out
+
+
 def _summarize_polarion_fetch_attempts(
     attempts: list[dict[str, Any]] | None,
 ) -> dict[str, Any] | None:
@@ -552,8 +579,9 @@ def _summarize_polarion_fetch_attempts(
     if "401" in blob or "unauthorized" in blob:
         return {
             "polarionRestHint": (
-                "REST 401 — POLARION_PAT 만료·오타 또는 AxStudio Variables ≠ Worker .env. "
-                "Polarion User Settings → Personal Access Token 재발급 후 Variables 삭제·재등록."
+                "REST 401 — POLARION_PAT 만료·오타, 또는 stale Worker .env(settings.polarion_pat) ≠ Variables. "
+                "Polarion User Settings → Personal Access Token 재발급 후 Variables 삭제·재등록. "
+                "sh scripts/diagnose-polarion-pat.sh · meta.polarionPatSource / polarionPatFingerprint."
             ),
             "polarionRestSampleError": errors[0][:220],
         }
@@ -1099,7 +1127,7 @@ async def get_prd_for_model(
         winning_query = canonical_components_query
         winning_list_path = prd_rest_path
 
-    if probe and (settings.polarion_pat or "").strip():
+    if probe and polarion_pat_configured():
         probe_qs = (
             build_prd_component_queries(model) if component_scoped else probe_queries
         )
@@ -1113,7 +1141,7 @@ async def get_prd_for_model(
                     winning_query = str(pr["query"])
                     break
 
-    if (settings.polarion_pat or "").strip() and component_scoped:
+    if polarion_pat_configured() and component_scoped:
         items, wq, comp_path, polarion_fetch_attempts = await _try_components_queries(
             proj, model, terms, list_path=prd_rest_path
         )
@@ -1122,7 +1150,7 @@ async def get_prd_for_model(
         if items:
             source = "polarion+components"
 
-    if (settings.polarion_pat or "").strip() and list_mode and not items and not component_scoped:
+    if polarion_pat_configured() and list_mode and not items and not component_scoped:
         items, winning_query = await _try_title_term_queries(
             proj, terms, list_path=prd_rest_path
         )
@@ -1130,14 +1158,14 @@ async def get_prd_for_model(
             source = "polarion+title"
             winning_list_path = prd_rest_path
 
-    if (settings.polarion_pat or "").strip() and list_mode and not items and not component_scoped:
+    if polarion_pat_configured() and list_mode and not items and not component_scoped:
         items, winning_query = await _try_tight_apply_model_queries(
             proj, terms, probe_queries, list_path=prd_rest_path
         )
         if items:
             source = "polarion+applyModel"
 
-    if (settings.polarion_pat or "").strip() and list_mode and effective_discover and not items:
+    if polarion_pat_configured() and list_mode and effective_discover and not items:
         discovery = await _run_discovery(proj, terms, model=model, list_path=prd_rest_path)
         items, winning_query, winning_list_path = await _fetch_from_discovery_probes(
             discovery, proj, terms
@@ -1149,7 +1177,7 @@ async def get_prd_for_model(
         not component_scoped
         and (discover or (probe and not any(p.get("count") for p in probe_results)))
     )
-    if run_discovery and (settings.polarion_pat or "").strip() and not discovery:
+    if run_discovery and polarion_pat_configured() and not discovery:
         discovery = await _run_discovery(proj, terms, model=model, list_path=prd_rest_path)
         best = (discovery or {}).get("bestProbe") or {}
         if best.get("count") and not winning_query:
@@ -1181,7 +1209,7 @@ async def get_prd_for_model(
                         "terms": terms,
                         "winningQuery": winning_query,
                         "error": str(e),
-                        "polarionConfigured": bool(settings.polarion_pat),
+                        "polarionConfigured": polarion_pat_configured(),
                     },
                     "probe": probe_results if probe else [],
                     "discovery": discovery,
@@ -1190,7 +1218,7 @@ async def get_prd_for_model(
 
     if (
         not items
-        and (settings.polarion_pat or "").strip()
+        and polarion_pat_configured()
         and discovery
         and not component_scoped
     ):
@@ -1202,7 +1230,7 @@ async def get_prd_for_model(
 
     if (
         not items
-        and (settings.polarion_pat or "").strip()
+        and polarion_pat_configured()
         and not component_scoped
     ):
         for q in build_prd_discovery_queries(terms, model=model):
@@ -1226,7 +1254,7 @@ async def get_prd_for_model(
     if (
         list_mode
         and not items
-        and (settings.polarion_pat or "").strip()
+        and polarion_pat_configured()
         and not component_scoped
     ):
         cat = await get_prd_query_catalog(model, project_key=proj, max_queries=24)
@@ -1313,7 +1341,7 @@ async def get_prd_for_model(
                 (discovery or {}).get("hits") if discovery and not component_scoped else None
             ),
             "total": len(items),
-            "polarionConfigured": bool((settings.polarion_pat or "").strip()),
+            **_polarion_pat_meta_fields(),
             "davisConfigured": bool(
                 (getattr(settings, "davis_db_api_base_url", "") or "").strip()
                 and (getattr(settings, "davis_db_api_key", "") or "").strip()

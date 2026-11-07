@@ -52,8 +52,29 @@ async def _get_with_retry(url: str, params: dict[str, Any] | None = None) -> htt
 
 
 def polarion_pat() -> str:
-    """settings → dej variables.get → os.getenv (Jira PAT 와 동일 패턴)."""
-    return (settings.polarion_pat or "").strip() or runtime_get("POLARION_PAT")
+    """
+    AxStudio: variables.get / os.environ 이 settings.polarion_pat(.env import 캐시) 보다 우선.
+    (stale .env 가 Variables 보다 앞서면 REST 401 — Jira 토큰 해석과 동일.)
+    """
+    token = runtime_get("POLARION_PAT")
+    if token:
+        return token
+    return (settings.polarion_pat or "").strip()
+
+
+def polarion_pat_source() -> str:
+    """PAT 출처 — 값 없이 진단용."""
+    from dej_variables import dej_get
+
+    if dej_get("POLARION_PAT"):
+        return "variables:POLARION_PAT"
+    import os
+
+    if (os.getenv("POLARION_PAT") or "").strip():
+        return "env:POLARION_PAT"
+    if (settings.polarion_pat or "").strip():
+        return "settings.polarion_pat"
+    return "none"
 
 
 def polarion_pat_configured() -> bool:

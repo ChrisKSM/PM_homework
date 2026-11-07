@@ -38,7 +38,7 @@ def resolve_polarion_pat() -> str:
             return t
     except ImportError:
         pass
-    return (settings.polarion_pat or "").strip() or runtime_get("POLARION_PAT")
+    return runtime_get("POLARION_PAT") or (settings.polarion_pat or "").strip()
 
 
 base = (settings.polarion_base_url or "").rstrip("/")
@@ -84,7 +84,7 @@ def resolve_polarion_pat() -> str:
         pass
     from dej_variables import runtime_get
 
-    return (settings.polarion_pat or "").strip() or runtime_get("POLARION_PAT")
+    return runtime_get("POLARION_PAT") or (settings.polarion_pat or "").strip()
 
 
 def bearer_headers(pat: str) -> dict[str, str]:
