@@ -49,8 +49,12 @@ if meta.get("polarionUrl"):
 wq = meta.get("winningQuery") or ""
 if "components:" not in wq:
     print("WARN: winningQuery에 components: 없음 — BE 패치/재시작 확인")
-if meta.get("prdFetchVersion") != "components-ui-space-v6":
-    print("WARN: 구버전 BE — curl ...patch-be-model-status-prd-from-github.sh | REF=최신 sh")
+expected = ("ootb-rest-v1-components",)
+pver = meta.get("prdFetchVersion") or ""
+if pver not in expected:
+    print("WARN: prdFetchVersion=", repr(pver), "— patch-be-model-status-prd-from-github.sh 재실행·uvicorn 재시작")
+elif meta.get("source") != "polarion+components" and len(items) < 1:
+    print("WARN: source=", meta.get("source"), "items=0 — Polarion components 경로 확인")
 if len(items) < 1:
     print("WARN: 0건 — Polarion PAT / AVSWReqMgmt / workitems/PRD 확인")
 '
