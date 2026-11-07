@@ -41,7 +41,12 @@ fetch src/hooks/useRequirementsReviewPrd.ts src/hooks/useRequirementsReviewPrd.t
 fetch src/utils/requirementsReviewFromPrd.ts src/utils/requirementsReviewFromPrd.ts
 fetch src/store/dashboardStore.ts src/store/dashboardStore.ts
 fetch src/App.tsx src/App.tsx
+fetch src/types/requirementsReview.ts src/types/requirementsReview.ts
+fetch src/data/requirementsReviewMock.ts src/data/requirementsReviewMock.ts
+fetch src/utils/requirementsReviewAuth.ts src/utils/requirementsReviewAuth.ts
 fetch src/components/requirementsReview/RequirementsReviewFilters.tsx src/components/requirementsReview/RequirementsReviewFilters.tsx
+fetch src/components/requirementsReview/RequirementsReviewTable.tsx src/components/requirementsReview/RequirementsReviewTable.tsx
+fetch src/components/requirementsReview/RequirementsReviewEditDrawer.tsx src/components/requirementsReview/RequirementsReviewEditDrawer.tsx
 fetch scripts/patch-fe-requirements-review-from-github.sh scripts/patch-fe-requirements-review-from-github.sh
 fetch src/components/modelStatus/ModelStatusSprintPanel.tsx src/components/modelStatus/ModelStatusSprintPanel.tsx
 fetch src/hooks/useModelStatusSprint.ts src/hooks/useModelStatusSprint.ts

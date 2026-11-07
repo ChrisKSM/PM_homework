@@ -25,7 +25,12 @@ fetch src/App.tsx src/App.tsx
 fetch src/pages/RequirementsReviewPage.tsx src/pages/RequirementsReviewPage.tsx
 fetch src/hooks/useRequirementsReviewPrd.ts src/hooks/useRequirementsReviewPrd.ts
 fetch src/utils/requirementsReviewFromPrd.ts src/utils/requirementsReviewFromPrd.ts
+fetch src/types/requirementsReview.ts src/types/requirementsReview.ts
+fetch src/data/requirementsReviewMock.ts src/data/requirementsReviewMock.ts
+fetch src/utils/requirementsReviewAuth.ts src/utils/requirementsReviewAuth.ts
 fetch src/components/requirementsReview/RequirementsReviewFilters.tsx src/components/requirementsReview/RequirementsReviewFilters.tsx
+fetch src/components/requirementsReview/RequirementsReviewTable.tsx src/components/requirementsReview/RequirementsReviewTable.tsx
+fetch src/components/requirementsReview/RequirementsReviewEditDrawer.tsx src/components/requirementsReview/RequirementsReviewEditDrawer.tsx
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch scripts/patch-fe-be-shared-url.sh scripts/patch-fe-be-shared-url.sh
@@ -39,6 +44,24 @@ else
   echo "  OK  검증 일정 메뉴 제거됨"
 fi
 grep -q useRequirementsReviewPrd src/pages/RequirementsReviewPage.tsx && echo "  OK  PRD API 연동"
+
+REQ_FILES="
+src/types/requirementsReview.ts
+src/data/requirementsReviewMock.ts
+src/utils/requirementsReviewAuth.ts
+src/components/requirementsReview/RequirementsReviewTable.tsx
+src/components/requirementsReview/RequirementsReviewEditDrawer.tsx
+"
+MISS=0
+for f in $REQ_FILES; do
+  if [ -f "$f" ]; then
+    echo "  OK  $f"
+  else
+    echo "  NG  $f missing"
+    MISS=1
+  fi
+done
+[ "$MISS" -eq 0 ] || { echo "ERROR: 요구사항 검토 번들 파일 누락 — fetch 실패 또는 REF 확인" >&2; exit 1; }
 
 echo ""
 echo "=== FE API → be-audio-test ==="
