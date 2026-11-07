@@ -57,14 +57,15 @@ export function mapPrdItemToReviewRow(
   almQueryFragment: string
 ): RequirementsReviewRow {
   const applied = (item.applyModel || modelCode || '').trim() || modelCode
+  const polarionCustomLabels = splitReviewLabels(item.reviewLabel)
+  const customLabels =
+    overlay?.customLabels && overlay.customLabels.length > 0
+      ? overlay.customLabels
+      : polarionCustomLabels
   const base: RequirementsReviewMongoOverlay = {
     ...DEFAULT_MONGO_OVERLAY,
-    customLabels: splitReviewLabels(item.reviewLabel),
     ...overlay,
-    customLabels:
-      overlay?.customLabels && overlay.customLabels.length > 0
-        ? overlay.customLabels
-        : splitReviewLabels(item.reviewLabel),
+    customLabels,
   }
   return {
     id: item.id,
