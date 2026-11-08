@@ -1,38 +1,66 @@
-import type { OsType, ProductCategory } from '../types/requirementsReview'
-import { PRODUCT_CATEGORY_OPTIONS } from '../data/requirementsReviewCatalog'
-import { PRODUCT_CATEGORY_LABELS } from '../types/requirementsReview'
+import type { OsType } from '../types/requirementsReview'
+import {
+  CategoryScope,
+  POLARION_AUDIO_DIVISION_QUERY,
+  PRODUCT_CATEGORY_OPTIONS,
+  NEW_HOME_AUDIO_MODELS,
+  WIRELESS_SPEAKER_MODELS,
+} from '../data/requirementsReviewCatalog'
+import { PRODUCT_CATEGORY_LABELS, type ProductCategory } from '../types/requirementsReview'
 
 export type RequirementsReviewQueryInput = {
-  productCategory: ProductCategory | 'all'
-  appliedModelId: string
+  category: CategoryScope
+  subModelId: string
   osType: OsType | 'all'
   winningQuery?: string | null
 }
 
+function productCategoryLucene(cat: ProductCategory): string {
+  const ko = PRODUCT_CATEGORY_OPTIONS.find((c) => c.id === cat)?.label ?? PRODUCT_CATEGORY_LABELS[cat]
+  return `productCategory.KEY:${ko}`
+}
+
 export function buildRequirementsReviewQueryPreview(input: RequirementsReviewQueryInput): string {
   if (input.winningQuery) {
-    const parts = [input.winningQuery]
-    if (input.productCategory !== 'all') {
-      parts.push(`/* UI: productCategory=${PRODUCT_CATEGORY_LABELS[input.productCategory]} */`)
+    const tail: string[] = []
+    if (input.osType !== 'all') tail.push(`labels:(${input.osType})`)
+    return [input.winningQuery, ...tail].filter(Boolean).join(' AND ')
+  }
+
+  if (input.category === 'all') {
+    const q = POLARION_AUDIO_DIVISION_QUERY
+    return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
+  }
+
+  if (input.category === 'soundbar') {
+    const q = 'components:(S80C)'
+    return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
+  }
+
+  if (input.category === 'wireless-headset') {
+    const q = productCategoryLucene('wireless-headset')
+    return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
+  }
+
+  if (input.category === 'new-home-audio') {
+    if (input.subModelId === 'all') {
+      const q = productCategoryLucene('new-home-audio')
+      return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
     }
-    if (input.appliedModelId !== 'all') {
-      parts.push(`/* UI: components≈${input.appliedModelId} */`)
+    const m = NEW_HOME_AUDIO_MODELS.find((x) => x.id === input.subModelId)
+    const q = `components:(${m?.id ?? input.subModelId})`
+    return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
+  }
+
+  if (input.category === 'wireless-speaker') {
+    if (input.subModelId === 'all') {
+      const tokens = WIRELESS_SPEAKER_MODELS.map((m) => m.id).join(' ')
+      const q = `components:(${tokens})`
+      return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
     }
-    if (input.osType !== 'all') {
-      parts.push(`/* UI: labels≈${input.osType} */`)
-    }
-    return parts.join(' ')
+    const q = `components:(${input.subModelId})`
+    return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
   }
-  const chunks = ['type:PRD']
-  if (input.productCategory !== 'all') {
-    const ko = PRODUCT_CATEGORY_OPTIONS.find((c) => c.id === input.productCategory)?.label
-    if (ko) chunks.push(`productCategory.KEY:${ko}`)
-  }
-  if (input.appliedModelId !== 'all') {
-    chunks.push(`components:(${input.appliedModelId})`)
-  }
-  if (input.osType !== 'all') {
-    chunks.push(`labels:(${input.osType})`)
-  }
-  return chunks.join(' AND ')
+
+  return 'type:PRD'
 }

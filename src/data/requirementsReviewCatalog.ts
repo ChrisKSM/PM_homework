@@ -3,12 +3,12 @@ import type { OsType, ProductCategory } from '../types/requirementsReview'
 export const POLARION_PRD_UI =
   'https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD'
 
+export const POLARION_AUDIO_DIVISION_QUERY = 'division.KEY:6'
+
 export const POLARION_QUERIES = {
+  audioDivision: `${POLARION_PRD_UI}?query=${encodeURIComponent(POLARION_AUDIO_DIVISION_QUERY)}`,
   productCategory: `${POLARION_PRD_UI}?query=HAS_VALUE%3AproductCategory.KEY`,
-  components: `${POLARION_PRD_UI}?query=HAS_VALUE%3Acomponents`,
   labels: `${POLARION_PRD_UI}?query=HAS_VALUE%3Alabels`,
-  status: `${POLARION_PRD_UI}?query=HAS_VALUE%3Astatus`,
-  owner: `${POLARION_PRD_UI}?query=HAS_VALUE%3Adev.KEY`,
   updatedToday: `${POLARION_PRD_UI}?query=HAS_VALUE%3Astatus%20AND%20updated%3A%24today%24`,
 } as const
 
@@ -19,25 +19,29 @@ export const PRODUCT_CATEGORY_OPTIONS: { id: ProductCategory; label: string }[] 
   { id: 'wireless-headset', label: '무선헤드셋' },
 ]
 
-/** 적용모델 — Polarion components 별칭 (주석) + PRD API `model` 파라미터 */
-export const APPLIED_MODEL_OPTIONS: {
-  id: string
-  label: string
-  apiModel: string
-  categories: ProductCategory[]
-  componentHint: string
-}[] = [
-  { id: 'H7', label: 'H7', apiModel: 'H7', categories: ['soundbar'], componentHint: 'SoundSuite_H7 · H7' },
-  { id: 'H5', label: 'H5', apiModel: 'H5', categories: ['soundbar'], componentHint: 'SoundSuite_H5 · H5' },
-  { id: 'H7_VI', label: 'H7_VI', apiModel: 'H7_VI', categories: ['soundbar'], componentHint: 'SoundSuite_H7(VI) · H7_VI' },
-  { id: 'W7', label: 'W7', apiModel: 'W7', categories: ['soundbar'], componentHint: 'Sound Suite W7' },
-  { id: 'W5', label: 'W5', apiModel: 'W5', categories: ['soundbar'], componentHint: 'Sound Suite W5' },
-  { id: 'S90C', label: 'S90C', apiModel: 'S90C', categories: ['soundbar'], componentHint: 'S90C · S96CR · S94CR · S92CR' },
-  { id: 'M7', label: 'M7', apiModel: 'M7', categories: ['soundbar'], componentHint: 'SoundSuite_M7' },
-  { id: 'M5', label: 'M5', apiModel: 'M5', categories: ['soundbar'], componentHint: 'SoundSuite_M5' },
-  { id: 'M7_VI', label: 'M7_VI', apiModel: 'M7_VI', categories: ['soundbar'], componentHint: 'SoundSuite_M7(VI) · M7 VI' },
-  { id: 'M5_VI', label: 'M5_VI', apiModel: 'M5_VI', categories: ['soundbar'], componentHint: 'SoundSuite_M5(VI) · M5 VI' },
-  { id: 'TV', label: 'TV', apiModel: 'TV', categories: ['new-home-audio'], componentHint: 'webOS_TV' },
+/** 뉴홈오디오 — components `:` 뒤 검색 토큰 (BE 매핑과 동일) */
+export const NEW_HOME_AUDIO_MODELS: { id: string; label: string; apiModel: string }[] = [
+  { id: 'H7', label: 'H7', apiModel: 'H7' },
+  { id: 'H5', label: 'H5', apiModel: 'H5' },
+  { id: 'H7_VI', label: 'H7_VI', apiModel: 'H7_VI' },
+  { id: 'W7', label: 'W7', apiModel: 'W7' },
+  { id: 'W5', label: 'W5', apiModel: 'W5' },
+  { id: 'S90C', label: 'S90C', apiModel: 'S90C' },
+  { id: 'M7', label: 'M7', apiModel: 'M7' },
+  { id: 'M5', label: 'M5', apiModel: 'M5' },
+  { id: 'M7_VI', label: 'M7_VI', apiModel: 'M7_VI' },
+  { id: 'M5_VI', label: 'M5_VI', apiModel: 'M5_VI' },
+]
+
+export const WIRELESS_SPEAKER_MODELS: { id: string; label: string; apiModel: string }[] = [
+  { id: 'Grab', label: 'Grab', apiModel: 'Grab' },
+  { id: 'Blast', label: 'Blast', apiModel: 'Blast' },
+  { id: 'Stage301', label: 'Stage301', apiModel: 'Stage301' },
+  { id: 'Stage501', label: 'Stage501', apiModel: 'Stage501' },
+  { id: 'Bounce', label: 'Bounce', apiModel: 'Bounce' },
+  { id: 'Power9000', label: 'Power9000', apiModel: 'Power9000' },
+  { id: 'Power7000', label: 'Power7000', apiModel: 'Power7000' },
+  { id: 'Power5000', label: 'Power5000', apiModel: 'Power5000' },
 ]
 
 export const OS_LABEL_OPTIONS: { id: OsType; label: string }[] = [
@@ -45,20 +49,35 @@ export const OS_LABEL_OPTIONS: { id: OsType; label: string }[] = [
   { id: 'non-webOS', label: 'non-webOS' },
 ]
 
-/** 자체 Labels — 적용 시점 (추후 Milvus) */
-export const APPLIED_AT_OPTIONS = [
-  'H7 MR9(10월)',
-  'H7 MR10(11월)',
-  'H7 MR11(27년 1월)',
-  'H7_VI(Initial)',
-] as const
+export type CategoryScope = ProductCategory | 'all'
 
-export function appliedModelsForCategory(cat: ProductCategory | 'all') {
-  if (cat === 'all') return APPLIED_MODEL_OPTIONS
-  return APPLIED_MODEL_OPTIONS.filter((m) => m.categories.includes(cat))
+export function subModelOptionsForCategory(cat: CategoryScope) {
+  if (cat === 'new-home-audio') return NEW_HOME_AUDIO_MODELS
+  if (cat === 'wireless-speaker') return WIRELESS_SPEAKER_MODELS
+  return []
 }
 
-export function resolveApiModel(appliedModelId: string): string {
-  const hit = APPLIED_MODEL_OPTIONS.find((m) => m.id === appliedModelId)
-  return hit?.apiModel ?? appliedModelId
+export function categoryHasSubModels(cat: CategoryScope): boolean {
+  return subModelOptionsForCategory(cat).length > 0
+}
+
+/** BE `/model-status/prd?model=` 파라미터 */
+export function resolveRequirementsReviewApiModel(
+  category: CategoryScope,
+  subModelId: string
+): string {
+  if (category === 'all') return 'REQ_AUDIO'
+  if (category === 'soundbar') return 'S80C'
+  if (category === 'wireless-headset') return 'REQ_WIRELESS_HEADSET'
+  if (category === 'new-home-audio') {
+    if (subModelId === 'all') return 'REQ_NEW_HOME_AUDIO'
+    const hit = NEW_HOME_AUDIO_MODELS.find((m) => m.id === subModelId)
+    return hit?.apiModel ?? subModelId
+  }
+  if (category === 'wireless-speaker') {
+    if (subModelId === 'all') return 'REQ_WIRELESS_SPEAKER'
+    const hit = WIRELESS_SPEAKER_MODELS.find((m) => m.id === subModelId)
+    return hit?.apiModel ?? subModelId
+  }
+  return 'REQ_AUDIO'
 }

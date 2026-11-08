@@ -1,4 +1,5 @@
 from services.model_status_prd_service import (
+    fixed_prd_lucene_query,
     _extract_workitem_title,
     _query_is_lucene_model_scoped,
     _summarize_polarion_fetch_attempts,
@@ -15,6 +16,13 @@ from services.model_status_prd_service import (
     workitem_matches_apply_terms,
     workitem_matches_model_scope,
 )
+
+
+def test_fixed_prd_lucene_query_req_audio():
+    assert fixed_prd_lucene_query("REQ_AUDIO") == "division.KEY:6"
+    assert fixed_prd_lucene_query("REQ_WIRELESS_SPEAKER").startswith("components:(")
+    assert "Grab" in fixed_prd_lucene_query("REQ_WIRELESS_SPEAKER")
+    assert polarion_component_values_for_model("S80C") == ["S80C"]
 
 
 def test_apply_model_terms_h7():

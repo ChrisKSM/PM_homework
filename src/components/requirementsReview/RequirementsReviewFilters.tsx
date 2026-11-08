@@ -1,28 +1,26 @@
 import clsx from 'clsx'
 import { ExternalLink } from 'lucide-react'
 import type { ReactNode } from 'react'
-import type { OsType, ProductCategory } from '../../types/requirementsReview'
+import type { OsType } from '../../types/requirementsReview'
 import {
-  APPLIED_MODEL_OPTIONS,
+  CategoryScope,
   OS_LABEL_OPTIONS,
   POLARION_PRD_UI,
   POLARION_QUERIES,
   PRODUCT_CATEGORY_OPTIONS,
-  appliedModelsForCategory,
+  categoryHasSubModels,
+  subModelOptionsForCategory,
 } from '../../data/requirementsReviewCatalog'
 
 interface Props {
-  productCategory: ProductCategory | 'all'
-  appliedModelId: string
+  category: CategoryScope
+  subModelId: string
   osType: OsType | 'all'
   almQuery: string
-  onProductCategoryChange: (v: ProductCategory | 'all') => void
-  onAppliedModelChange: (v: string) => void
+  onCategoryChange: (v: CategoryScope) => void
+  onSubModelChange: (v: string) => void
   onOsTypeChange: (v: OsType | 'all') => void
 }
-
-const selectClass =
-  'w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-lg-red/20 focus:border-lg-red'
 
 function StepLink({ href, children }: { href: string; children: ReactNode }) {
   return (
@@ -39,94 +37,102 @@ function StepLink({ href, children }: { href: string; children: ReactNode }) {
 }
 
 export default function RequirementsReviewFilters({
-  productCategory,
-  appliedModelId,
+  category,
+  subModelId,
   osType,
   almQuery,
-  onProductCategoryChange,
-  onAppliedModelChange,
+  onCategoryChange,
+  onSubModelChange,
   onOsTypeChange,
 }: Props) {
-  const modelOptions =
-    productCategory === 'all' ? APPLIED_MODEL_OPTIONS : appliedModelsForCategory(productCategory)
+  const subOptions = subModelOptionsForCategory(category)
+  const showSubRow = categoryHasSubModels(category)
 
   return (
-    <div className="bg-white border border-surface-border rounded-xl p-5 space-y-5">
+    <div className="bg-white border border-surface-border rounded-xl p-5 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">1. 요구사항 (기본 PRD)</p>
-          <p className="text-sm text-gray-600 mt-1">Polarion AVSWReqMgmt · type PRD</p>
-        </div>
-        <StepLink href={POLARION_PRD_UI}>Polarion PRD 전체</StepLink>
+        <p className="text-sm text-gray-600">Polarion AVSWReqMgmt · PRD</p>
+        <StepLink href={POLARION_PRD_UI}>Polarion PRD</StepLink>
       </div>
 
       <Divider />
 
       <div>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">2. Product category</p>
-          <StepLink href={POLARION_QUERIES.productCategory}>HAS_VALUE:productCategory.KEY</StepLink>
+          <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Product category</p>
+          {category === 'all' ? (
+            <StepLink href={POLARION_QUERIES.audioDivision}>division.KEY:6 (오디오)</StepLink>
+          ) : (
+            <StepLink href={POLARION_QUERIES.productCategory}>productCategory.KEY</StepLink>
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => onProductCategoryChange('all')}
-            className={pillClass(productCategory === 'all')}
-          >
+          <button type="button" onClick={() => onCategoryChange('all')} className={pillClass(category === 'all')}>
             전체
           </button>
           {PRODUCT_CATEGORY_OPTIONS.map((cat) => (
             <button
               key={cat.id}
               type="button"
-              onClick={() => onProductCategoryChange(cat.id)}
-              className={pillClass(productCategory === cat.id)}
+              onClick={() => onCategoryChange(cat.id)}
+              className={pillClass(category === cat.id)}
             >
               {cat.label}
             </button>
           ))}
         </div>
+        {category === 'soundbar' && <p className="text-xs text-gray-500 mt-2">검색: components:(S80C)</p>}
+        {category === 'wireless-headset' && (
+          <p className="text-xs text-gray-500 mt-2">검색: productCategory.KEY:무선헤드셋</p>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {showSubRow && (
         <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">3. 적용모델</p>
-            <StepLink href={POLARION_QUERIES.components}>HAS_VALUE:components</StepLink>
-          </div>
-          <select
-            className={selectClass}
-            value={appliedModelId}
-            onChange={(e) => onAppliedModelChange(e.target.value)}
-          >
-            <option value="all">선택 — 전체</option>
-            {modelOptions.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.label} ({m.componentHint})
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
-            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">4. Labels (ALM)</p>
-            <StepLink href={POLARION_QUERIES.labels}>HAS_VALUE:labels</StepLink>
-          </div>
+          <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">모델</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => onOsTypeChange('all')} className={pillClass(osType === 'all')}>
+            <button
+              type="button"
+              onClick={() => onSubModelChange('all')}
+              className={pillClass(subModelId === 'all', true)}
+            >
               전체
             </button>
-            {OS_LABEL_OPTIONS.map((tab) => (
+            {subOptions.map((m) => (
               <button
-                key={tab.id}
+                key={m.id}
                 type="button"
-                onClick={() => onOsTypeChange(tab.id)}
-                className={pillClass(osType === tab.id)}
+                onClick={() => onSubModelChange(m.id)}
+                className={pillClass(subModelId === m.id, true)}
               >
-                {tab.label}
+                {m.label}
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      <Divider />
+
+      <div>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <p className="text-xs font-bold text-gray-800 uppercase tracking-wider">Labels (ALM)</p>
+          <StepLink href={POLARION_QUERIES.labels}>labels</StepLink>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onOsTypeChange('all')} className={pillClass(osType === 'all')}>
+            전체
+          </button>
+          {OS_LABEL_OPTIONS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => onOsTypeChange(tab.id)}
+              className={pillClass(osType === tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -137,23 +143,18 @@ export default function RequirementsReviewFilters({
         <code className="block text-xs bg-surface-page border border-surface-border rounded-lg px-3 py-2 text-gray-700 font-mono break-all">
           {almQuery}
         </code>
-        <p className="text-xs text-gray-500 mt-2">
-          표시 순서: updated (Polarion{' '}
-          <a href={POLARION_QUERIES.updatedToday} className="text-indigo-600 underline" target="_blank" rel="noreferrer">
-            updated:$today$
-          </a>
-          )
-        </p>
       </div>
     </div>
   )
 }
 
-function pillClass(active: boolean) {
+function pillClass(active: boolean, muted = false) {
   return clsx(
     'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
     active
-      ? 'bg-indigo-600 text-white border-indigo-600'
+      ? muted
+        ? 'bg-violet-100 text-violet-900 border-violet-200'
+        : 'bg-indigo-600 text-white border-indigo-600'
       : 'bg-white text-gray-700 border-surface-border hover:bg-surface-page'
   )
 }

@@ -96,14 +96,56 @@ def apply_model_search_terms(model: str | None) -> list[str]:
     return out
 
 
+_WIRELESS_SPEAKER_COMPONENTS = [
+    "Grab",
+    "Blast",
+    "Stage301",
+    "Stage501",
+    "Bounce",
+    "Power9000",
+    "Power7000",
+    "Power5000",
+]
+
+
+def fixed_prd_lucene_query(model: str | None) -> str | None:
+    """요구사항 검토 UI — category/division 고정 Lucene."""
+    raw = (model or "").strip()
+    code = (normalize_model_code(model) or raw).upper()
+    if code in ("REQ_AUDIO", "AUDIO"):
+        return "division.KEY:6"
+    if code == "REQ_NEW_HOME_AUDIO":
+        return "productCategory.KEY:뉴홈오디오"
+    if code == "REQ_WIRELESS_HEADSET":
+        return "productCategory.KEY:무선헤드셋"
+    if code == "REQ_WIRELESS_SPEAKER":
+        return build_components_query(_WIRELESS_SPEAKER_COMPONENTS)
+    return None
+
+
 def polarion_component_values_for_model(model: str | None) -> list[str]:
     """Polarion PRD components 필드 값 — OR 로 묶어 검색."""
     code = normalize_model_code(model) or (model or "").strip()
     mapping: dict[str, list[str]] = {
+        "H7": ["SoundSuite_H7", "H7"],
+        "H5": ["SoundSuite_H5", "H5"],
         "H7_VI": ["SoundSuite_H7(VI)", "H7_VI"],
-        "H5": ["SoundSuite_H5"],
+        "W7": ["Sound Suite W7", "W7"],
+        "W5": ["SoundSuite_W5", "W5"],
+        "S90C": ["S90C", "S96CR", "S94CR", "S92CR"],
+        "S80C": ["S80C"],
+        "M7": ["SoundSuite_M7", "M7"],
+        "M5": ["SoundSuite_M5", "M5"],
         "M7_VI": ["SoundSuite_M7(VI)", "M7_VI"],
-        "W5": ["SoundSuite_W5"],
+        "M5_VI": ["SoundSuite_M5(VI)", "M5_VI"],
+        "GRAB": ["Grab"],
+        "BLAST": ["Blast"],
+        "STAGE301": ["Stage301"],
+        "STAGE501": ["Stage501"],
+        "BOUNCE": ["Bounce"],
+        "POWER9000": ["Power9000"],
+        "POWER7000": ["Power7000"],
+        "POWER5000": ["Power5000"],
     }
     seen: set[str] = set()
     out: list[str] = []
@@ -1178,6 +1220,20 @@ async def get_prd_for_model(
     discovery: dict[str, Any] | None = None
 
     list_mode = not probe
+
+    fixed_q = fixed_prd_lucene_query(model)
+    if fixed_q and polarion_pat_configured() and list_mode and not probe:
+        items = await _fetch_polarion_items(
+            fixed_q,
+            proj,
+            limit=PRD_LIST_LIMIT,
+            list_path=prd_rest_path,
+        )
+        winning_query = fixed_q
+        winning_list_path = prd_rest_path
+        if items:
+            source = "polarion+fixed-query"
+
     component_values = polarion_component_values_for_model(model)
     component_scoped = bool(component_values)
     canonical_components_query = (
@@ -1203,7 +1259,7 @@ async def get_prd_for_model(
                     winning_query = str(pr["query"])
                     break
 
-    if polarion_pat_configured() and component_scoped:
+    if polarion_pat_configured() and component_scoped and not items:
         items, wq, comp_path, polarion_fetch_attempts = await _try_components_queries(
             proj, model, terms, list_path=prd_rest_path
         )

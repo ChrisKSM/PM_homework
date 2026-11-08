@@ -7,22 +7,13 @@ import RequirementsReviewStatusCards, {
   buildStatusCardCounts,
 } from '../components/requirementsReview/RequirementsReviewStatusCards'
 import RequirementsReviewDetailModal from '../components/requirementsReview/RequirementsReviewDetailModal'
-import { POLARION_PRD_UI, resolveApiModel } from '../data/requirementsReviewCatalog'
-import type { OsType, ProductCategory, RequirementsReviewRow } from '../types/requirementsReview'
+import { POLARION_PRD_UI, resolveRequirementsReviewApiModel, type CategoryScope } from '../data/requirementsReviewCatalog'
+import type { OsType, RequirementsReviewRow } from '../types/requirementsReview'
 import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
 import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
 import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
 import type { PrdWorkflowStageId } from '../utils/modelStatusPrdWorkflow'
 import { PRD_WORKFLOW_COLUMNS } from '../utils/modelStatusPrdWorkflow'
-
-const DEFAULT_API_MODEL = 'H7_VI'
-
-function modelMatchesApplied(rowModel: string, appliedModelId: string): boolean {
-  if (appliedModelId === 'all') return true
-  const a = appliedModelId.toUpperCase()
-  const r = rowModel.toUpperCase()
-  return r === a || r.includes(a) || a.includes(r)
-}
 
 function sortByUpdated(rows: RequirementsReviewRow[]): RequirementsReviewRow[] {
   return [...rows].sort((a, b) => {
@@ -34,15 +25,15 @@ function sortByUpdated(rows: RequirementsReviewRow[]): RequirementsReviewRow[] {
 }
 
 export default function RequirementsReviewPage() {
-  const [productCategory, setProductCategory] = useState<ProductCategory | 'all'>('soundbar')
-  const [appliedModelId, setAppliedModelId] = useState('H7_VI')
+  const [category, setCategory] = useState<CategoryScope>('all')
+  const [subModelId, setSubModelId] = useState('all')
   const [osType, setOsType] = useState<OsType | 'all'>('all')
   const [stageFilter, setStageFilter] = useState<PrdWorkflowStageId | 'total' | null>(null)
   const [detailRow, setDetailRow] = useState<RequirementsReviewRow | null>(null)
 
   const apiModel = useMemo(
-    () => (appliedModelId === 'all' ? DEFAULT_API_MODEL : resolveApiModel(appliedModelId)),
-    [appliedModelId]
+    () => resolveRequirementsReviewApiModel(category, subModelId),
+    [category, subModelId]
   )
 
   const { data, isPending, isFetching, isError, error, refetch } = useRequirementsReviewPrd(apiModel)
@@ -52,12 +43,12 @@ export default function RequirementsReviewPage() {
   const almQuery = useMemo(
     () =>
       buildRequirementsReviewQueryPreview({
-        productCategory,
-        appliedModelId,
+        category,
+        subModelId,
         osType,
         winningQuery: meta?.winningQuery,
       }),
-    [productCategory, appliedModelId, osType, meta?.winningQuery]
+    [category, subModelId, osType, meta?.winningQuery]
   )
 
   const allRows = useMemo(() => {
@@ -68,12 +59,6 @@ export default function RequirementsReviewPage() {
 
   const filteredRows = useMemo(() => {
     let list = allRows
-    if (productCategory !== 'all') {
-      list = list.filter((r) => r.productCategory === productCategory)
-    }
-    if (appliedModelId !== 'all') {
-      list = list.filter((r) => modelMatchesApplied(r.appliedModel, appliedModelId))
-    }
     if (osType !== 'all') {
       list = list.filter((r) => r.osType === osType)
     }
@@ -85,36 +70,38 @@ export default function RequirementsReviewPage() {
       )
     }
     return sortByUpdated(list)
-  }, [allRows, productCategory, appliedModelId, osType, stageFilter])
+  }, [allRows, osType, stageFilter])
 
   const statusCards = useMemo(() => {
     let base = allRows
-    if (productCategory !== 'all') base = base.filter((r) => r.productCategory === productCategory)
-    if (appliedModelId !== 'all') base = base.filter((r) => modelMatchesApplied(r.appliedModel, appliedModelId))
     if (osType !== 'all') base = base.filter((r) => r.osType === osType)
     return buildStatusCardCounts(base, workflowColumns)
-  }, [allRows, productCategory, appliedModelId, osType, workflowColumns])
+  }, [allRows, osType, workflowColumns])
+
+  useEffect(() => {
+    setSubModelId('all')
+    setStageFilter(null)
+  }, [category])
 
   useEffect(() => {
     setStageFilter(null)
-  }, [productCategory, appliedModelId, osType, apiModel])
+  }, [subModelId, osType, apiModel])
 
-  const onCategoryChange = useCallback((cat: ProductCategory | 'all') => {
-    setProductCategory(cat)
+  const onCategoryChange = useCallback((next: CategoryScope) => {
+    setCategory(next)
   }, [])
 
   return (
     <>
       <Header
         title="요구사항 검토"
-        subtitle="Polarion PRD · category / components / labels 필터 · status 요약 · updated 정렬"
+        subtitle="PRD · division / productCategory / components · status · updated"
       />
 
       <div className="pt-16 p-6 space-y-6 max-w-[1400px]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-600">
-            API 조회 모델: <span className="font-mono font-semibold text-gray-900">{apiModel}</span>
-            {appliedModelId === 'all' ? ' (적용모델 전체 — 기본 fetch)' : null}
+            API 조회: <span className="font-mono font-semibold text-gray-900">{apiModel}</span>
           </p>
           <div className="flex items-center gap-2">
             <a
@@ -143,17 +130,18 @@ export default function RequirementsReviewPage() {
             <div>
               <p className="font-semibold">PRD API 오류</p>
               <p className="mt-1">{meta?.error || (error instanceof Error ? error.message : String(error))}</p>
+              <p className="text-xs mt-1 text-red-700">GET /api/model-status/prd?model={apiModel}</p>
             </div>
           </div>
         )}
 
         <RequirementsReviewFilters
-          productCategory={productCategory}
-          appliedModelId={appliedModelId}
+          category={category}
+          subModelId={subModelId}
           osType={osType}
           almQuery={almQuery}
-          onProductCategoryChange={onCategoryChange}
-          onAppliedModelChange={setAppliedModelId}
+          onCategoryChange={onCategoryChange}
+          onSubModelChange={setSubModelId}
           onOsTypeChange={setOsType}
         />
 
@@ -170,12 +158,9 @@ export default function RequirementsReviewPage() {
               </>
             )}
           </p>
-          <label className="flex items-center gap-2 text-sm text-gray-700">
-            정렬
-            <span className="px-2 py-1 rounded border border-surface-border bg-white text-xs font-medium">
-              updated (내림차순)
-            </span>
-          </label>
+          <span className="text-xs text-gray-600 px-2 py-1 border border-surface-border rounded bg-white">
+            정렬: updated ↓
+          </span>
         </div>
 
         <RequirementsReviewStatusCards
