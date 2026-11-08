@@ -20,7 +20,10 @@ def test_get_prd_workitem_detail_normalizes(monkeypatch):
         }
 
     monkeypatch.setattr(svc, "polarion_pat_configured", lambda: True)
-    monkeypatch.setattr("polarion_client.fetch_detail", fake_fetch)
+    async def fake_enriched(_proj: str, _wid: str):
+        return await fake_fetch(""), {"attempts": [{"ok": True, "keys": 10}]}
+
+    monkeypatch.setattr("polarion_client.fetch_workitem_enriched", fake_enriched)
 
     out = asyncio.run(svc.get_prd_workitem_detail("AVRM-5135"))
     item = out["item"]

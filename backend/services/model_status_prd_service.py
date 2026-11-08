@@ -1990,7 +1990,7 @@ async def get_prd_workitem_detail(
     project_key: str | None = None,
 ) -> dict[str, Any]:
     """단건 PRD workitem — 모달용 (dev / hyperlinks / 구체화 필드)."""
-    from polarion_client import fetch_detail
+    from polarion_client import fetch_workitem_enriched
 
     from services.model_status_prd_status import enrich_prd_item_workflow
 
@@ -2000,8 +2000,7 @@ async def get_prd_workitem_detail(
     if not polarion_pat_configured():
         raise RuntimeError("Polarion PAT not configured")
     proj, _, _ = resolve_prd_polarion(project_key)
-    self_url = f"{_base_url()}/projects/{proj}/workitems/{quote(wid, safe='')}"
-    flat = await fetch_detail(self_url)
+    flat, fetch_debug = await fetch_workitem_enriched(proj, wid)
     row = {"id": wid, "_detailMerged": flat, "attributes": flat}
     item = normalize_prd_workitem(row, project_key=proj)
     item = enrich_prd_item_workflow(item)
@@ -2030,6 +2029,9 @@ async def get_prd_workitem_detail(
                         for s in ("initiative", "hyperlink", "link", "epic", "parent", "jira")
                     )
                 )[:48],
+                "polarionAllFlattenKeys": sorted(expanded.keys())[:120],
+                "polarionFlatKeyCount": len(expanded),
+                "polarionFetchDebug": fetch_debug,
             },
         },
         "item": item,

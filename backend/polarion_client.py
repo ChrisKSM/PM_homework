@@ -441,25 +441,132 @@ async def _follow_relationship_related(doc: dict[str, Any], flat: dict[str, Any]
     rels = data.get("relationships") or {}
     if not isinstance(rels, dict):
         return flat
-    for rel_name in ("dev", "author", "assignee", "developer"):
-        rel_body = rels.get(rel_name)
+    for rel_name, rel_body in rels.items():
         if not isinstance(rel_body, dict):
             continue
         if _user_ref_has_name(flat.get(rel_name)):
             continue
         related = (rel_body.get("links") or {}).get("related")
         if not isinstance(related, str) or not related.strip():
+            rd = rel_body.get("data")
+            resolved = _resolve_jsonapi_ref(rd, _jsonapi_included_index(doc))
+            if resolved is not None:
+                flat[rel_name] = resolved
             continue
         try:
             resp = await _get_with_retry(related.strip())
-            sub = flatten_polarion_workitem_response(resp.json())
+            body = resp.json()
+            sub = flatten_polarion_workitem_response(body)
             if not sub:
-                sub = flatten_workitem(resp.json())
+                sub = flatten_workitem(body)
             if sub:
                 flat[rel_name] = sub
         except Exception:
             continue
     return flat
+
+
+def _customs_rest_base() -> str:
+    u = _base_url()
+    if "/rest/v1" in u:
+        return u.replace("/polarion/rest/v1", "/polarion/restful/customs/v1")
+    return u
+
+
+def _deep_merge_leaf_keys(obj: Any, out: dict[str, Any], prefix: str = "", depth: int = 0) -> None:
+    if depth > 12:
+        return
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in ("links",) and depth <= 1:
+                continue
+            pk = f"{prefix}.{k}" if prefix else str(k)
+            if isinstance(v, (dict, list)):
+                _deep_merge_leaf_keys(v, out, pk, depth + 1)
+            elif v is not None and str(v).strip():
+                out[pk] = v
+                out[str(k)] = v
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            _deep_merge_leaf_keys(v, out, f"{prefix}[{i}]", depth + 1)
+
+
+def _merge_richer_flat(base: dict[str, Any], extra: dict[str, Any]) -> dict[str, Any]:
+    if not extra:
+        return base
+    if not base:
+        return dict(extra)
+    return {**base, **extra}
+
+
+async def _try_customs_workitem_flat(project_key: str, workitem_id: str) -> dict[str, Any]:
+    url = f"{_customs_rest_base()}/projects/{project_key}/workitems/{workitem_id}"
+    try:
+        resp = await _get_with_retry(url)
+        data = resp.json()
+        flat = flatten_workitem(data)
+        _deep_merge_leaf_keys(data, flat)
+        return flat
+    except Exception:
+        return {}
+
+
+async def fetch_workitem_enriched(
+    project_key: str,
+    workitem_id: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """OOTB + customs + sidecar — dev / hyperlinks / custom fields."""
+    wid = (workitem_id or "").strip()
+    debug: dict[str, Any] = {"attempts": []}
+    flat: dict[str, Any] = {}
+    base = f"{_base_url()}/projects/{project_key}/workitems/{wid}"
+    queries = (
+        "",
+        "?include=dev,author,assignee,hyperlinks,linkedWorkItems",
+        "?include=dev",
+        "?fields[workitems]=@all",
+    )
+    doc: dict[str, Any] | None = None
+    for q in queries:
+        try:
+            resp = await _get_with_retry(f"{base}{q}")
+            doc = resp.json()
+            part = flatten_polarion_workitem_response(doc)
+            _deep_merge_leaf_keys(doc.get("data") if isinstance(doc, dict) else doc, part)
+            part = await _follow_relationship_related(doc, part)
+            flat = _merge_richer_flat(flat, part)
+            debug["attempts"].append({"url": f"{base}{q}", "ok": True, "keys": len(part)})
+        except Exception as exc:
+            debug["attempts"].append({"url": f"{base}{q}", "ok": False, "error": str(exc)[:120]})
+    if doc:
+        flat = await _follow_relationship_related(doc, flat)
+    flat = await _try_merge_polarion_hyperlinks(base, flat)
+
+    customs = await _try_customs_workitem_flat(project_key, wid)
+    if customs:
+        flat = _merge_richer_flat(flat, customs)
+        debug["customsOk"] = True
+        debug["customsKeys"] = len(customs)
+    else:
+        debug["customsOk"] = False
+
+    try:
+        rows, _ = await fetch_list_page(
+            page=1,
+            query=f'id:"{wid}"',
+            page_size=1,
+            project_key=project_key,
+        )
+        if rows:
+            list_flat = flatten_workitem(rows[0])
+            flat = _merge_richer_flat(flat, list_flat)
+            debug["listByIdOk"] = True
+    except Exception as exc:
+        debug["listByIdOk"] = False
+        debug["listByIdError"] = str(exc)[:120]
+
+    debug["flatKeyCount"] = len(flat)
+    return flat, debug
 
 
 async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) -> dict[str, Any]:
@@ -472,7 +579,16 @@ async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) ->
     wid = urllib.parse.unquote(m.group(2))
     hls: list[dict[str, str]] = list(flat.get("_hyperlinks") or [])
     seen = {h.get("uri") for h in hls if isinstance(h, dict)}
-    for suffix in ("linkedworkitems", "linkedWorkItems", "workitem-links", "links"):
+    for suffix in (
+        "linkedworkitems",
+        "linkedWorkItems",
+        "linked-work-items",
+        "workitem-links",
+        "hyperlinks",
+        "externallinks",
+        "external-links",
+        "links",
+    ):
         ep = f"{_base_url()}/projects/{proj}/workitems/{wid}/{suffix}"
         try:
             resp = await _get_with_retry(ep)
@@ -489,14 +605,21 @@ async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) ->
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:
     """workitem 상세 조회 (self link + dev related + hyperlinks)."""
+    import re as _re
+    import urllib.parse as _up
+
+    m = _re.search(r"/projects/([^/]+)/workitems/([^/?]+)", self_url)
+    if m:
+        proj = _up.unquote(m.group(1))
+        wid = _up.unquote(m.group(2))
+        flat, _debug = await fetch_workitem_enriched(proj, wid)
+        return flat
+
     base = self_url.split("?")[0]
     doc: dict[str, Any] | None = None
     for include in ("dev,author,assignee", "dev", ""):
         try:
-            if include:
-                url = f"{base}?include={include}"
-            else:
-                url = base
+            url = f"{base}?include={include}" if include else base
             resp = await _get_with_retry(url)
             doc = resp.json()
             break
