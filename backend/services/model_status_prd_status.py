@@ -57,9 +57,13 @@ def classify_prd_workflow_status(status: str) -> dict[str, Any]:
 
 
 def enrich_prd_item_workflow(item: dict[str, Any]) -> dict[str, Any]:
-    wf = classify_prd_workflow_status(str(item.get("status") or ""))
+    raw_status = str(item.get("status") or "").strip()
+    wf = classify_prd_workflow_status(raw_status)
     out = dict(item)
     out["workflowStageId"] = wf["id"]
-    out["workflowStageLabel"] = wf["label"]
+    label = wf["label"]
+    if wf["id"] == "other" and raw_status:
+        label = raw_status
+    out["workflowStageLabel"] = label
     out["workflowOrder"] = wf["order"]
     return out

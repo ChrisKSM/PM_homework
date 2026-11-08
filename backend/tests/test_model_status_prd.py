@@ -21,6 +21,32 @@ from services.model_status_prd_service import (
 )
 
 
+def test_prd_field_extractors_from_ootb_attrs():
+    from services.model_status_prd_service import (
+        _extract_prd_assignee,
+        _extract_prd_status,
+        _extract_prd_updated,
+        normalize_prd_workitem,
+    )
+
+    flat = {
+        "id": "AVRM-5032",
+        "title": "Boost",
+        "status": {"id": "approved", "name": "개발 승인"},
+        "updated": "2026-10-29T16:31:00Z",
+        "assignee": {"name": "오제준 jejun.oh"},
+        "initiative": "AVSWDEV-1177",
+        "deliveryDate": "2025-05-30",
+    }
+    assert _extract_prd_status(flat) == "개발 승인"
+    assert _extract_prd_updated(flat).startswith("2026-10-29 16:31")
+    assert "오제준" in _extract_prd_assignee(flat)
+    row = normalize_prd_workitem({"attributes": flat}, project_key="AVSWReqMgmt")
+    assert row["status"] == "개발 승인"
+    assert row["updated"].startswith("2026-10-29")
+    assert row["initiative"] == "AVSWDEV-1177"
+
+
 def test_fixed_prd_lucene_query_req_audio():
     assert fixed_prd_lucene_query("REQ_AUDIO") == "type:PRD AND division.KEY:6"
     assert prd_list_limit_for_model("REQ_AUDIO") == PRD_BROAD_LIST_LIMIT

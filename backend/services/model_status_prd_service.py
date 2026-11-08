@@ -334,6 +334,103 @@ def _extract_alm_labels(flat: dict[str, Any]) -> list[str]:
     return uniq
 
 
+def _format_prd_datetime(raw: str) -> str:
+    s = (raw or "").strip().replace("Z", "")
+    if not s:
+        return ""
+    s = s.replace("T", " ")
+    return s[:16] if len(s) >= 11 else s[:10]
+
+
+def _extract_prd_status(flat: dict[str, Any]) -> str:
+    for key in ("status", "Status", "state", "workflowStatus"):
+        t = _safe_text(flat, key) or _field_text(flat.get(key))
+        if t:
+            return t
+    return ""
+
+
+def _extract_prd_updated(flat: dict[str, Any]) -> str:
+    for key in (
+        "updated",
+        "Updated",
+        "modified",
+        "lastModified",
+        "lastUpdated",
+        "updatedAt",
+        "modifiedAt",
+    ):
+        t = _safe_text(flat, key) or _field_text(flat.get(key))
+        if t:
+            return _format_prd_datetime(t)
+    return ""
+
+
+def _extract_prd_assignee(flat: dict[str, Any]) -> str:
+    for key in (
+        "assignee",
+        "Assignee",
+        "assignees",
+        "author",
+        "Author",
+        "dev",
+        "Dev",
+        "developer",
+    ):
+        val = flat.get(key)
+        if isinstance(val, list):
+            parts = [_field_text(v) for v in val if _field_text(v)]
+            if parts:
+                return ", ".join(parts[:4])
+        t = _safe_text(flat, key) or _field_text(val)
+        if t:
+            return t
+    for k, v in flat.items():
+        lk = str(k).lower()
+        if "assignee" in lk or lk in ("dev", "author") or "개발" in str(k):
+            t = _field_text(v)
+            if t:
+                return t
+    return ""
+
+
+def _extract_prd_initiative(flat: dict[str, Any]) -> str:
+    for key in ("initiative", "Initiative", "linkedInitiative", "epic", "parent"):
+        t = _field_text(flat.get(key))
+        if t:
+            return t
+    for k, v in flat.items():
+        if "initiative" in str(k).lower():
+            t = _field_text(v)
+            if t:
+                return t
+    return ""
+
+
+def _extract_prd_delivery_date(flat: dict[str, Any]) -> str:
+    for key in (
+        "deliveryDate",
+        "DeliveryDate",
+        "delivery_date",
+        "targetDate",
+        "dueDate",
+    ):
+        t = _field_text(flat.get(key)) or _safe_text(flat, key)
+        if t:
+            return _format_prd_datetime(t)[:10]
+    for k, v in flat.items():
+        ks = str(k).lower()
+        if "delivery" in ks or "due" in ks or "확정" in str(k):
+            t = _field_text(v)
+            if t and any(ch.isdigit() for ch in t):
+                return _format_prd_datetime(t)[:10]
+    return ""
+
+
+def _prd_list_row_is_sparse(flat: dict[str, Any]) -> bool:
+    return not _extract_prd_status(flat) and not _extract_prd_updated(flat)
+
+
 def _extract_apply_model(flat: dict[str, Any]) -> str:
     for key in APPLY_MODEL_FIELD_CANDIDATES:
         v = _safe_text(flat, key)
@@ -355,15 +452,24 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
         flat = {**flat, **detail}
     wid = workitem_id(flat, row)
     portal_base = "https://alm-lge-hlm.singlex.com"
+    status = _extract_prd_status(flat)
+    updated = _extract_prd_updated(flat)
+    assignee = _extract_prd_assignee(flat)
+    initiative = _extract_prd_initiative(flat)
+    delivery = _extract_prd_delivery_date(flat)
+    created_raw = _safe_text(flat, "created") or _field_text(flat.get("created"))
     return {
         "id": wid,
         "title": _extract_workitem_title(flat, wid),
-        "status": _safe_text(flat, "status"),
-        "type": _safe_text(flat, "type"),
+        "status": status,
+        "type": _safe_text(flat, "type") or _field_text(flat.get("type")),
         "applyModel": _extract_apply_model(flat),
-        "assignee": _safe_text(flat, "assignee"),
-        "created": _safe_text(flat, "created")[:10],
-        "updated": _safe_text(flat, "updated")[:10],
+        "assignee": assignee,
+        "created": _format_prd_datetime(created_raw)[:10] if created_raw else "",
+        "updated": updated,
+        "initiative": initiative,
+        "deliveryDate": delivery,
+        "actionItem": _field_text(flat.get("actionItem")) or _field_text(flat.get("ActionItem")),
         "almLabels": _extract_alm_labels(flat),
         "polarionUrl": f"{portal_base}/polarion/#/project/{project_key}/workitem?id={wid}",
     }
@@ -789,7 +895,10 @@ async def _fetch_polarion_items(
                 filtered.append(r)
         rows = filtered
     slice_rows = rows[:limit]
-    do_enrich = enrich_details and len(slice_rows) <= 120
+    sparse_list = bool(slice_rows) and _prd_list_row_is_sparse(flatten_workitem(slice_rows[0]))
+    do_enrich = enrich_details and len(slice_rows) <= PRD_BROAD_LIST_LIMIT and (
+        len(slice_rows) <= PRD_LIST_LIMIT or sparse_list
+    )
     if do_enrich and slice_rows:
         urls = [_workitem_self_url(r) for r in slice_rows]
         if any(urls):
@@ -1261,7 +1370,7 @@ async def get_prd_for_model(
             proj,
             limit=fetch_limit,
             list_path=prd_rest_path,
-            enrich_details=fetch_limit <= PRD_LIST_LIMIT,
+            enrich_details=True,
         )
         winning_query = fixed_q
         winning_list_path = prd_rest_path

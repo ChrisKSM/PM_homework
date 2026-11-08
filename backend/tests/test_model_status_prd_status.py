@@ -15,3 +15,9 @@ def test_enrich_item():
     out = enrich_prd_item_workflow({"id": "X", "status": "검토요청"})
     assert out["workflowStageId"] == "review_request"
     assert out["workflowStageLabel"] == "검토요청"
+
+
+def test_enrich_unknown_status_shows_raw_label():
+    out = enrich_prd_item_workflow({"id": "X", "status": "Custom Polarion State"})
+    assert out["workflowStageId"] == "other"
+    assert out["workflowStageLabel"] == "Custom Polarion State"

@@ -7,6 +7,9 @@ export interface ModelStatusPrdItem {
   assignee: string
   created: string
   updated: string
+  initiative?: string
+  deliveryDate?: string
+  actionItem?: string
   almLabels?: string[]
   reviewLabel?: string
   reviewLabelUpdatedAt?: string
