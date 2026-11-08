@@ -16,9 +16,63 @@ PRD_WORKFLOW_COLUMNS: tuple[dict[str, Any], ...] = (
 
 _OTHER = {"id": "other", "label": "기타", "order": 99}
 
+# AVSWReqMgmt PRD — Polarion workitem status enum id/name (REST status 필드)
+# UI workflow(작성 중…개발 승인)와 OOTB status id 가 다를 때 id 기준 매핑
+POLARION_PRD_STATUS_ID_TO_STAGE: dict[str, str] = {
+    "open": "draft",
+    "draft": "draft",
+    "writing": "draft",
+    "waitreview": "review_request",
+    "reviewrequest": "review_request",
+    "requestreview": "review_request",
+    "inreview": "review_request",
+    "reviewapproved": "review_approved",
+    "approved": "review_approved",
+    "proposed": "dev_review",
+    "devreview": "dev_review",
+    "developmentreview": "dev_review",
+    "planningreview": "planning_review",
+    "pmreview": "planning_review",
+    "plreview": "planning_review",
+    "devapproved": "dev_approved",
+    "developmentapproved": "dev_approved",
+    "closed": "dev_approved",
+    "rejected": "rejected",
+    "declined": "rejected",
+    "cancelled": "rejected",
+}
+
 
 def _norm(s: str) -> str:
     return re.sub(r"\s+", "", (s or "").lower())
+
+
+def _stage_column(stage_id: str) -> dict[str, Any]:
+    return dict(next(c for c in PRD_WORKFLOW_COLUMNS if c["id"] == stage_id))
+
+
+def stage_id_from_polarion_token(token: str) -> str | None:
+    n = _norm(token)
+    if not n:
+        return None
+    return POLARION_PRD_STATUS_ID_TO_STAGE.get(n)
+
+
+def resolve_prd_status_tokens(*tokens: str) -> str:
+    """Polarion status id/name → 표시용 한글 workflow 라벨(또는 인식 가능한 raw)."""
+    for token in tokens:
+        stage_id = stage_id_from_polarion_token(token)
+        if stage_id:
+            return _stage_column(stage_id)["label"]
+    for token in tokens:
+        if (token or "").strip():
+            wf = classify_prd_workflow_status(token)
+            if wf["id"] != "other":
+                return wf["label"]
+    for token in tokens:
+        if (token or "").strip():
+            return token.strip()
+    return ""
 
 
 def classify_prd_workflow_status(status: str) -> dict[str, Any]:
@@ -26,6 +80,10 @@ def classify_prd_workflow_status(status: str) -> dict[str, Any]:
     n = _norm(raw)
     if not n:
         return dict(_OTHER)
+
+    mapped = stage_id_from_polarion_token(raw)
+    if mapped:
+        return _stage_column(mapped)
 
     exact_ko: list[tuple[str, str]] = [
         ("작성 중", "draft"),

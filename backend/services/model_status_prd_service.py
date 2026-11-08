@@ -23,7 +23,10 @@ from polarion_client import (
     polarion_pat_configured,
     workitem_id,
 )
-from services.model_status_prd_status import classify_prd_workflow_status
+from services.model_status_prd_status import (
+    classify_prd_workflow_status,
+    resolve_prd_status_tokens,
+)
 from services.model_status_initiative_service import normalize_model_code
 
 APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
@@ -386,33 +389,91 @@ def _status_key_matches(key: str) -> bool:
     return kl.endswith("status") and "comment" not in kl
 
 
+def _polarion_status_tokens(val: Any) -> tuple[str, str]:
+    if isinstance(val, dict):
+        sid = str(val.get("id") or val.get("key") or val.get("enumId") or "").strip()
+        name = str(
+            val.get("name") or val.get("title") or val.get("displayName") or val.get("value") or ""
+        ).strip()
+        return sid, name
+    if val is None:
+        return "", ""
+    return "", str(val).strip()
+
+
+def _status_value_resolved(val: Any) -> str:
+    sid, name = _polarion_status_tokens(val)
+    return resolve_prd_status_tokens(sid, name)
+
+
+_SKIP_STATUS_SCAN_KEYS = frozenset(
+    {
+        "title",
+        "summary",
+        "description",
+        "name",
+        "headline",
+        "subject",
+        "id",
+        "type",
+        "uri",
+        "self",
+        "url",
+        "links",
+        "location",
+        "created",
+        "updated",
+    }
+)
+
+
 def _extract_prd_status(flat: dict[str, Any]) -> str:
-    for key in (
-        "status",
-        "Status",
-        "state",
+    """PRD 검토 workflow — 한글 custom enum 우선, 그 다음 Polarion status id 매핑."""
+    best_ko = ""
+    for k, v in flat.items():
+        kl = str(k).lower()
+        if kl in _SKIP_STATUS_SCAN_KEYS or "description" in kl:
+            continue
+        if "link" in kl or kl.endswith("url"):
+            continue
+        t = _field_text(v)
+        if not t or len(t) > 64:
+            continue
+        wf = classify_prd_workflow_status(t)
+        if wf["id"] != "other":
+            label = wf["label"]
+            best_ko = label
+            if _status_key_matches(str(k)) or "workflow" in kl or "prd" in kl:
+                return label
+    if best_ko:
+        return best_ko
+
+    priority_status_keys = (
         "workflowStatus",
         "workflowstatus",
         "prdStatus",
         "PRDStatus",
+        "reqStatus",
+        "ReqStatus",
+        "reviewStatus",
+        "ReviewStatus",
+        "approvalStatus",
         "enum:status",
-    ):
+        "status",
+        "Status",
+        "state",
+    )
+    for key in priority_status_keys:
         if key in flat:
-            t = _field_text(flat[key])
-            if t and len(t) < 120:
-                return t
+            resolved = _status_value_resolved(flat[key])
+            if resolved:
+                return resolved
     for k, v in flat.items():
         if not _status_key_matches(str(k)):
             continue
-        t = _field_text(v)
-        if t and len(t) < 120:
-            return t
-    for v in flat.values():
-        t = _field_text(v)
-        if not t or len(t) > 48:
-            continue
-        if classify_prd_workflow_status(t)["id"] != "other":
-            return t
+        resolved = _status_value_resolved(v)
+        if resolved:
+            return resolved
     return ""
 
 

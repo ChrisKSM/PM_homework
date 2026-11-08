@@ -70,6 +70,24 @@ def test_extract_status_from_short_korean_enum_value():
     assert _extract_prd_status(flat) == "검토요청"
 
 
+def test_extract_status_maps_polarion_closed_enum():
+    from services.model_status_prd_service import _extract_prd_status
+
+    flat = {
+        "id": "AVRM-4682",
+        "title": "PRD sample",
+        "status": {"id": "closed", "name": "Closed"},
+    }
+    assert _extract_prd_status(flat) == "개발 승인"
+
+
+def test_extract_status_maps_polarion_proposed_enum():
+    from services.model_status_prd_service import _extract_prd_status
+
+    flat = {"status": {"id": "proposed", "name": "Proposed"}}
+    assert _extract_prd_status(flat) == "개발 검토"
+
+
 def test_detail_extracts_html_custom_field():
     from services.model_status_prd_service import _extract_prd_detail_bundle
 

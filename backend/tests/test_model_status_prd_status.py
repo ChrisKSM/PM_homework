@@ -23,3 +23,22 @@ def test_enrich_unknown_status_shows_raw_label():
     out = enrich_prd_item_workflow({"id": "X", "status": "Custom Polarion State"})
     assert out["workflowStageId"] == "other"
     assert out["workflowStageLabel"] == "Custom Polarion State"
+
+
+def test_polarion_closed_maps_to_dev_approved():
+    wf = classify_prd_workflow_status("closed")
+    assert wf["id"] == "dev_approved"
+    assert wf["label"] == "개발 승인"
+
+
+def test_polarion_proposed_maps_to_dev_review():
+    wf = classify_prd_workflow_status("Proposed")
+    assert wf["id"] == "dev_review"
+    assert wf["label"] == "개발 검토"
+
+
+def test_resolve_prd_status_tokens_from_enum_dict():
+    from services.model_status_prd_status import resolve_prd_status_tokens
+
+    assert resolve_prd_status_tokens("closed", "Closed") == "개발 승인"
+    assert resolve_prd_status_tokens("", "proposed") == "개발 검토"
