@@ -43,6 +43,7 @@ export interface RequirementsReviewAlmRow {
   updated?: string
   initiative?: string
   initiativeUrl?: string
+  initiativeLinks?: { key: string; url: string; role?: string }[]
   deliveryDate?: string
   actionItem?: string
   detail?: RequirementsReviewPrdDetail

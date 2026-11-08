@@ -31,6 +31,12 @@ def test_polarion_closed_maps_to_dev_approved():
     assert wf["label"] == "개발 승인"
 
 
+def test_polarion_reviewing_maps_to_planning_review():
+    wf = classify_prd_workflow_status("reviewing")
+    assert wf["id"] == "planning_review"
+    assert wf["label"] == "기획검토"
+
+
 def test_polarion_proposed_maps_to_dev_review():
     wf = classify_prd_workflow_status("Proposed")
     assert wf["id"] == "dev_review"

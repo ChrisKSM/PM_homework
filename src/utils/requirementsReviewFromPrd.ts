@@ -85,6 +85,7 @@ export function mapPrdItemToReviewRow(
     updated: item.updated,
     initiative,
     initiativeUrl: item.initiativeUrl,
+    initiativeLinks: item.initiativeLinks,
     deliveryDate: item.deliveryDate || '—',
     actionItem: item.actionItem || '—',
     detail: item.detail ?? {},

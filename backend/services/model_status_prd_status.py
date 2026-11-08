@@ -31,6 +31,7 @@ POLARION_PRD_STATUS_ID_TO_STAGE: dict[str, str] = {
     "proposed": "dev_review",
     "devreview": "dev_review",
     "developmentreview": "dev_review",
+    "reviewing": "planning_review",
     "planningreview": "planning_review",
     "pmreview": "planning_review",
     "plreview": "planning_review",
@@ -107,7 +108,7 @@ def classify_prd_workflow_status(status: str) -> dict[str, Any]:
     rules: list[tuple[str, tuple[str, ...]]] = [
         ("rejected", ("반려", "reject", "rejected", "declined")),
         ("dev_approved", ("개발승인", "devapproved", "developmentapproved")),
-        ("planning_review", ("기획검토", "planningreview", "pmreview")),
+        ("planning_review", ("기획검토", "planningreview", "pmreview", "reviewing")),
         ("dev_review", ("개발검토", "devreview", "developmentreview")),
         ("review_approved", ("검토승인", "reviewapproved")),
         ("review_request", ("검토요청", "reviewrequest", "requestreview")),

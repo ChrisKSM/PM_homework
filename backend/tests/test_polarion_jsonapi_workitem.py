@@ -36,17 +36,24 @@ def test_jsonapi_resolves_dev_user_and_hyperlink():
     assert any("TVPLAT" in hl.get("uri", "") for hl in flat["_hyperlinks"])
 
 
-def test_initiative_from_hyperlinks():
-    from services.model_status_prd_service import _extract_prd_initiative_links
+def test_initiative_from_hyperlinks_multi():
+    from services.model_status_prd_service import _extract_prd_initiative_bundle
 
     flat = {
         "_hyperlinks": [
             {
                 "role": "internal reference",
+                "uri": "http://jira.lge.com/issue/browse/TVPLAT-850395",
+            },
+            {
+                "role": "internal reference",
                 "uri": "http://jira.lge.com/issue/browse/TVPLAT-1014820",
-            }
+            },
         ]
     }
-    label, url = _extract_prd_initiative_links(flat)
-    assert label == "TVPLAT-1014820"
+    label, url, links, src = _extract_prd_initiative_bundle(flat)
+    assert "TVPLAT-850395" in label
+    assert "TVPLAT-1014820" in label
+    assert len(links) == 2
+    assert src == "hyperlinks.internal_reference"
     assert "jira.lge.com" in url

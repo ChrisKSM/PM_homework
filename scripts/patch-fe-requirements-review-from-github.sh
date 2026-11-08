@@ -36,6 +36,7 @@ fetch src/components/requirementsReview/RequirementsReviewTable.tsx src/componen
 fetch src/components/requirementsReview/RequirementsReviewEditDrawer.tsx src/components/requirementsReview/RequirementsReviewEditDrawer.tsx
 fetch src/components/requirementsReview/RequirementsReviewStatusCards.tsx src/components/requirementsReview/RequirementsReviewStatusCards.tsx
 fetch src/components/requirementsReview/RequirementsReviewDetailModal.tsx src/components/requirementsReview/RequirementsReviewDetailModal.tsx
+fetch src/components/requirementsReview/InitiativeLinksCell.tsx src/components/requirementsReview/InitiativeLinksCell.tsx
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch scripts/patch-fe-be-shared-url.sh scripts/patch-fe-be-shared-url.sh

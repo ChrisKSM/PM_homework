@@ -517,10 +517,30 @@ def _extract_polarion_user_name(val: Any) -> str:
     return _field_text(val)
 
 
-def _extract_prd_assignee(flat: dict[str, Any]) -> str:
+def _owner_field_key_priority(k: str) -> int:
+    kl = k.lower().replace("-", "").replace("_", "")
+    if kl in ("dev", "devkey"):
+        return 0
+    if kl.endswith("devkey") or ".dev." in k.lower() or kl == "devowner":
+        return 1
+    if kl.endswith("dev") or kl == "developer":
+        return 2
+    if "assignee" in kl:
+        return 4
+    if "개발" in k:
+        return 3
+    if kl in ("author",):
+        return 6
+    return 9
+
+
+def _extract_prd_assignee_with_field(flat: dict[str, Any]) -> tuple[str, str]:
+    candidates: list[tuple[int, str, str]] = []
     for key in (
         "dev",
         "Dev",
+        "dev.KEY",
+        "devKey",
         "developer",
         "Developer",
         "assignee",
@@ -534,14 +554,25 @@ def _extract_prd_assignee(flat: dict[str, Any]) -> str:
             continue
         t = _extract_polarion_user_name(val)
         if t:
-            return t
+            candidates.append((_owner_field_key_priority(key), t, key))
     for k, v in flat.items():
-        lk = str(k).lower().replace(".", "")
-        if lk in ("dev", "developer") or lk.endswith("dev") or "assignee" in lk or "개발" in str(k):
+        pri = _owner_field_key_priority(str(k))
+        if pri >= 9:
+            continue
+        lk = str(k).lower()
+        if pri <= 3 or "assignee" in lk or "개발" in str(k):
             t = _extract_polarion_user_name(v)
-            if t:
-                return t
-    return ""
+            if t and not t.startswith("http") and len(t) < 120:
+                candidates.append((pri, t, str(k)))
+    if not candidates:
+        return "", ""
+    candidates.sort(key=lambda x: (x[0], len(x[1])))
+    return candidates[0][1], candidates[0][2]
+
+
+def _extract_prd_assignee(flat: dict[str, Any]) -> str:
+    name, _ = _extract_prd_assignee_with_field(flat)
+    return name
 
 
 _JIRA_ISSUE_KEY_RE = re.compile(r"/browse/([A-Z][A-Z0-9_]+-\d+)", re.I)
@@ -593,50 +624,71 @@ def _scan_nested_jira_links(obj: Any, depth: int = 0) -> list[str]:
     return out
 
 
-def _extract_prd_initiative_links(flat: dict[str, Any]) -> tuple[str, str]:
-    """(표시 텍스트, URL) — Polarion Hyperlinks internal reference 우선."""
-    for key in ("initiative", "Initiative", "linkedInitiative", "epic", "parent"):
-        t = _field_text(flat.get(key))
-        if t:
-            url = t if t.startswith("http") else ""
-            label = _jira_issue_key_from_uri(t) or t
-            return label, url
-    for k, v in flat.items():
-        if "initiative" in str(k).lower():
-            t = _field_text(v)
-            if t:
-                return _jira_issue_key_from_uri(t) or t, t if t.startswith("http") else ""
+def _hyperlink_link_dict(role: str, uri: str) -> dict[str, str] | None:
+    key = _jira_issue_key_from_uri(uri)
+    if not key:
+        return None
+    return {"key": key, "url": uri, "role": role}
 
-    candidates: list[tuple[int, str, str]] = []
+
+def _collect_initiative_hyperlink_links(flat: dict[str, Any]) -> list[dict[str, str]]:
+    """Polarion Hyperlinks — internal reference Jira (복수)."""
+    links: list[dict[str, str]] = []
+    seen: set[str] = set()
+    scored: list[tuple[int, dict[str, str]]] = []
     for hl in flat.get("_hyperlinks") or []:
         if not isinstance(hl, dict):
             continue
         uri = str(hl.get("uri") or hl.get("url") or "").strip()
         if not uri:
             continue
-        role = str(hl.get("role") or "").lower()
-        key = _jira_issue_key_from_uri(uri)
-        if not key:
+        role = str(hl.get("role") or "")
+        row = _hyperlink_link_dict(role, uri)
+        if not row or row["key"] in seen:
             continue
+        seen.add(row["key"])
+        rl = role.lower()
         score = 0
-        if "internal" in role:
+        if "internal" in rl:
             score += 10
-        if "reference" in role:
+        if "reference" in rl:
             score += 5
-        if "initiative" in role:
+        if "initiative" in rl:
             score += 8
-        if "jira" in uri.lower():
-            score += 3
-        candidates.append((score, key, uri))
-    if candidates:
-        candidates.sort(key=lambda x: (-x[0], x[1]))
-        _, label, url = candidates[0]
-        return label, url
+        scored.append((score, row))
+    scored.sort(key=lambda x: (-x[0], x[1]["key"]))
+    return [row for _, row in scored]
+
+
+def _extract_prd_initiative_bundle(flat: dict[str, Any]) -> tuple[str, str, list[dict[str, str]], str]:
+    """(label, primaryUrl, links[], matchedFrom)"""
+    matched = ""
+    for key in ("initiative", "Initiative", "linkedInitiative", "epic", "parent"):
+        t = _field_text(flat.get(key))
+        if t:
+            url = t if t.startswith("http") else ""
+            label = _jira_issue_key_from_uri(t) or t
+            links = [{"key": label, "url": url or t, "role": "field"}] if label else []
+            return label, url, links, f"field:{key}"
+    for k, v in flat.items():
+        if "initiative" in str(k).lower():
+            t = _field_text(v)
+            if t:
+                url = t if t.startswith("http") else ""
+                label = _jira_issue_key_from_uri(t) or t
+                return label, url, [{"key": label, "url": url or t, "role": "field"}], f"field:{k}"
+
+    links = _collect_initiative_hyperlink_links(flat)
+    if links:
+        labels = ", ".join(l["key"] for l in links[:6])
+        return labels, links[0]["url"], links, "hyperlinks.internal_reference"
+
     for uri in _scan_nested_jira_links(flat):
         key = _jira_issue_key_from_uri(uri)
         if key:
-            return key, uri
-    return "", ""
+            links = [{"key": key, "url": uri, "role": "nested"}]
+            return key, uri, links, "nested.scan"
+    return "", "", [], ""
 
 
 def _extract_prd_delivery_date(flat: dict[str, Any]) -> str:
@@ -740,8 +792,8 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
     portal_base = "https://alm-lge-hlm.singlex.com"
     status = _extract_prd_status(flat)
     updated = _extract_prd_updated(flat)
-    assignee = _extract_prd_assignee(flat)
-    initiative, initiative_url = _extract_prd_initiative_links(flat)
+    assignee, owner_field = _extract_prd_assignee_with_field(flat)
+    initiative, initiative_url, initiative_links, initiative_from = _extract_prd_initiative_bundle(flat)
     delivery = _extract_prd_delivery_date(flat)
     created_raw = _safe_text(flat, "created") or _field_text(flat.get("created"))
     return {
@@ -755,6 +807,7 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
         "updated": updated,
         "initiative": initiative,
         "initiativeUrl": initiative_url,
+        "initiativeLinks": initiative_links or None,
         "deliveryDate": delivery,
         "actionItem": _pick_flat_field(flat, "actionItem", "ActionItem", contains=("actionitem",)),
         "detail": _extract_prd_detail_bundle(flat),
@@ -1952,7 +2005,32 @@ async def get_prd_workitem_detail(
     row = {"id": wid, "_detailMerged": flat, "attributes": flat}
     item = normalize_prd_workitem(row, project_key=proj)
     item = enrich_prd_item_workflow(item)
+    expanded = _expand_custom_fields_on_flat(flat)
+    assignee, owner_field = _extract_prd_assignee_with_field(expanded)
+    _, _, init_links, initiative_from = _extract_prd_initiative_bundle(expanded)
+    owner_keys = sorted(
+        k for k in expanded if _owner_field_key_priority(str(k)) < 9
+    )[:48]
     return {
-        "meta": {"projectKey": proj, "id": wid, "source": "polarion-detail"},
+        "meta": {
+            "projectKey": proj,
+            "id": wid,
+            "source": "polarion-detail",
+            "fieldMapping": {
+                "ownerMatchedField": owner_field or None,
+                "ownerResolvedName": assignee or None,
+                "initiativeMatchedFrom": initiative_from or None,
+                "initiativeLinkCount": len(init_links),
+                "polarionKeysOwnerCandidates": owner_keys,
+                "polarionKeysInitiativeCandidates": sorted(
+                    k
+                    for k in expanded
+                    if any(
+                        s in str(k).lower()
+                        for s in ("initiative", "hyperlink", "link", "epic", "parent", "jira")
+                    )
+                )[:48],
+            },
+        },
         "item": item,
     }

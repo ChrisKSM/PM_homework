@@ -3,6 +3,7 @@ import { Loader2, X, ExternalLink } from 'lucide-react'
 import type { RequirementsReviewPrdDetail, RequirementsReviewRow } from '../../types/requirementsReview'
 import { POLARION_PRD_UI } from '../../data/requirementsReviewCatalog'
 import { prdWorkflowBadgeClass } from '../../utils/requirementsReviewStatusBadge'
+import InitiativeLinksCell from './InitiativeLinksCell'
 
 const DETAIL_SECTIONS: { key: keyof RequirementsReviewPrdDetail; label: string; polarionField: string }[] = [
   { key: 'requestedReviewItems', label: '검토요청사항', polarionField: 'RequestedReviewItems' },
@@ -51,18 +52,16 @@ export default function RequirementsReviewDetailModal({ row, loading = false, on
               </span>
               <span>Owner: {row.devOwner || '—'}</span>
               {row.updated ? <span className="tabular-nums">Updated: {row.updated}</span> : null}
-              {row.initiativeUrl ? (
-                <a
-                  href={row.initiativeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-blue-600 hover:underline font-mono"
-                >
-                  Initiative: {row.initiative || row.initiativeUrl}
-                </a>
-              ) : row.initiative ? (
-                <span className="font-mono">Initiative: {row.initiative}</span>
-              ) : null}
+              {(row.initiativeLinks?.length || row.initiativeUrl || row.initiative) && (
+                <span className="flex flex-wrap items-center gap-1">
+                  <span className="shrink-0">Initiative:</span>
+                  <InitiativeLinksCell
+                    initiative={row.initiative}
+                    initiativeUrl={row.initiativeUrl}
+                    initiativeLinks={row.initiativeLinks}
+                  />
+                </span>
+              )}
             </p>
           </div>
           <button

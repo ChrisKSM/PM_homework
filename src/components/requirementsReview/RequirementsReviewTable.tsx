@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { ExternalLink } from 'lucide-react'
 import type { RequirementsReviewRow } from '../../types/requirementsReview'
 import { prdWorkflowBadgeClass } from '../../utils/requirementsReviewStatusBadge'
+import InitiativeLinksCell from './InitiativeLinksCell'
 
 interface Props {
   rows: RequirementsReviewRow[]
@@ -83,19 +84,12 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
                     {statusLabel(row)}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-xs text-gray-700">
-                  {row.initiativeUrl ? (
-                    <a
-                      href={row.initiativeUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-600 hover:underline font-mono"
-                    >
-                      {row.initiative || row.initiativeUrl}
-                    </a>
-                  ) : (
-                    row.initiative || '—'
-                  )}
+                <td className="px-3 py-3 text-xs text-gray-700 max-w-[140px]">
+                  <InitiativeLinksCell
+                    initiative={row.initiative}
+                    initiativeUrl={row.initiativeUrl}
+                    initiativeLinks={row.initiativeLinks}
+                  />
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-700">{row.devOwner || '—'}</td>
                 <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.deliveryDate || '—'}</td>

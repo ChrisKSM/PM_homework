@@ -18,7 +18,7 @@ function labelToStageId(label?: string | null): string | undefined {
   if (n.includes('개발검토')) return 'dev_review'
   if (n.includes('검토요청')) return 'review_request'
   if (n.includes('검토승인')) return 'review_approved'
-  if (n.includes('기획검토')) return 'planning_review'
+  if (n.includes('기획검토') || n === 'reviewing') return 'planning_review'
   if (n === '반려' || n.includes('반려')) return 'rejected'
   if (n.includes('작성중')) return 'draft'
   return undefined
