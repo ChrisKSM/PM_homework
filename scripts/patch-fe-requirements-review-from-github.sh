@@ -25,6 +25,7 @@ fetch src/App.tsx src/App.tsx
 fetch src/pages/RequirementsReviewPage.tsx src/pages/RequirementsReviewPage.tsx
 fetch src/hooks/useRequirementsReviewPrd.ts src/hooks/useRequirementsReviewPrd.ts
 fetch src/utils/requirementsReviewFromPrd.ts src/utils/requirementsReviewFromPrd.ts
+fetch src/utils/requirementsReviewPrefetch.ts src/utils/requirementsReviewPrefetch.ts
 fetch src/types/requirementsReview.ts src/types/requirementsReview.ts
 fetch src/data/requirementsReviewCatalog.ts src/data/requirementsReviewCatalog.ts
 fetch src/data/requirementsReviewMock.ts src/data/requirementsReviewMock.ts

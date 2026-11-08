@@ -24,7 +24,7 @@ fetch() {
   echo "  + $2"
 }
 
-BUNDLE="prd-quick-2026-02-workitem-id-fix"
+BUNDLE="prd-quick-2026-02-sparse-list-enrich"
 echo "=== PRD quick patch @ $REF ($BUNDLE) ==="
 fetch backend/polarion_client.py polarion_client.py
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
@@ -36,8 +36,8 @@ if ! grep -q normalize_polarion_workitem_id polarion_client.py 2>/dev/null; then
   echo "ERROR: polarion_client.py 에 workitem id fix 없음" >&2
   exit 1
 fi
-if ! grep -q PRD_LIST_DETAIL_ENRICH_MAX services/model_status_prd_service.py 2>/dev/null; then
-  echo "ERROR: model_status_prd_service.py 에 rate-limit cap 없음" >&2
+if ! grep -q PRD_BROAD_SPARSE_ENRICH_MAX services/model_status_prd_service.py 2>/dev/null; then
+  echo "ERROR: model_status_prd_service.py 에 broad sparse enrich 없음" >&2
   exit 1
 fi
 "$PY" -c "from polarion_client import normalize_polarion_workitem_id, workitem_id; assert normalize_polarion_workitem_id('AVSWReqMgmt/AVRM-5327')=='AVRM-5327'"

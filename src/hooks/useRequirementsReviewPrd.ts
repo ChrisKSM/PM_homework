@@ -10,5 +10,6 @@ export function useRequirementsReviewPrd(modelCode: string) {
     staleTime: 60_000,
     retry: 1,
     refetchOnMount: 'always',
+    meta: { purpose: 'requirements-review' },
   })
 }

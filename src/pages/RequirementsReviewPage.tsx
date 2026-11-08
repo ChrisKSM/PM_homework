@@ -11,10 +11,14 @@ import { POLARION_PRD_UI, resolveRequirementsReviewApiModel, type CategoryScope 
 import type { OsType, RequirementsReviewRow } from '../types/requirementsReview'
 import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
 import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
+import { requirementsReviewRowNeedsPrefetch } from '../utils/requirementsReviewPrefetch'
 import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
 import { modelStatusApi } from '../api/modelStatusApi'
 import type { PrdWorkflowStageId } from '../utils/modelStatusPrdWorkflow'
 import { PRD_WORKFLOW_COLUMNS } from '../utils/modelStatusPrdWorkflow'
+
+const PRD_ROW_PREFETCH_CONCURRENCY = 3
+const PRD_ROW_PREFETCH_MAX = 80
 
 function sortByUpdated(rows: RequirementsReviewRow[]): RequirementsReviewRow[] {
   return [...rows].sort((a, b) => {
@@ -39,7 +43,8 @@ export default function RequirementsReviewPage() {
     [category, subModelId]
   )
 
-  const { data, isPending, isFetching, isError, error, refetch } = useRequirementsReviewPrd(apiModel)
+  const { data, isPending, isFetching, isError, error, refetch, dataUpdatedAt } =
+    useRequirementsReviewPrd(apiModel)
   const meta = data?.meta
   const workflowColumns = data?.workflowColumns?.length ? data.workflowColumns : PRD_WORKFLOW_COLUMNS
 
@@ -89,6 +94,47 @@ export default function RequirementsReviewPage() {
   useEffect(() => {
     setStageFilter(null)
   }, [subModelId, osType, apiModel])
+
+  useEffect(() => {
+    setRowOverrides({})
+  }, [dataUpdatedAt, apiModel])
+
+  useEffect(() => {
+    if (!data?.items?.length || isFetching) return
+    const fragment = meta?.winningQuery || almQuery
+    const targets = allRows
+      .filter((r) => requirementsReviewRowNeedsPrefetch(r))
+      .slice(0, PRD_ROW_PREFETCH_MAX)
+    if (!targets.length) return
+
+    let cancelled = false
+    const queue = [...targets]
+
+    const worker = async () => {
+      while (!cancelled) {
+        const row = queue.shift()
+        if (!row) break
+        try {
+          const { item } = await modelStatusApi.getPrdWorkitem(row.id)
+          if (cancelled) return
+          const enriched = mapPrdItemToReviewRow(item, apiModel, undefined, fragment)
+          setRowOverrides((prev) => {
+            if (prev[row.id]) return prev
+            return { ...prev, [row.id]: enriched }
+          })
+        } catch {
+          /* Polarion 429 등 — 행은 stub 유지 */
+        }
+      }
+    }
+
+    void Promise.all(
+      Array.from({ length: PRD_ROW_PREFETCH_CONCURRENCY }, () => worker())
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [allRows, apiModel, meta?.winningQuery, almQuery, data?.items?.length, isFetching])
 
   const onCategoryChange = useCallback((next: CategoryScope) => {
     setCategory(next)
