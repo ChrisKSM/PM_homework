@@ -523,55 +523,53 @@ def _extract_polarion_user_name(val: Any) -> str:
 
 def _owner_field_key_priority(k: str) -> int:
     kl = k.lower().replace("-", "").replace("_", "")
-    if kl in ("dev", "devkey"):
-        return 0
-    if kl.endswith("devkey") or ".dev." in k.lower() or kl == "devowner":
-        return 1
-    if kl.endswith("dev") or kl == "developer":
-        return 2
     if "assignee" in kl:
-        return 4
-    if "개발" in k:
+        return 0
+    if kl in ("dev", "devkey"):
+        return 1
+    if kl.endswith("devkey") or ".dev." in k.lower() or kl == "devowner":
+        return 2
+    if kl.endswith("dev") or kl == "developer":
         return 3
+    if "개발" in k:
+        return 4
     if kl in ("author",):
         return 6
     return 9
 
 
 def _extract_prd_assignee_with_field(flat: dict[str, Any]) -> tuple[str, str]:
-    candidates: list[tuple[int, str, str]] = []
+    """Owner — relationships.assignee (include=assignee 시 users.name, 없으면 user id)."""
+    candidates: list[tuple[int, int, str, str]] = []
     for key in (
+        "assignee",
+        "Assignee",
+        "assignees",
         "dev",
         "Dev",
         "dev.KEY",
         "devKey",
         "developer",
         "Developer",
-        "assignee",
-        "Assignee",
-        "assignees",
-        "author",
-        "Author",
     ):
         val = flat.get(key)
         if val is None:
             continue
         t = _extract_polarion_user_name(val)
         if t:
-            candidates.append((_owner_field_key_priority(key), t, key))
+            candidates.append((_owner_field_key_priority(key), 0, t, key))
     for k, v in flat.items():
         pri = _owner_field_key_priority(str(k))
-        if pri >= 9:
+        if pri > 4:
             continue
-        lk = str(k).lower()
-        if pri <= 3 or "assignee" in lk or "개발" in str(k):
-            t = _extract_polarion_user_name(v)
-            if t and not t.startswith("http") and len(t) < 120:
-                candidates.append((pri, t, str(k)))
+        t = _extract_polarion_user_name(v)
+        if t and not t.startswith("http") and len(t) < 120:
+            candidates.append((pri, 1, t, str(k)))
     if not candidates:
         return "", ""
-    candidates.sort(key=lambda x: (x[0], len(x[1])))
-    return candidates[0][1], candidates[0][2]
+    # 정확한 키 우선 — deep_merge 의 relationships.assignee.data[0].id 같은 leaf 는 이름 대신 id
+    candidates.sort(key=lambda x: (x[0], x[1], len(x[2])))
+    return candidates[0][2], candidates[0][3]
 
 
 def _extract_prd_assignee(flat: dict[str, Any]) -> str:
@@ -781,11 +779,8 @@ def _extract_prd_detail_bundle(flat: dict[str, Any]) -> dict[str, str]:
             ("OperationDetailDescription", "operationDetailDescription", "operationDetail"),
             ("operationdetail", "동작성", "동작구체화"),
         ),
-        (
-            "comments",
-            ("comments", "Comments", "comments.text", "comment"),
-            ("comment",),
-        ),
+        # relationships.comments 는 {type,id} ref 뿐이라 원문은 included workitem_comments 에서 조립
+        ("comments", ("_commentsText",), ()),
     ]
     out: dict[str, str] = {}
     for dest, exact, fuzzy in specs:

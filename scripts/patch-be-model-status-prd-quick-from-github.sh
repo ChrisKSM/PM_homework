@@ -1,5 +1,5 @@
 #!/bin/sh
-# BE pod — PRD Polarion 핫픽스만 (429 배치 완화 + workitem id 정규화). 느린 목록 curl 검증 없음.
+# BE pod — PRD Polarion 핫픽스만 (429 배치 완화 + workitem id 정규화 + fields[workitems]=@all / assignee·comments include). 느린 목록 curl 검증 없음.
 #
 #   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/patch-be-model-status-prd-quick-from-github.sh" | sh
 #
@@ -24,7 +24,7 @@ fetch() {
   echo "  + $2"
 }
 
-BUNDLE="prd-quick-2026-02-sparse-list-enrich"
+BUNDLE="prd-quick-2026-11-workitem-fields-assignee-comments"
 echo "=== PRD quick patch @ $REF ($BUNDLE) ==="
 fetch backend/polarion_client.py polarion_client.py
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
@@ -34,6 +34,10 @@ command -v "$PY" >/dev/null 2>&1 || PY=python
 
 if ! grep -q normalize_polarion_workitem_id polarion_client.py 2>/dev/null; then
   echo "ERROR: polarion_client.py 에 workitem id fix 없음" >&2
+  exit 1
+fi
+if ! grep -q WORKITEM_DETAIL_FIELD_PARAMS polarion_client.py 2>/dev/null; then
+  echo "ERROR: polarion_client.py 에 fields[workitems]/include 매핑 없음" >&2
   exit 1
 fi
 if ! grep -q PRD_BROAD_SPARSE_ENRICH_MAX services/model_status_prd_service.py 2>/dev/null; then
@@ -65,7 +69,7 @@ iid=it.get('id')
 url=it.get('polarionUrl') or ''
 assert iid and iid!='AVSWReqMgmt', iid
 assert 'AVRM-5153' in url, url
-print('  OK  workitem id=', iid)
+print('  OK  workitem id=', iid, '| owner=', it.get('assignee') or '-', '| updated=', it.get('updated') or '-', '| comments=', len((it.get('detail') or {}).get('comments') or ''), 'chars')
 " 2>/dev/null || echo "  (workitem smoke skip — Polarion 429/502 가능)"
 fi
 echo "=== quick patch done ($BUNDLE) ==="

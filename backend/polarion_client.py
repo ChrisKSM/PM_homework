@@ -164,6 +164,22 @@ def _ootb_uses_jsonapi_pagination(list_path: str | None) -> bool:
     return seg == "workitems"
 
 
+# getWorkItem(s) 기본 sparse fieldset 은 updated / hyperlinks / custom field 를 빼고 돌려줌
+WORKITEM_LIST_FIELD_PARAMS: dict[str, str] = {
+    "fields[workitems]": "@all",
+    "fields[users]": "@all",
+    "include": "assignee",
+}
+WORKITEM_DETAIL_FIELD_PARAMS: dict[str, str] = {
+    "fields[workitems]": "@all",
+    "fields[users]": "@all",
+    "fields[workitem_comments]": "@all",
+    "include": "assignee,author,comments",
+}
+# fields/include 를 400 으로 거절한 목록 endpoint — 이후 기본 파라미터만 사용
+_LIST_FIELD_PARAMS_REJECTED: set[str] = set()
+
+
 def _list_query_params(
     query: str,
     page: int,
@@ -200,14 +216,38 @@ def _safe_text(attrs: dict, key: str) -> str:
     return str(val).strip()
 
 
-def _unwrap_ootb_workitem(row: dict[str, Any]) -> dict[str, Any]:
-    """Polarion rest/v1 JSON:API → flat row (attributes + id + links)."""
+def _unwrap_ootb_workitem(
+    row: dict[str, Any],
+    included: dict[tuple[str, str], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Polarion rest/v1 JSON:API → flat row (attributes + id + links + relationships)."""
     if "attributes" in row and isinstance(row.get("attributes"), dict):
         flat = dict(row["attributes"])
         if row.get("id") and not flat.get("id"):
             flat["id"] = row["id"]
         if row.get("links"):
             flat["links"] = row["links"]
+        rels = row.get("relationships")
+        if isinstance(rels, dict):
+            for rel_name in ("assignee", "author"):
+                rel_body = rels.get(rel_name)
+                if not isinstance(rel_body, dict) or rel_name in flat:
+                    continue
+                rd = rel_body.get("data")
+                if rd:
+                    flat[rel_name] = _resolve_jsonapi_ref(rd, included or {})
+        raw_hls = flat.get("hyperlinks")
+        hyperlinks = [
+            h
+            for h in (
+                _hyperlink_from_obj(it)
+                for it in (raw_hls if isinstance(raw_hls, list) else [])
+                if isinstance(it, dict)
+            )
+            if h
+        ]
+        if hyperlinks and not flat.get("_hyperlinks"):
+            flat["_hyperlinks"] = hyperlinks
         return flat
     return row
 
@@ -219,7 +259,10 @@ def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
         if raw_list and isinstance(raw_list[0], dict) and (
             "attributes" in raw_list[0] or raw_list[0].get("type") == "workitems"
         ):
-            workitems = [_unwrap_ootb_workitem(it) for it in raw_list if isinstance(it, dict)]
+            included = _jsonapi_included_index(data)
+            workitems = [
+                _unwrap_ootb_workitem(it, included) for it in raw_list if isinstance(it, dict)
+            ]
             meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
             total_raw = meta.get("totalCount", meta.get("total", meta.get("totalItems")))
             try:
@@ -267,7 +310,16 @@ async def fetch_list_page(
 ) -> tuple[list[dict[str, Any]], int]:
     """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
     params = _list_query_params(query, page, page_size, list_path=list_path)
-    resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
+    url = _list_endpoint(project_key, list_path=list_path)
+    if _is_ootb_rest_v1() and url not in _LIST_FIELD_PARAMS_REJECTED:
+        try:
+            resp = await _get_with_retry(url, params={**params, **WORKITEM_LIST_FIELD_PARAMS})
+            return _parse_polarion_list_page(resp.json())
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 400:
+                raise
+            _LIST_FIELD_PARAMS_REJECTED.add(url)
+    resp = await _get_with_retry(url, params=params)
     return _parse_polarion_list_page(resp.json())
 
 
@@ -402,7 +454,91 @@ def flatten_polarion_workitem_response(obj: Any) -> dict[str, Any]:
     hyperlinks = _collect_hyperlinks_from_document(obj, included_index)
     if hyperlinks:
         flat["_hyperlinks"] = hyperlinks
+    comments_text = format_jsonapi_workitem_comments(obj)
+    if comments_text:
+        flat["_commentsText"] = comments_text
     return flat
+
+
+def _html_to_text(raw: str) -> str:
+    s = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</li>", "\n", raw or "")
+    s = re.sub(r"<[^>]+>", "", s)
+    s = s.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
+    s = re.sub(r"[ \t]+", " ", s)
+    s = re.sub(r"\n\s*\n+", "\n", s)
+    return s.strip()
+
+
+def _comment_body_text(val: Any) -> str:
+    if isinstance(val, dict):
+        body = str(val.get("value") or "")
+        if str(val.get("type") or "").lower() == "text/html":
+            return _html_to_text(body)
+        return body.strip()
+    return str(val or "").strip()
+
+
+def _jsonapi_user_label(ref: Any, included: dict[tuple[str, str], dict[str, Any]]) -> str:
+    if not isinstance(ref, dict):
+        return ""
+    resolved = _resolve_jsonapi_ref(ref, included)
+    if isinstance(resolved, dict):
+        name = str(resolved.get("name") or "").strip()
+        if name:
+            return name
+    return str(ref.get("id") or "").strip()
+
+
+def _workitem_comment_refs(doc: Any) -> list[Any]:
+    if not isinstance(doc, dict):
+        return []
+    data = doc.get("data")
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    if not isinstance(data, dict):
+        return []
+    rel = (data.get("relationships") or {}).get("comments")
+    if isinstance(rel, dict) and isinstance(rel.get("data"), list):
+        return rel["data"]
+    return []
+
+
+def format_jsonapi_workitem_comments(doc: Any) -> str:
+    """workitem_comments (include=comments 또는 /comments 응답) → 모달 표시용 텍스트."""
+    if not isinstance(doc, dict):
+        return ""
+    included = _jsonapi_included_index(doc)
+    comments: list[dict[str, Any]] = []
+    data = doc.get("data")
+    if isinstance(data, list) and all(
+        isinstance(it, dict) and it.get("type") == "workitem_comments" for it in data
+    ):
+        comments = list(data)
+    else:
+        for ref in _workitem_comment_refs(doc):
+            if not isinstance(ref, dict):
+                continue
+            inc = included.get((str(ref.get("type") or ""), str(ref.get("id") or "")))
+            if inc:
+                comments.append(inc)
+    rows: list[tuple[str, str]] = []
+    for c in comments:
+        attrs = c.get("attributes") if isinstance(c.get("attributes"), dict) else {}
+        text = _comment_body_text(attrs.get("text"))
+        if not text:
+            continue
+        created = str(attrs.get("created") or "").replace("T", " ").replace("Z", "")[:16]
+        author_rel = (c.get("relationships") or {}).get("author")
+        author = ""
+        if isinstance(author_rel, dict):
+            author = _jsonapi_user_label(author_rel.get("data"), included)
+        head = " · ".join(p for p in (created, author) if p)
+        title = str(attrs.get("title") or "").strip()
+        if title:
+            head = f"{head} — {title}" if head else title
+        rows.append((created, f"[{head}]\n{text}" if head else text))
+    rows.sort(key=lambda r: r[0])
+    return "\n\n".join(r[1] for r in rows)
 
 
 def _user_ref_has_name(val: Any) -> bool:
@@ -527,10 +663,9 @@ async def fetch_detail_light(self_url: str) -> dict[str, Any]:
     """목록 배치용 — HTTP 1~2회 (429 방지)."""
     base = self_url.split("?")[0]
     doc: dict[str, Any] | None = None
-    for include in ("dev", ""):
+    for params in (WORKITEM_LIST_FIELD_PARAMS, None):
         try:
-            url = f"{base}?include={include}" if include else base
-            resp = await _get_with_retry(url)
+            resp = await _get_with_retry(base, params=params)
             doc = resp.json()
             break
         except Exception:
@@ -559,21 +694,42 @@ async def fetch_workitem_enriched(
     base = f"{_base_url()}/projects/{project_key}/workitems/{wid}"
     flat: dict[str, Any] = {}
     doc: dict[str, Any] | None = None
-    for q in ("?include=dev", ""):
+    variants: tuple[dict[str, str] | None, ...] = (
+        WORKITEM_DETAIL_FIELD_PARAMS,
+        {"fields[workitems]": "@all"},
+        None,
+    )
+    for params in variants:
+        label = "&".join(f"{k}={v}" for k, v in (params or {}).items())
         try:
-            resp = await _get_with_retry(f"{base}{q}")
+            resp = await _get_with_retry(base, params=params)
             doc = resp.json()
             part = flatten_polarion_workitem_response(doc)
             _deep_merge_leaf_keys(doc.get("data") if isinstance(doc, dict) else doc, part)
             part = await _follow_relationship_related(doc, part)
             flat = _merge_richer_flat(flat, part)
-            debug["attempts"].append({"url": f"{base}{q}", "ok": True, "keys": len(part)})
+            debug["attempts"].append({"url": base, "params": label, "ok": True, "keys": len(part)})
             if _flat_has_min_prd_fields(flat):
                 break
         except Exception as exc:
-            debug["attempts"].append({"url": f"{base}{q}", "ok": False, "error": str(exc)[:120]})
+            debug["attempts"].append(
+                {"url": base, "params": label, "ok": False, "error": str(exc)[:120]}
+            )
     if doc and not _flat_has_min_prd_fields(flat):
         flat = await _follow_relationship_related(doc, flat)
+
+    if doc and not flat.get("_commentsText") and _workitem_comment_refs(doc):
+        try:
+            resp = await _get_with_retry(
+                f"{base}/comments",
+                params={"fields[workitem_comments]": "@all", "include": "author"},
+            )
+            text = format_jsonapi_workitem_comments(resp.json())
+            if text:
+                flat["_commentsText"] = text
+            debug["commentsEndpoint"] = bool(text)
+        except Exception as exc:
+            debug["commentsEndpoint"] = f"error: {str(exc)[:120]}"
 
     if not flat.get("_hyperlinks"):
         await asyncio.sleep(DETAIL_BATCH_STAGGER_SEC)
