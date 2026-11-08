@@ -4,6 +4,8 @@
 # Pod layout: /workspace/project/{main.py, routers/, services/} — NOT backend/ subdir.
 #
 #   curl -fsSL "https://raw.githubusercontent.com/ChrisKSM/PM_homework/cursor/model-schedule-bar-label-fix-b14b/scripts/patch-be-model-status-prd-from-github.sh" | sh
+#   (느린 Polarion 목록 curl 생략) SKIP_SLOW_VERIFY=1 위 명령과 동일
+#   (핫픽스 2파일만) …/patch-be-model-status-prd-quick-from-github.sh
 #
 set -e
 ROOT="${ROOT:-/workspace/project}"
@@ -116,12 +118,15 @@ if [ "$PRD_CODE" = "502" ]; then
   echo "  → grep normalize_polarion_pat dej_variables.py || curl .../dej_variables.py"
 fi
 
-echo "=== probe H7_VI + REQ_AUDIO (요구사항 검토 전체) ==="
-API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
-REQ_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${API_BASE}/model-status/prd?model=REQ_AUDIO" || echo "000")
-echo "  model-status/prd?model=REQ_AUDIO HTTP $REQ_CODE"
-if [ "$REQ_CODE" = "200" ]; then
-  "$PY" -c "
+if [ "${SKIP_SLOW_VERIFY:-0}" = "1" ]; then
+  echo "=== SKIP_SLOW_VERIFY=1 — REQ_AUDIO·verify 스크립트 생략 ==="
+else
+  echo "=== probe H7_VI + REQ_AUDIO (요구사항 검토 전체) ==="
+  API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
+  REQ_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${API_BASE}/model-status/prd?model=REQ_AUDIO" || echo "000")
+  echo "  model-status/prd?model=REQ_AUDIO HTTP $REQ_CODE"
+  if [ "$REQ_CODE" = "200" ]; then
+    "$PY" -c "
 import json,urllib.request
 d=json.load(urllib.request.urlopen('${API_BASE}/model-status/prd?model=REQ_AUDIO'))
 wq=(d.get('meta') or {}).get('winningQuery') or ''
@@ -129,10 +134,10 @@ n=len(d.get('items') or [])
 print('  OK  items=', n, 'winningQuery=', wq[:80])
 assert 'division.KEY:6' in wq and 'type:PRD' in wq or n>=0
 " 2>/dev/null || true
+  fi
+  sh scripts/verify-model-status-prd-fetch.sh || true
+  echo "=== sprint dashboard H7_VI (worklog · velocity · burndown) ==="
+  sh scripts/verify-model-status-sprint-be.sh || true
 fi
-sh scripts/verify-model-status-prd-fetch.sh || true
-
-echo "=== sprint dashboard H7_VI (worklog · velocity · burndown) ==="
-sh scripts/verify-model-status-sprint-be.sh || true
 
 echo "=== patch-be-model-status-prd done ==="
