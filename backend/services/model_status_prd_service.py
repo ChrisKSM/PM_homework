@@ -2012,18 +2012,18 @@ async def get_prd_workitem_detail(
     project_key: str | None = None,
 ) -> dict[str, Any]:
     """단건 PRD workitem — 모달용 (dev / hyperlinks / 구체화 필드)."""
-    from polarion_client import fetch_workitem_enriched
+    from polarion_client import fetch_workitem_enriched, normalize_polarion_workitem_id
 
     from services.model_status_prd_status import enrich_prd_item_workflow
 
-    wid = (workitem_id or "").strip()
+    proj, _, _ = resolve_prd_polarion(project_key)
+    wid = normalize_polarion_workitem_id((workitem_id or "").strip(), project_key=proj)
     if not wid:
         raise ValueError("workitem id required")
     if not polarion_pat_configured():
         raise RuntimeError("Polarion PAT not configured")
-    proj, _, _ = resolve_prd_polarion(project_key)
     flat, fetch_debug = await fetch_workitem_enriched(proj, wid)
-    row = {"id": wid, "_detailMerged": flat, "attributes": flat}
+    row = {"id": wid, "projectKey": proj, "_detailMerged": flat, "attributes": flat}
     item = normalize_prd_workitem(row, project_key=proj)
     item = enrich_prd_item_workflow(item)
     expanded = _expand_custom_fields_on_flat(flat)

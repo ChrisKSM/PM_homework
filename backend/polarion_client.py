@@ -540,6 +540,12 @@ async def fetch_detail_light(self_url: str) -> dict[str, Any]:
         doc = resp.json()
     flat = flatten_polarion_workitem_response(doc)
     flat = await _follow_relationship_related(doc, flat)
+    import urllib.parse
+
+    m = re.search(r"/projects/([^/]+)/workitems/([^/?]+)", base)
+    proj = urllib.parse.unquote(m.group(1)) if m else ""
+    wid_guess = urllib.parse.unquote(m.group(2)) if m else ""
+    _pin_jsonapi_workitem_identity(flat, doc, wid_guess, project_key=proj)
     return flat
 
 
@@ -548,7 +554,7 @@ async def fetch_workitem_enriched(
     workitem_id: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """단건 모달용 — 제한적 추가 조회 (customs/sidecar)."""
-    wid = (workitem_id or "").strip()
+    wid = normalize_polarion_workitem_id((workitem_id or "").strip(), project_key=project_key)
     debug: dict[str, Any] = {"attempts": []}
     base = f"{_base_url()}/projects/{project_key}/workitems/{wid}"
     flat: dict[str, Any] = {}
@@ -590,6 +596,8 @@ async def fetch_workitem_enriched(
         debug["customsOk"] = False
         debug["customsSkipped"] = True
 
+    if doc:
+        _pin_jsonapi_workitem_identity(flat, doc, wid, project_key=project_key)
     debug["flatKeyCount"] = len(flat)
     return flat, debug
 
@@ -660,16 +668,131 @@ def _last_segment(url: str) -> str:
     return url.rstrip("/").rsplit("/", 1)[-1] if url else ""
 
 
-def workitem_id(attrs: dict[str, Any], row: dict[str, Any] | None = None) -> str:
-    for key in ("id", "workitemId", "workItemId", "workitem_id", "key"):
-        val = _safe_text(attrs, key)
-        if val:
-            return val
+_WORKITEM_ID_RE = re.compile(r"^[A-Za-z]{2,}-\d+", re.ASCII)
+
+
+def _looks_like_workitem_id(val: str) -> bool:
+    return bool(_WORKITEM_ID_RE.match((val or "").strip()))
+
+
+def normalize_polarion_workitem_id(raw: str, *, project_key: str = "") -> str:
+    """Polarion 복합 id (PROJECT/AVRM-123) → AVRM-123."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    if "/" in s:
+        left, right = s.rsplit("/", 1)
+        right = right.strip()
+        if right and (_looks_like_workitem_id(right) or (project_key and left == project_key)):
+            return right
+    return s
+
+
+def _workitem_id_score(val: str, *, project_key: str = "") -> int:
+    canon = normalize_polarion_workitem_id(val, project_key=project_key)
+    if not canon:
+        return -1
+    if _looks_like_workitem_id(canon):
+        return 30
+    if project_key and canon == project_key:
+        return 0
+    if "/" in val:
+        return 5
+    return 10
+
+
+def _collect_workitem_id_candidates(
+    attrs: dict[str, Any],
+    row: dict[str, Any] | None,
+) -> list[str]:
+    out: list[str] = []
+    seen: set[str] = set()
+
+    def add(raw: Any) -> None:
+        s = str(raw or "").strip()
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+
+    if row:
+        add(row.get("id"))
+    for key in (
+        "attributes.id",
+        "id",
+        "workitemId",
+        "workItemId",
+        "workitem_id",
+        "key",
+    ):
+        add(_safe_text(attrs, key))
     for src in (attrs, row or {}):
-        uri = src.get("uri") or (src.get("links") or {}).get("self", "")
-        if isinstance(uri, str) and uri:
-            return _last_segment(uri)
-    return ""
+        if not isinstance(src, dict):
+            continue
+        links = src.get("links")
+        uri = src.get("uri")
+        if isinstance(links, dict):
+            uri = uri or links.get("self") or links.get("Self")
+        if isinstance(uri, str) and uri.strip():
+            m = re.search(r"/workitems/([^/?]+)", uri)
+            if m:
+                import urllib.parse
+
+                add(urllib.parse.unquote(m.group(1)))
+            else:
+                add(_last_segment(uri))
+    return out
+
+
+def _pin_jsonapi_workitem_identity(
+    flat: dict[str, Any],
+    doc: dict[str, Any] | None,
+    fallback_wid: str,
+    *,
+    project_key: str = "",
+) -> None:
+    """deep_merge가 project.id 로 flat[id]를 덮어쓴 뒤 workitem id/type 복원."""
+    if not isinstance(flat, dict):
+        return
+    wid = normalize_polarion_workitem_id(fallback_wid, project_key=project_key)
+    wi_type: Any = None
+    if isinstance(doc, dict):
+        data = doc.get("data")
+        if isinstance(data, list):
+            data = data[0] if data else {}
+        if isinstance(data, dict):
+            if data.get("type") not in (None, "projects", "project"):
+                wi_type = data.get("type")
+            tid = normalize_polarion_workitem_id(str(data.get("id") or ""), project_key=project_key)
+            if _looks_like_workitem_id(tid):
+                wid = tid
+            attrs = data.get("attributes")
+            if isinstance(attrs, dict):
+                aid = normalize_polarion_workitem_id(str(attrs.get("id") or ""), project_key=project_key)
+                if _looks_like_workitem_id(aid):
+                    wid = aid
+                if attrs.get("type"):
+                    wi_type = attrs.get("type")
+    if wid:
+        flat["id"] = wid
+    if wi_type and str(wi_type).lower() not in ("projects", "project"):
+        flat["type"] = wi_type
+
+
+def workitem_id(attrs: dict[str, Any], row: dict[str, Any] | None = None) -> str:
+    project_key = ""
+    if row and isinstance(row, dict):
+        project_key = str(row.get("projectKey") or row.get("project") or "").strip()
+        if isinstance(row.get("project"), dict):
+            project_key = project_key or str(row["project"].get("id") or "").strip()
+    best = ""
+    best_score = -1
+    for cand in _collect_workitem_id_candidates(attrs, row):
+        canon = normalize_polarion_workitem_id(cand, project_key=project_key)
+        score = _workitem_id_score(cand, project_key=project_key)
+        if score > best_score and canon:
+            best_score = score
+            best = canon
+    return best
 
 
 def normalize_workitem(attrs: dict[str, Any], location: str = "") -> dict[str, Any]:
