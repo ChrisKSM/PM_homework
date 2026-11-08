@@ -13,7 +13,9 @@ import httpx
 
 from config import settings
 from polarion_client import (
+    _base_url,
     _fetch_detail_batch,
+    _is_ootb_rest_v1,
     _quote_polarion_value,
     _safe_text,
     fetch_list_page,
@@ -21,6 +23,7 @@ from polarion_client import (
     polarion_pat_configured,
     workitem_id,
 )
+from services.model_status_prd_status import classify_prd_workflow_status
 from services.model_status_initiative_service import normalize_model_code
 
 APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
@@ -260,7 +263,12 @@ def _prd_list_path_candidates(primary: str) -> list[str]:
     return out or ["workitems"]
 
 
-def _workitem_self_url(row: dict[str, Any], flat: dict[str, Any] | None = None) -> str:
+def _workitem_self_url(
+    row: dict[str, Any],
+    flat: dict[str, Any] | None = None,
+    *,
+    project_key: str | None = None,
+) -> str:
     f = flat if flat is not None else flatten_workitem(row)
     links = row.get("links") if isinstance(row.get("links"), dict) else {}
     links = links or (f.get("links") if isinstance(f.get("links"), dict) else {})
@@ -272,6 +280,10 @@ def _workitem_self_url(row: dict[str, Any], flat: dict[str, Any] | None = None) 
         u = f.get(key) or row.get(key)
         if isinstance(u, str) and u.strip().startswith("http"):
             return u.strip()
+    wid = workitem_id(f, row)
+    proj = (project_key or "").strip()
+    if wid and proj and _is_ootb_rest_v1():
+        return f"{_base_url()}/projects/{proj}/workitems/{quote(wid, safe='')}"
     return ""
 
 
@@ -342,10 +354,64 @@ def _format_prd_datetime(raw: str) -> str:
     return s[:16] if len(s) >= 11 else s[:10]
 
 
-def _extract_prd_status(flat: dict[str, Any]) -> str:
-    for key in ("status", "Status", "state", "workflowStatus"):
-        t = _safe_text(flat, key) or _field_text(flat.get(key))
+def _pick_flat_field(flat: dict[str, Any], *keys: str, contains: tuple[str, ...] = ()) -> str:
+    for key in keys:
+        if key in flat:
+            t = _field_text(flat[key])
+            if t:
+                return t
+        t = _safe_text(flat, key)
         if t:
+            return t
+    if contains:
+        for k, v in flat.items():
+            kl = str(k).lower()
+            if any(sub in kl for sub in contains):
+                t = _field_text(v)
+                if t:
+                    return t
+    return ""
+
+
+def _status_key_matches(key: str) -> bool:
+    kl = key.lower().replace("-", "").replace("_", "")
+    if kl in ("status", "state", "workflowstatus", "prdstatus"):
+        return True
+    if kl.endswith(".status") or kl.endswith(":status"):
+        return True
+    if "workflowstatus" in kl or kl.endswith("workflowstatus"):
+        return True
+    if "history" in kl or "resolution" in kl:
+        return False
+    return kl.endswith("status") and "comment" not in kl
+
+
+def _extract_prd_status(flat: dict[str, Any]) -> str:
+    for key in (
+        "status",
+        "Status",
+        "state",
+        "workflowStatus",
+        "workflowstatus",
+        "prdStatus",
+        "PRDStatus",
+        "enum:status",
+    ):
+        if key in flat:
+            t = _field_text(flat[key])
+            if t and len(t) < 120:
+                return t
+    for k, v in flat.items():
+        if not _status_key_matches(str(k)):
+            continue
+        t = _field_text(v)
+        if t and len(t) < 120:
+            return t
+    for v in flat.values():
+        t = _field_text(v)
+        if not t or len(t) > 48:
+            continue
+        if classify_prd_workflow_status(t)["id"] != "other":
             return t
     return ""
 
@@ -431,6 +497,52 @@ def _prd_list_row_is_sparse(flat: dict[str, Any]) -> bool:
     return not _extract_prd_status(flat) and not _extract_prd_updated(flat)
 
 
+def _extract_prd_detail_bundle(flat: dict[str, Any]) -> dict[str, str]:
+    """요구사항 구체화 팝업 — Polarion custom field 별칭."""
+    specs: list[tuple[str, tuple[str, ...], tuple[str, ...]]] = [
+        (
+            "requestedReviewItems",
+            ("RequestedReviewItems", "requestedReviewItems", "requested_review_items"),
+            ("requestedreview", "검토요청사항"),
+        ),
+        (
+            "requestReason",
+            ("requestReason", "RequestReason", "request_reason"),
+            ("requestreason", "요청사유"),
+        ),
+        (
+            "userValue",
+            ("userValue", "UserValue", "user_value"),
+            ("uservalue", "사용자value", "목적"),
+        ),
+        (
+            "userFunctionDetail",
+            (
+                "UserFunctionDetailDescription",
+                "userFunctionDetailDescription",
+                "userFunctionDetail",
+            ),
+            ("userfunction", "기능구체화", "사용자기능"),
+        ),
+        (
+            "operationDetail",
+            ("OperationDetailDescription", "operationDetailDescription", "operationDetail"),
+            ("operationdetail", "동작성", "동작구체화"),
+        ),
+        (
+            "comments",
+            ("comments", "Comments", "comments.text", "comment"),
+            ("comment",),
+        ),
+    ]
+    out: dict[str, str] = {}
+    for dest, exact, fuzzy in specs:
+        text = _pick_flat_field(flat, *exact, contains=fuzzy)
+        if text:
+            out[dest] = text
+    return out
+
+
 def _extract_apply_model(flat: dict[str, Any]) -> str:
     for key in APPLY_MODEL_FIELD_CANDIDATES:
         v = _safe_text(flat, key)
@@ -469,7 +581,8 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
         "updated": updated,
         "initiative": initiative,
         "deliveryDate": delivery,
-        "actionItem": _field_text(flat.get("actionItem")) or _field_text(flat.get("ActionItem")),
+        "actionItem": _pick_flat_field(flat, "actionItem", "ActionItem", contains=("actionitem",)),
+        "detail": _extract_prd_detail_bundle(flat),
         "almLabels": _extract_alm_labels(flat),
         "polarionUrl": f"{portal_base}/polarion/#/project/{project_key}/workitem?id={wid}",
     }
@@ -539,12 +652,24 @@ def _dedupe_queries(queries: list[str], *, limit: int) -> list[str]:
     return uniq[:limit]
 
 
+def _strip_html_markup(raw: str) -> str:
+    s = re.sub(r"<[^>]+>", " ", raw or "")
+    return re.sub(r"\s+", " ", s).strip()
+
+
 def _field_text(val: Any) -> str:
     if val is None:
         return ""
     if isinstance(val, str):
         return val.strip()
     if isinstance(val, dict):
+        if (val.get("type") or "").startswith("text/") and val.get("value") is not None:
+            return _strip_html_markup(str(val.get("value")))
+        for inner in (val.get("value"), val.get("content"), val.get("text")):
+            if inner is not None and not isinstance(inner, (dict, list)):
+                t = _strip_html_markup(str(inner))
+                if t:
+                    return t
         return str(val.get("name") or val.get("value") or val.get("id") or "").strip()
     if isinstance(val, list):
         return " ".join(_field_text(v) for v in val if v)
@@ -895,12 +1020,16 @@ async def _fetch_polarion_items(
                 filtered.append(r)
         rows = filtered
     slice_rows = rows[:limit]
-    sparse_list = bool(slice_rows) and _prd_list_row_is_sparse(flatten_workitem(slice_rows[0]))
+    probe = slice_rows[: min(25, len(slice_rows))]
+    sparse_list = bool(probe) and sum(
+        1 for r in probe if _prd_list_row_is_sparse(flatten_workitem(r))
+    ) >= max(2, len(probe) // 3)
+    always_enrich_broad = limit >= PRD_BROAD_LIST_LIMIT or len(slice_rows) > PRD_LIST_LIMIT
     do_enrich = enrich_details and len(slice_rows) <= PRD_BROAD_LIST_LIMIT and (
-        len(slice_rows) <= PRD_LIST_LIMIT or sparse_list
+        len(slice_rows) <= PRD_LIST_LIMIT or sparse_list or always_enrich_broad
     )
     if do_enrich and slice_rows:
-        urls = [_workitem_self_url(r) for r in slice_rows]
+        urls = [_workitem_self_url(r, project_key=project_key) for r in slice_rows]
         if any(urls):
             details = await _fetch_detail_batch(urls)
             merged_rows: list[dict[str, Any]] = []

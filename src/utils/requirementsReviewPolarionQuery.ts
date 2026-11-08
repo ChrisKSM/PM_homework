@@ -28,7 +28,7 @@ export function buildRequirementsReviewQueryPreview(input: RequirementsReviewQue
   }
 
   if (input.category === 'all') {
-    const q = POLARION_AUDIO_DIVISION_QUERY
+    const q = POLARION_AUDIO_DIVISION_QUERY // type:PRD AND division.KEY:6
     return input.osType === 'all' ? q : `${q} AND labels:(${input.osType})`
   }
 

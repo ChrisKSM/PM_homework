@@ -10,6 +10,14 @@ export interface ModelStatusPrdItem {
   initiative?: string
   deliveryDate?: string
   actionItem?: string
+  detail?: {
+    requestedReviewItems?: string
+    requestReason?: string
+    userValue?: string
+    userFunctionDetail?: string
+    operationDetail?: string
+    comments?: string
+  }
   almLabels?: string[]
   reviewLabel?: string
   reviewLabelUpdatedAt?: string

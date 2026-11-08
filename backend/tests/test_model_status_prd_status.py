@@ -3,6 +3,8 @@ from services.model_status_prd_status import classify_prd_workflow_status, enric
 
 def test_classify_korean_statuses():
     assert classify_prd_workflow_status("작성 중")["id"] == "draft"
+    assert classify_prd_workflow_status("개발 승인")["label"] == "개발 승인"
+    assert classify_prd_workflow_status("기획검토")["id"] == "planning_review"
     assert classify_prd_workflow_status("검토요청")["id"] == "review_request"
     assert classify_prd_workflow_status("검토 승인")["id"] == "review_approved"
     assert classify_prd_workflow_status("개발 검토")["id"] == "dev_review"

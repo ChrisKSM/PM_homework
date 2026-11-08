@@ -83,7 +83,7 @@ export function mapPrdItemToReviewRow(
     initiative: item.initiative || '—',
     deliveryDate: item.deliveryDate || '—',
     actionItem: item.actionItem || '—',
-    detail: {},
+    detail: item.detail ?? {},
     devOwner: item.assignee || base.devOwner,
     ...base,
   }

@@ -4,10 +4,17 @@ import type { RequirementsReviewRow } from '../../types/requirementsReview'
 
 interface Props {
   rows: RequirementsReviewRow[]
-  onTitleClick: (row: RequirementsReviewRow) => void
+  onIdClick: (row: RequirementsReviewRow) => void
 }
 
-export default function RequirementsReviewTable({ rows, onTitleClick }: Props) {
+function statusLabel(row: RequirementsReviewRow): string {
+  if (row.workflowStageId && row.workflowStageId !== 'other') {
+    return row.workflowStageLabel || row.almStatus || '—'
+  }
+  return row.almStatus || row.workflowStageLabel || '—'
+}
+
+export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
   if (rows.length === 0) {
     return (
       <div className="bg-white border border-surface-border rounded-xl px-6 py-12 text-center text-sm text-gray-500">
@@ -42,32 +49,32 @@ export default function RequirementsReviewTable({ rows, onTitleClick }: Props) {
                 )}
               >
                 <td className="px-3 py-3 text-xs font-mono whitespace-nowrap">
+                  <button
+                    type="button"
+                    onClick={() => onIdClick(row)}
+                    className="inline-flex items-center gap-1 text-indigo-700 font-bold hover:underline"
+                  >
+                    {row.id}
+                  </button>
+                </td>
+                <td className="px-3 py-3 text-sm text-gray-900 max-w-md">
                   {row.polarionUrl ? (
                     <a
                       href={row.polarionUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1 text-blue-600 font-bold hover:underline"
+                      className="inline-flex items-center gap-1 text-left font-medium text-blue-600 hover:underline line-clamp-2"
                     >
-                      {row.id}
-                      <ExternalLink size={12} className="opacity-60" />
+                      {row.title}
+                      <ExternalLink size={12} className="opacity-60 shrink-0" />
                     </a>
                   ) : (
-                    row.id
+                    <span className="line-clamp-2">{row.title}</span>
                   )}
-                </td>
-                <td className="px-3 py-3 text-sm text-gray-900 max-w-md">
-                  <button
-                    type="button"
-                    onClick={() => onTitleClick(row)}
-                    className="text-left font-medium text-indigo-700 hover:underline line-clamp-2"
-                  >
-                    {row.title}
-                  </button>
                 </td>
                 <td className="px-3 py-3">
                   <span className="inline-flex px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800">
-                    {row.workflowStageLabel || row.almStatus}
+                    {statusLabel(row)}
                   </span>
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-700">{row.initiative || '—'}</td>

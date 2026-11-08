@@ -27,6 +27,25 @@ def classify_prd_workflow_status(status: str) -> dict[str, Any]:
     if not n:
         return dict(_OTHER)
 
+    exact_ko: list[tuple[str, str]] = [
+        ("작성 중", "draft"),
+        ("작성중", "draft"),
+        ("검토요청", "review_request"),
+        ("검토 요청", "review_request"),
+        ("검토승인", "review_approved"),
+        ("검토 승인", "review_approved"),
+        ("개발검토", "dev_review"),
+        ("개발 검토", "dev_review"),
+        ("기획검토", "planning_review"),
+        ("기획 검토", "planning_review"),
+        ("개발승인", "dev_approved"),
+        ("개발 승인", "dev_approved"),
+        ("반려", "rejected"),
+    ]
+    for label, stage_id in exact_ko:
+        if raw == label or _norm(raw) == _norm(label):
+            return dict(next(c for c in PRD_WORKFLOW_COLUMNS if c["id"] == stage_id))
+
     rules: list[tuple[str, tuple[str, ...]]] = [
         ("rejected", ("반려", "reject", "rejected", "declined")),
         ("dev_approved", ("개발승인", "devapproved", "developmentapproved")),

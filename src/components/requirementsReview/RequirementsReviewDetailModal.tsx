@@ -31,7 +31,13 @@ export default function RequirementsReviewDetailModal({ row, onClose }: Props) {
             <p className="text-xs font-mono text-gray-500">{row.id}</p>
             <h2 className="text-lg font-bold text-gray-900 mt-1 leading-snug">{row.title}</h2>
             <p className="text-xs text-gray-500 mt-2">
-              Status: {row.workflowStageLabel || row.almStatus} · Owner: {row.devOwner || '—'}
+              Status:{' '}
+              {row.workflowStageId && row.workflowStageId !== 'other'
+                ? row.workflowStageLabel
+                : row.almStatus && row.almStatus !== '—'
+                  ? row.almStatus
+                  : row.workflowStageLabel || '—'}{' '}
+              · Owner: {row.devOwner || '—'}
             </p>
           </div>
           <button

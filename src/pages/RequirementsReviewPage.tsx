@@ -177,7 +177,7 @@ export default function RequirementsReviewPage() {
           onStageFilter={setStageFilter}
         />
 
-        <RequirementsReviewTable rows={filteredRows} onTitleClick={setDetailRow} />
+        <RequirementsReviewTable rows={filteredRows} onIdClick={setDetailRow} />
       </div>
 
       <RequirementsReviewDetailModal row={detailRow} onClose={() => setDetailRow(null)} />

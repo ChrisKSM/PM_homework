@@ -45,6 +45,38 @@ def test_prd_field_extractors_from_ootb_attrs():
     assert row["status"] == "개발 승인"
     assert row["updated"].startswith("2026-10-29")
     assert row["initiative"] == "AVSWDEV-1177"
+    flat2 = {
+        **flat,
+        "userValue": "사용자 가치 설명",
+        "RequestedReviewItems": "검토 항목 텍스트",
+    }
+    row2 = normalize_prd_workitem(flat2, project_key="AVSWReqMgmt")
+    assert row2["detail"]["userValue"] == "사용자 가치 설명"
+    assert row2["detail"]["requestedReviewItems"] == "검토 항목 텍스트"
+
+
+def test_workitem_self_url_falls_back_to_ootb_project_path():
+    from services.model_status_prd_service import _workitem_self_url
+
+    row = {"id": "AVRM-4682", "attributes": {"title": "t"}}
+    url = _workitem_self_url(row, project_key="AVSWReqMgmt")
+    assert "projects/AVSWReqMgmt/workitems/AVRM-4682" in url
+
+
+def test_extract_status_from_short_korean_enum_value():
+    from services.model_status_prd_service import _extract_prd_status
+
+    flat = {"customWorkflowNote": "검토요청", "resolutionStatus": "open"}
+    assert _extract_prd_status(flat) == "검토요청"
+
+
+def test_detail_extracts_html_custom_field():
+    from services.model_status_prd_service import _extract_prd_detail_bundle
+
+    flat = {
+        "userValue": {"type": "text/html", "value": "<p>목적 설명</p>"},
+    }
+    assert _extract_prd_detail_bundle(flat)["userValue"] == "목적 설명"
 
 
 def test_fixed_prd_lucene_query_req_audio():
