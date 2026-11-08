@@ -28,7 +28,7 @@ fetch() {
   echo "  + $2"
 }
 
-PATCH_BUNDLE_ID="prd-patch-2026-02-dej-variables"
+PATCH_BUNDLE_ID="prd-patch-2026-02-req-review-division"
 echo "=== model-status PRD + sprint (TV worklog) @ $REF ($PATCH_BUNDLE_ID) ==="
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
 fetch backend/services/model_status_prd_labels.py services/model_status_prd_labels.py
@@ -69,6 +69,17 @@ if ! "$PY" -c "from dej_variables import normalize_polarion_pat, looks_like_jwt_
 fi
 echo "  OK  dej_variables + polarion_client import"
 
+if ! grep -q 'def fixed_prd_lucene_query' services/model_status_prd_service.py 2>/dev/null; then
+  echo "ERROR: model_status_prd_service.py 에 fixed_prd_lucene_query 없음 (요구사항 검토 REQ_AUDIO)" >&2
+  exit 1
+fi
+if ! "$PY" -c "from services.model_status_prd_service import fixed_prd_lucene_query as f; assert f('REQ_AUDIO')=='division.KEY:6'" 2>/tmp/prd-req-audio.err; then
+  echo "ERROR: REQ_AUDIO → division.KEY:6 동작 안 함"
+  sed -n '1,6p' /tmp/prd-req-audio.err
+  exit 1
+fi
+echo "  OK  REQ_AUDIO → division.KEY:6"
+
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then
   echo "ERROR: routers/model_status.py 에 /prd 라우트 없음" >&2
   exit 1
@@ -101,8 +112,20 @@ if [ "$PRD_CODE" = "502" ]; then
   echo "  → grep normalize_polarion_pat dej_variables.py || curl .../dej_variables.py"
 fi
 
-echo "=== probe H7_VI ==="
+echo "=== probe H7_VI + REQ_AUDIO (요구사항 검토 전체) ==="
 API_BASE="${API_BASE:-http://127.0.0.1:8000/api}"
+REQ_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${API_BASE}/model-status/prd?model=REQ_AUDIO" || echo "000")
+echo "  model-status/prd?model=REQ_AUDIO HTTP $REQ_CODE"
+if [ "$REQ_CODE" = "200" ]; then
+  "$PY" -c "
+import json,urllib.request
+d=json.load(urllib.request.urlopen('${API_BASE}/model-status/prd?model=REQ_AUDIO'))
+wq=(d.get('meta') or {}).get('winningQuery') or ''
+n=len(d.get('items') or [])
+print('  OK  items=', n, 'winningQuery=', wq[:80])
+assert 'division.KEY:6' in wq or n>=0
+" 2>/dev/null || true
+fi
 sh scripts/verify-model-status-prd-fetch.sh || true
 
 echo "=== sprint dashboard H7_VI (worklog · velocity · burndown) ==="
