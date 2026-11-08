@@ -96,6 +96,14 @@ export const modelStatusApi = {
       })
       .then((r) => r.data),
 
+  getPrdWorkitem: (workitemId: string, projectKey?: string) =>
+    client
+      .get<{ item: ModelStatusPrdResponse['items'][number]; meta: { projectKey: string; id: string } }>(
+        '/model-status/prd/workitem',
+        { params: { id: workitemId, project_key: projectKey || undefined } }
+      )
+      .then((r) => r.data),
+
   savePrdReviewLabel: (body: ModelStatusPrdLabelSaveBody) =>
     client.put<{ ok: boolean }>('/model-status/prd/labels', body).then((r) => r.data),
 

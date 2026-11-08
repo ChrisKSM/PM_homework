@@ -29,6 +29,7 @@ fetch src/types/requirementsReview.ts src/types/requirementsReview.ts
 fetch src/data/requirementsReviewCatalog.ts src/data/requirementsReviewCatalog.ts
 fetch src/data/requirementsReviewMock.ts src/data/requirementsReviewMock.ts
 fetch src/utils/requirementsReviewPolarionQuery.ts src/utils/requirementsReviewPolarionQuery.ts
+fetch src/utils/requirementsReviewStatusBadge.ts src/utils/requirementsReviewStatusBadge.ts
 fetch src/utils/requirementsReviewAuth.ts src/utils/requirementsReviewAuth.ts
 fetch src/components/requirementsReview/RequirementsReviewFilters.tsx src/components/requirementsReview/RequirementsReviewFilters.tsx
 fetch src/components/requirementsReview/RequirementsReviewTable.tsx src/components/requirementsReview/RequirementsReviewTable.tsx

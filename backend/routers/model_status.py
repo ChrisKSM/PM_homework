@@ -493,6 +493,21 @@ async def model_status_sprint_dashboard(
         ) from e
 
 
+@router.get("/prd/workitem")
+async def model_status_prd_workitem(
+    id: str = Query(..., min_length=3, description="Polarion workitem id e.g. AVRM-5135"),
+    project_key: str | None = Query(None, description="Polarion project override"),
+):
+    from services.model_status_prd_service import get_prd_workitem_detail
+
+    try:
+        return await get_prd_workitem_detail(id, project_key=project_key)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"PRD workitem 조회 오류: {e}") from e
+
+
 @router.get("/prd")
 async def model_status_prd(
     model: str | None = Query(None, description="UI model e.g. H7_VI"),

@@ -559,6 +559,40 @@ def _jira_issue_key_from_uri(uri: str) -> str:
     return m2.group(1).upper() if m2 else ""
 
 
+def _expand_custom_fields_on_flat(flat: dict[str, Any]) -> dict[str, Any]:
+    out = dict(flat)
+    for key in ("customFields", "customfields", "fields", "customs"):
+        raw = out.get(key)
+        if isinstance(raw, list):
+            for cf in raw:
+                if not isinstance(cf, dict):
+                    continue
+                fk = cf.get("key") or cf.get("id") or cf.get("name") or cf.get("fieldId")
+                if fk is not None:
+                    out[str(fk)] = cf.get("value") if "value" in cf else cf
+        elif isinstance(raw, dict):
+            for fk, fv in raw.items():
+                out[str(fk)] = fv
+    return out
+
+
+def _scan_nested_jira_links(obj: Any, depth: int = 0) -> list[str]:
+    if depth > 12:
+        return []
+    out: list[str] = []
+    if isinstance(obj, dict):
+        for v in obj.values():
+            out.extend(_scan_nested_jira_links(v, depth + 1))
+    elif isinstance(obj, list):
+        for v in obj:
+            out.extend(_scan_nested_jira_links(v, depth + 1))
+    else:
+        s = str(obj or "")
+        if "jira" in s.lower() and "/browse/" in s:
+            out.append(s.strip())
+    return out
+
+
 def _extract_prd_initiative_links(flat: dict[str, Any]) -> tuple[str, str]:
     """(표시 텍스트, URL) — Polarion Hyperlinks internal reference 우선."""
     for key in ("initiative", "Initiative", "linkedInitiative", "epic", "parent"):
@@ -598,6 +632,10 @@ def _extract_prd_initiative_links(flat: dict[str, Any]) -> tuple[str, str]:
         candidates.sort(key=lambda x: (-x[0], x[1]))
         _, label, url = candidates[0]
         return label, url
+    for uri in _scan_nested_jira_links(flat):
+        key = _jira_issue_key_from_uri(uri)
+        if key:
+            return key, uri
     return "", ""
 
 
@@ -697,6 +735,7 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
     detail = row.get("_detailMerged")
     if isinstance(detail, dict):
         flat = {**flat, **detail}
+    flat = _expand_custom_fields_on_flat(flat)
     wid = workitem_id(flat, row)
     portal_base = "https://alm-lge-hlm.singlex.com"
     status = _extract_prd_status(flat)
@@ -1889,4 +1928,31 @@ async def get_prd_for_model(
         "discovery": None if component_scoped else discovery,
         "items": items,
         "discoveredFields": sorted(discovered),
+    }
+
+
+async def get_prd_workitem_detail(
+    workitem_id: str,
+    *,
+    project_key: str | None = None,
+) -> dict[str, Any]:
+    """단건 PRD workitem — 모달용 (dev / hyperlinks / 구체화 필드)."""
+    from polarion_client import fetch_detail
+
+    from services.model_status_prd_status import enrich_prd_item_workflow
+
+    wid = (workitem_id or "").strip()
+    if not wid:
+        raise ValueError("workitem id required")
+    if not polarion_pat_configured():
+        raise RuntimeError("Polarion PAT not configured")
+    proj, _, _ = resolve_prd_polarion(project_key)
+    self_url = f"{_base_url()}/projects/{proj}/workitems/{quote(wid, safe='')}"
+    flat = await fetch_detail(self_url)
+    row = {"id": wid, "_detailMerged": flat, "attributes": flat}
+    item = normalize_prd_workitem(row, project_key=proj)
+    item = enrich_prd_item_workflow(item)
+    return {
+        "meta": {"projectKey": proj, "id": wid, "source": "polarion-detail"},
+        "item": item,
     }

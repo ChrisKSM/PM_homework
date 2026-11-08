@@ -67,7 +67,10 @@ export function mapPrdItemToReviewRow(
     ...overlay,
     customLabels,
   }
+  const devOwner = (item.assignee || '').trim() || (base.devOwner || '').trim() || '—'
+  const initiative = (item.initiative || '').trim() || '—'
   return {
+    ...base,
     id: item.id,
     title: item.title,
     osType: inferOsType(item),
@@ -80,12 +83,11 @@ export function mapPrdItemToReviewRow(
     workflowStageLabel: item.workflowStageLabel,
     workflowOrder: item.workflowOrder,
     updated: item.updated,
-    initiative: item.initiative || '—',
+    initiative,
     initiativeUrl: item.initiativeUrl,
     deliveryDate: item.deliveryDate || '—',
     actionItem: item.actionItem || '—',
     detail: item.detail ?? {},
-    devOwner: item.assignee || base.devOwner,
-    ...base,
+    devOwner,
   }
 }

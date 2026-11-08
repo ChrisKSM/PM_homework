@@ -77,7 +77,7 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
                   <span
                     className={clsx(
                       'inline-flex px-2 py-0.5 rounded text-xs font-semibold',
-                      prdWorkflowBadgeClass(row.workflowStageId)
+                      prdWorkflowBadgeClass(row.workflowStageId, statusLabel(row))
                     )}
                   >
                     {statusLabel(row)}

@@ -404,19 +404,111 @@ def flatten_polarion_workitem_response(obj: Any) -> dict[str, Any]:
     return flat
 
 
+def _user_ref_has_name(val: Any) -> bool:
+    if isinstance(val, dict):
+        return bool(str(val.get("name") or val.get("displayName") or "").strip())
+    return bool(str(val or "").strip())
+
+
+def _parse_external_link_payload(data: Any) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    items: list[Any] = []
+    if isinstance(data, dict):
+        for key in ("data", "linkedWorkItems", "linkedworkitems", "hyperlinks", "links", "items"):
+            raw = data.get(key)
+            if isinstance(raw, list):
+                items = raw
+                break
+        if not items and isinstance(data.get("data"), dict):
+            items = [data["data"]]
+    elif isinstance(data, list):
+        items = data
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        row = _hyperlink_from_obj(it)
+        if row:
+            out.append(row)
+    return out
+
+
+async def _follow_relationship_related(doc: dict[str, Any], flat: dict[str, Any]) -> dict[str, Any]:
+    data = doc.get("data")
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    if not isinstance(data, dict):
+        return flat
+    rels = data.get("relationships") or {}
+    if not isinstance(rels, dict):
+        return flat
+    for rel_name in ("dev", "author", "assignee", "developer"):
+        rel_body = rels.get(rel_name)
+        if not isinstance(rel_body, dict):
+            continue
+        if _user_ref_has_name(flat.get(rel_name)):
+            continue
+        related = (rel_body.get("links") or {}).get("related")
+        if not isinstance(related, str) or not related.strip():
+            continue
+        try:
+            resp = await _get_with_retry(related.strip())
+            sub = flatten_polarion_workitem_response(resp.json())
+            if not sub:
+                sub = flatten_workitem(resp.json())
+            if sub:
+                flat[rel_name] = sub
+        except Exception:
+            continue
+    return flat
+
+
+async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) -> dict[str, Any]:
+    import urllib.parse
+
+    m = re.search(r"/projects/([^/]+)/workitems/([^/?]+)", self_url)
+    if not m:
+        return flat
+    proj = urllib.parse.unquote(m.group(1))
+    wid = urllib.parse.unquote(m.group(2))
+    hls: list[dict[str, str]] = list(flat.get("_hyperlinks") or [])
+    seen = {h.get("uri") for h in hls if isinstance(h, dict)}
+    for suffix in ("linkedworkitems", "linkedWorkItems", "workitem-links", "links"):
+        ep = f"{_base_url()}/projects/{proj}/workitems/{wid}/{suffix}"
+        try:
+            resp = await _get_with_retry(ep)
+            for row in _parse_external_link_payload(resp.json()):
+                if row.get("uri") and row["uri"] not in seen:
+                    seen.add(row["uri"])
+                    hls.append(row)
+        except Exception:
+            continue
+    if hls:
+        flat["_hyperlinks"] = hls
+    return flat
+
+
 async def fetch_detail(self_url: str) -> dict[str, Any]:
-    """workitem 상세 조회 (self link 사용)."""
-    include = "dev,author,assignee,hyperlinks"
-    if "?" in self_url:
-        url = f"{self_url}&include={include}"
-    else:
-        url = f"{self_url}?include={include}"
-    try:
-        resp = await _get_with_retry(url)
-        return flatten_polarion_workitem_response(resp.json())
-    except Exception:
-        resp = await _get_with_retry(self_url)
-        return flatten_polarion_workitem_response(resp.json())
+    """workitem 상세 조회 (self link + dev related + hyperlinks)."""
+    base = self_url.split("?")[0]
+    doc: dict[str, Any] | None = None
+    for include in ("dev,author,assignee", "dev", ""):
+        try:
+            if include:
+                url = f"{base}?include={include}"
+            else:
+                url = base
+            resp = await _get_with_retry(url)
+            doc = resp.json()
+            break
+        except Exception:
+            doc = None
+    if doc is None:
+        resp = await _get_with_retry(base)
+        doc = resp.json()
+    flat = flatten_polarion_workitem_response(doc)
+    flat = await _follow_relationship_related(doc, flat)
+    flat = await _try_merge_polarion_hyperlinks(base, flat)
+    return flat
 
 
 _WRAPPER_KEYS = ("data", "workitem", "workItem", "workitems", "workItems", "attributes", "fields")

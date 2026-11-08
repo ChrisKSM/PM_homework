@@ -1,5 +1,5 @@
 import clsx from 'clsx'
-import { X, ExternalLink } from 'lucide-react'
+import { Loader2, X, ExternalLink } from 'lucide-react'
 import type { RequirementsReviewPrdDetail, RequirementsReviewRow } from '../../types/requirementsReview'
 import { POLARION_PRD_UI } from '../../data/requirementsReviewCatalog'
 import { prdWorkflowBadgeClass } from '../../utils/requirementsReviewStatusBadge'
@@ -15,10 +15,11 @@ const DETAIL_SECTIONS: { key: keyof RequirementsReviewPrdDetail; label: string; 
 
 interface Props {
   row: RequirementsReviewRow | null
+  loading?: boolean
   onClose: () => void
 }
 
-export default function RequirementsReviewDetailModal({ row, onClose }: Props) {
+export default function RequirementsReviewDetailModal({ row, loading = false, onClose }: Props) {
   if (!row) return null
 
   const detail = row.detail ?? {}
@@ -36,7 +37,10 @@ export default function RequirementsReviewDetailModal({ row, onClose }: Props) {
               <span
                 className={clsx(
                   'inline-flex px-2 py-0.5 rounded font-semibold',
-                  prdWorkflowBadgeClass(row.workflowStageId)
+                  prdWorkflowBadgeClass(
+                    row.workflowStageId,
+                    row.workflowStageLabel || row.almStatus
+                  )
                 )}
               >
                 {row.workflowStageId && row.workflowStageId !== 'other'
@@ -71,6 +75,12 @@ export default function RequirementsReviewDetailModal({ row, onClose }: Props) {
         </div>
 
         <div className="overflow-y-auto px-5 py-4 space-y-5">
+          {loading ? (
+            <p className="text-sm text-gray-500 inline-flex items-center gap-2 py-2">
+              <Loader2 size={16} className="animate-spin" />
+              Polarion 상세 불러오는 중…
+            </p>
+          ) : null}
           <div>
             <h3 className="text-sm font-bold text-gray-900 mb-3">요구사항 구체화</h3>
             <div className="space-y-4">

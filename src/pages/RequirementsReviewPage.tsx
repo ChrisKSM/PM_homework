@@ -12,6 +12,7 @@ import type { OsType, RequirementsReviewRow } from '../types/requirementsReview'
 import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
 import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
 import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
+import { modelStatusApi } from '../api/modelStatusApi'
 import type { PrdWorkflowStageId } from '../utils/modelStatusPrdWorkflow'
 import { PRD_WORKFLOW_COLUMNS } from '../utils/modelStatusPrdWorkflow'
 
@@ -30,6 +31,8 @@ export default function RequirementsReviewPage() {
   const [osType, setOsType] = useState<OsType | 'all'>('all')
   const [stageFilter, setStageFilter] = useState<PrdWorkflowStageId | 'total' | null>(null)
   const [detailRow, setDetailRow] = useState<RequirementsReviewRow | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [rowOverrides, setRowOverrides] = useState<Record<string, RequirementsReviewRow>>({})
 
   const apiModel = useMemo(
     () => resolveRequirementsReviewApiModel(category, subModelId),
@@ -58,7 +61,7 @@ export default function RequirementsReviewPage() {
   }, [data?.items, apiModel, meta?.winningQuery, almQuery])
 
   const filteredRows = useMemo(() => {
-    let list = allRows
+    let list = allRows.map((r) => rowOverrides[r.id] ?? r)
     if (osType !== 'all') {
       list = list.filter((r) => r.osType === osType)
     }
@@ -70,7 +73,7 @@ export default function RequirementsReviewPage() {
       )
     }
     return sortByUpdated(list)
-  }, [allRows, osType, stageFilter])
+  }, [allRows, osType, stageFilter, rowOverrides])
 
   const statusCards = useMemo(() => {
     let base = allRows
@@ -90,6 +93,25 @@ export default function RequirementsReviewPage() {
   const onCategoryChange = useCallback((next: CategoryScope) => {
     setCategory(next)
   }, [])
+
+  const onIdClick = useCallback(
+    async (row: RequirementsReviewRow) => {
+      setDetailRow(row)
+      setDetailLoading(true)
+      try {
+        const { item } = await modelStatusApi.getPrdWorkitem(row.id)
+        const fragment = meta?.winningQuery || almQuery
+        const enriched = mapPrdItemToReviewRow(item, apiModel, undefined, fragment)
+        setDetailRow(enriched)
+        setRowOverrides((prev) => ({ ...prev, [row.id]: enriched }))
+      } catch {
+        setDetailRow(row)
+      } finally {
+        setDetailLoading(false)
+      }
+    },
+    [almQuery, apiModel, meta?.winningQuery]
+  )
 
   return (
     <>
@@ -177,10 +199,17 @@ export default function RequirementsReviewPage() {
           onStageFilter={setStageFilter}
         />
 
-        <RequirementsReviewTable rows={filteredRows} onIdClick={setDetailRow} />
+        <RequirementsReviewTable rows={filteredRows} onIdClick={onIdClick} />
       </div>
 
-      <RequirementsReviewDetailModal row={detailRow} onClose={() => setDetailRow(null)} />
+      <RequirementsReviewDetailModal
+        row={detailRow}
+        loading={detailLoading}
+        onClose={() => {
+          setDetailRow(null)
+          setDetailLoading(false)
+        }}
+      />
     </>
   )
 }
