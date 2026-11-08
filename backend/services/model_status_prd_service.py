@@ -37,8 +37,10 @@ APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
     "ApplyModel",
 )
 
-# UI 목록 최대 건수 (Polarion page fetch 상한)
+# 모델(components) 스코프 UI 목록 상한
 PRD_LIST_LIMIT = 80
+# division / productCategory 등 넓은 조회 (요구사항 검토 전체 등)
+PRD_BROAD_LIST_LIMIT = 500
 PRD_FETCH_IMPL_VERSION = "ootb-rest-v1-components-canonical"
 
 PRD_TYPE_TOKENS: tuple[str, ...] = (
@@ -106,6 +108,24 @@ _WIRELESS_SPEAKER_COMPONENTS = [
     "Power7000",
     "Power5000",
 ]
+
+
+_BROAD_PRD_MODEL_CODES = frozenset(
+    {
+        "REQ_AUDIO",
+        "AUDIO",
+        "REQ_NEW_HOME_AUDIO",
+        "REQ_WIRELESS_HEADSET",
+        "REQ_WIRELESS_SPEAKER",
+    }
+)
+
+
+def prd_list_limit_for_model(model: str | None) -> int:
+    code = (normalize_model_code(model) or (model or "").strip()).upper()
+    if code in _BROAD_PRD_MODEL_CODES or code.startswith("REQ_"):
+        return PRD_BROAD_LIST_LIMIT
+    return PRD_LIST_LIMIT
 
 
 def fixed_prd_lucene_query(model: str | None) -> str | None:
@@ -733,14 +753,16 @@ async def _fetch_polarion_items(
     strict_model_scope: bool = False,
     enrich_details: bool = True,
     preload_rows: list[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], int]:
     rows: list[dict] = []
-    total = 0
+    polarion_total = 0
     if preload_rows is not None:
         rows = list(preload_rows)
-        total = len(rows)
+        polarion_total = len(rows)
     else:
-        for page in range(1, 6):
+        page_cap = min(max(6, (limit + 99) // 100 + 1), 12)
+        stop_rows = limit * 3 if client_filter else limit
+        for page in range(1, page_cap + 1):
             batch, total = await fetch_list_page(
                 page=page,
                 query=query,
@@ -748,10 +770,14 @@ async def _fetch_polarion_items(
                 project_key=project_key,
                 list_path=list_path,
             )
+            if total:
+                polarion_total = int(total)
             if not batch:
                 break
             rows.extend(batch)
-            if len(rows) >= total or len(rows) >= limit * 3:
+            if polarion_total and len(rows) >= polarion_total:
+                break
+            if len(rows) >= stop_rows:
                 break
     if client_filter and terms:
         match_fn = workitem_matches_model_scope if strict_model_scope else workitem_matches_apply_terms
@@ -762,7 +788,8 @@ async def _fetch_polarion_items(
                 filtered.append(r)
         rows = filtered
     slice_rows = rows[:limit]
-    if enrich_details and slice_rows:
+    do_enrich = enrich_details and len(slice_rows) <= 120
+    if do_enrich and slice_rows:
         urls = [_workitem_self_url(r) for r in slice_rows]
         if any(urls):
             details = await _fetch_detail_batch(urls)
@@ -773,7 +800,10 @@ async def _fetch_polarion_items(
                 else:
                     merged_rows.append(row)
             slice_rows = merged_rows
-    return [normalize_prd_workitem(r, project_key=project_key) for r in slice_rows]
+    if not polarion_total:
+        polarion_total = len(rows)
+    normalized = [normalize_prd_workitem(r, project_key=project_key) for r in slice_rows]
+    return normalized, polarion_total
 
 
 def _query_needs_client_filter(query: str) -> bool:
@@ -830,7 +860,7 @@ async def _fetch_from_discovery_probes(
             continue
         lp = pr.get("listPath")
         cf, strict = _fetch_filter_flags(q, terms)
-        items = await _fetch_polarion_items(
+        items, _ = await _fetch_polarion_items(
             q,
             project_key,
             limit=limit,
@@ -847,7 +877,7 @@ async def _fetch_from_discovery_probes(
             continue
         lp = pr.get("listPath")
         cf, strict = _fetch_filter_flags(q, terms)
-        items = await _fetch_polarion_items(
+        items, _ = await _fetch_polarion_items(
             q,
             project_key,
             limit=limit,
@@ -903,7 +933,7 @@ async def _try_components_queries(
                         continue
                     page_size = min(PRD_LIST_LIMIT, 100)
                     preload = _rows if _rows and total <= len(_rows) and total <= page_size else None
-                    batch = await _fetch_polarion_items(
+                    batch, _ = await _fetch_polarion_items(
                         q,
                         project_key,
                         limit=PRD_LIST_LIMIT,
@@ -970,7 +1000,7 @@ async def _try_title_term_queries(
         pr = await _probe_polarion_query(q, project_key, list_path=list_path)
         if int(pr.get("count") or 0) <= 0 or pr.get("error"):
             continue
-        items = await _fetch_polarion_items(
+        items, _ = await _fetch_polarion_items(
             q,
             project_key,
             limit=PRD_LIST_LIMIT,
@@ -1000,7 +1030,7 @@ async def _try_tight_apply_model_queries(
         count = int(pr.get("count") or 0)
         if count <= 0 or pr.get("error") or count > 400:
             continue
-        items = await _fetch_polarion_items(
+        items, _ = await _fetch_polarion_items(
             q,
             project_key,
             limit=PRD_LIST_LIMIT,
@@ -1218,16 +1248,19 @@ async def get_prd_for_model(
     polarion_fetch_attempts: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
     discovery: dict[str, Any] | None = None
+    polarion_total_reported: int | None = None
+    fetch_limit = prd_list_limit_for_model(model)
 
     list_mode = not probe
 
     fixed_q = fixed_prd_lucene_query(model)
     if fixed_q and polarion_pat_configured() and list_mode and not probe:
-        items = await _fetch_polarion_items(
+        items, polarion_total_reported = await _fetch_polarion_items(
             fixed_q,
             proj,
-            limit=PRD_LIST_LIMIT,
+            limit=fetch_limit,
             list_path=prd_rest_path,
+            enrich_details=fetch_limit <= PRD_LIST_LIMIT,
         )
         winning_query = fixed_q
         winning_list_path = prd_rest_path
@@ -1313,7 +1346,7 @@ async def get_prd_for_model(
 
         if winning_query:
             try:
-                items = await _fetch_polarion_items(
+                items, _ = await _fetch_polarion_items(
                     winning_query,
                     proj,
                     list_path=winning_list_path or prd_rest_path,
@@ -1353,7 +1386,7 @@ async def get_prd_for_model(
     ):
         for q in build_prd_discovery_queries(terms, model=model):
             try:
-                items = await _fetch_polarion_items(
+                items, _ = await _fetch_polarion_items(
                     q,
                     proj,
                     limit=PRD_LIST_LIMIT,
@@ -1382,7 +1415,7 @@ async def get_prd_for_model(
                 if not row.get("count"):
                     continue
                 q = str(row["query"])
-                items = await _fetch_polarion_items(
+                items, _ = await _fetch_polarion_items(
                     q,
                     proj,
                     limit=PRD_LIST_LIMIT,
@@ -1445,7 +1478,11 @@ async def get_prd_for_model(
                 if winning_query
                 else None
             ),
-            "listLimit": PRD_LIST_LIMIT,
+            "listLimit": fetch_limit,
+            "polarionTotal": polarion_total_reported,
+            "truncated": bool(
+                polarion_total_reported is not None and polarion_total_reported > len(items)
+            ),
             "filterMode": (
                 "luceneOnly"
                 if component_scoped

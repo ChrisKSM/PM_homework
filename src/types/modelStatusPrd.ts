@@ -54,6 +54,8 @@ export interface ModelStatusPrdResponse {
     listLimit?: number
     filterMode?: string
     total?: number
+    polarionTotal?: number | null
+    truncated?: boolean
     polarionConfigured: boolean
     davisConfigured?: boolean
     error?: string

@@ -155,6 +155,14 @@ export default function RequirementsReviewPage() {
               <>
                 <span className="font-semibold text-gray-900">{filteredRows.length}</span>건 표시 · PRD API{' '}
                 <span className="font-semibold text-gray-900">{meta?.total ?? data?.items?.length ?? 0}</span>건
+                {meta?.polarionTotal != null && meta.polarionTotal > (meta?.total ?? 0) ? (
+                  <span className="text-amber-700">
+                    {' '}
+                    · Polarion 전체 {meta.polarionTotal}건 (상한 {meta?.listLimit ?? '—'})
+                  </span>
+                ) : meta?.polarionTotal != null ? (
+                  <span className="text-gray-500"> · Polarion {meta.polarionTotal}건</span>
+                ) : null}
               </>
             )}
           </p>

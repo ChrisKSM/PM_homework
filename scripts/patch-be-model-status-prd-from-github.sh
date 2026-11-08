@@ -28,7 +28,7 @@ fetch() {
   echo "  + $2"
 }
 
-PATCH_BUNDLE_ID="prd-patch-2026-02-req-review-division"
+PATCH_BUNDLE_ID="prd-patch-2026-02-req-audio-500"
 echo "=== model-status PRD + sprint (TV worklog) @ $REF ($PATCH_BUNDLE_ID) ==="
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
 fetch backend/services/model_status_prd_labels.py services/model_status_prd_labels.py
@@ -69,6 +69,10 @@ if ! "$PY" -c "from dej_variables import normalize_polarion_pat, looks_like_jwt_
 fi
 echo "  OK  dej_variables + polarion_client import"
 
+if ! grep -q 'PRD_BROAD_LIST_LIMIT' services/model_status_prd_service.py 2>/dev/null; then
+  echo "ERROR: PRD broad list limit 없음 — division 480건 패치 필요" >&2
+  exit 1
+fi
 if ! grep -q 'def fixed_prd_lucene_query' services/model_status_prd_service.py 2>/dev/null; then
   echo "ERROR: model_status_prd_service.py 에 fixed_prd_lucene_query 없음 (요구사항 검토 REQ_AUDIO)" >&2
   exit 1
