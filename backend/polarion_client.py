@@ -21,7 +21,8 @@ import asyncio
 TIMEOUT = 120.0
 MAX_PAGES = 50
 # Polarion gateway가 동시 요청이 많으면 503을 반환함
-CONCURRENT_DETAIL = 5
+CONCURRENT_DETAIL = 2
+DETAIL_BATCH_STAGGER_SEC = 0.25
 RETRY_STATUSES = {429, 502, 503, 504}
 RETRY_DELAYS = (1.0, 3.0, 6.0)
 
@@ -511,23 +512,48 @@ async def _try_customs_workitem_flat(project_key: str, workitem_id: str) -> dict
         return {}
 
 
+def _flat_has_min_prd_fields(flat: dict[str, Any]) -> bool:
+    if flat.get("updated") or flat.get("Updated"):
+        return True
+    for k in ("dev", "assignee", "author"):
+        if _user_ref_has_name(flat.get(k)):
+            return True
+    if flat.get("_hyperlinks"):
+        return True
+    return len(flat) >= 16
+
+
+async def fetch_detail_light(self_url: str) -> dict[str, Any]:
+    """목록 배치용 — HTTP 1~2회 (429 방지)."""
+    base = self_url.split("?")[0]
+    doc: dict[str, Any] | None = None
+    for include in ("dev", ""):
+        try:
+            url = f"{base}?include={include}" if include else base
+            resp = await _get_with_retry(url)
+            doc = resp.json()
+            break
+        except Exception:
+            doc = None
+    if doc is None:
+        resp = await _get_with_retry(base)
+        doc = resp.json()
+    flat = flatten_polarion_workitem_response(doc)
+    flat = await _follow_relationship_related(doc, flat)
+    return flat
+
+
 async def fetch_workitem_enriched(
     project_key: str,
     workitem_id: str,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """OOTB + customs + sidecar — dev / hyperlinks / custom fields."""
+    """단건 모달용 — 제한적 추가 조회 (customs/sidecar)."""
     wid = (workitem_id or "").strip()
     debug: dict[str, Any] = {"attempts": []}
-    flat: dict[str, Any] = {}
     base = f"{_base_url()}/projects/{project_key}/workitems/{wid}"
-    queries = (
-        "",
-        "?include=dev,author,assignee,hyperlinks,linkedWorkItems",
-        "?include=dev",
-        "?fields[workitems]=@all",
-    )
+    flat: dict[str, Any] = {}
     doc: dict[str, Any] | None = None
-    for q in queries:
+    for q in ("?include=dev", ""):
         try:
             resp = await _get_with_retry(f"{base}{q}")
             doc = resp.json()
@@ -536,40 +562,44 @@ async def fetch_workitem_enriched(
             part = await _follow_relationship_related(doc, part)
             flat = _merge_richer_flat(flat, part)
             debug["attempts"].append({"url": f"{base}{q}", "ok": True, "keys": len(part)})
+            if _flat_has_min_prd_fields(flat):
+                break
         except Exception as exc:
             debug["attempts"].append({"url": f"{base}{q}", "ok": False, "error": str(exc)[:120]})
-    if doc:
+    if doc and not _flat_has_min_prd_fields(flat):
         flat = await _follow_relationship_related(doc, flat)
-    flat = await _try_merge_polarion_hyperlinks(base, flat)
 
-    customs = await _try_customs_workitem_flat(project_key, wid)
-    if customs:
-        flat = _merge_richer_flat(flat, customs)
-        debug["customsOk"] = True
-        debug["customsKeys"] = len(customs)
+    if not flat.get("_hyperlinks"):
+        await asyncio.sleep(DETAIL_BATCH_STAGGER_SEC)
+        flat = await _try_merge_polarion_hyperlinks(
+            base,
+            flat,
+            suffixes=("linkedworkitems", "hyperlinks"),
+        )
+
+    if not _flat_has_min_prd_fields(flat) and len(flat) < 12:
+        await asyncio.sleep(DETAIL_BATCH_STAGGER_SEC)
+        customs = await _try_customs_workitem_flat(project_key, wid)
+        if customs:
+            flat = _merge_richer_flat(flat, customs)
+            debug["customsOk"] = True
+            debug["customsKeys"] = len(customs)
+        else:
+            debug["customsOk"] = False
     else:
         debug["customsOk"] = False
-
-    try:
-        rows, _ = await fetch_list_page(
-            page=1,
-            query=f'id:"{wid}"',
-            page_size=1,
-            project_key=project_key,
-        )
-        if rows:
-            list_flat = flatten_workitem(rows[0])
-            flat = _merge_richer_flat(flat, list_flat)
-            debug["listByIdOk"] = True
-    except Exception as exc:
-        debug["listByIdOk"] = False
-        debug["listByIdError"] = str(exc)[:120]
+        debug["customsSkipped"] = True
 
     debug["flatKeyCount"] = len(flat)
     return flat, debug
 
 
-async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) -> dict[str, Any]:
+async def _try_merge_polarion_hyperlinks(
+    self_url: str,
+    flat: dict[str, Any],
+    *,
+    suffixes: tuple[str, ...] | None = None,
+) -> dict[str, Any]:
     import urllib.parse
 
     m = re.search(r"/projects/([^/]+)/workitems/([^/?]+)", self_url)
@@ -579,16 +609,12 @@ async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) ->
     wid = urllib.parse.unquote(m.group(2))
     hls: list[dict[str, str]] = list(flat.get("_hyperlinks") or [])
     seen = {h.get("uri") for h in hls if isinstance(h, dict)}
-    for suffix in (
+    path_suffixes = suffixes or (
         "linkedworkitems",
         "linkedWorkItems",
-        "linked-work-items",
-        "workitem-links",
         "hyperlinks",
-        "externallinks",
-        "external-links",
-        "links",
-    ):
+    )
+    for suffix in path_suffixes:
         ep = f"{_base_url()}/projects/{proj}/workitems/{wid}/{suffix}"
         try:
             resp = await _get_with_retry(ep)
@@ -604,34 +630,8 @@ async def _try_merge_polarion_hyperlinks(self_url: str, flat: dict[str, Any]) ->
 
 
 async def fetch_detail(self_url: str) -> dict[str, Any]:
-    """workitem 상세 조회 (self link + dev related + hyperlinks)."""
-    import re as _re
-    import urllib.parse as _up
-
-    m = _re.search(r"/projects/([^/]+)/workitems/([^/?]+)", self_url)
-    if m:
-        proj = _up.unquote(m.group(1))
-        wid = _up.unquote(m.group(2))
-        flat, _debug = await fetch_workitem_enriched(proj, wid)
-        return flat
-
-    base = self_url.split("?")[0]
-    doc: dict[str, Any] | None = None
-    for include in ("dev,author,assignee", "dev", ""):
-        try:
-            url = f"{base}?include={include}" if include else base
-            resp = await _get_with_retry(url)
-            doc = resp.json()
-            break
-        except Exception:
-            doc = None
-    if doc is None:
-        resp = await _get_with_retry(base)
-        doc = resp.json()
-    flat = flatten_polarion_workitem_response(doc)
-    flat = await _follow_relationship_related(doc, flat)
-    flat = await _try_merge_polarion_hyperlinks(base, flat)
-    return flat
+    """workitem 상세 — 배치 호환(light). 모달은 fetch_workitem_enriched 사용."""
+    return await fetch_detail_light(self_url)
 
 
 _WRAPPER_KEYS = ("data", "workitem", "workItem", "workitems", "workItems", "attributes", "fields")
@@ -792,16 +792,18 @@ async def _fetch_detail_batch(self_urls: list[str]) -> list[dict[str, Any] | Non
     """여러 workitem 상세를 동시 조회. 실패한 항목은 None (순서 유지)."""
     sem = asyncio.Semaphore(CONCURRENT_DETAIL)
 
-    async def _get(url: str) -> dict[str, Any] | None:
+    async def _get(url: str, idx: int) -> dict[str, Any] | None:
         if not url:
             return None
+        if idx > 0:
+            await asyncio.sleep(DETAIL_BATCH_STAGGER_SEC * min(idx, 4))
         async with sem:
             try:
-                return await fetch_detail(url)
+                return await fetch_detail_light(url)
             except Exception:
                 return None
 
-    return list(await asyncio.gather(*[_get(url) for url in self_urls]))
+    return list(await asyncio.gather(*[_get(url, i) for i, url in enumerate(self_urls)]))
 
 
 async def fetch_all_defects_with_stats(

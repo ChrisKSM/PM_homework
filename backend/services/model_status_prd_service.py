@@ -47,6 +47,8 @@ APPLY_MODEL_FIELD_CANDIDATES: tuple[str, ...] = (
 PRD_LIST_LIMIT = 80
 # division / productCategory 등 넓은 조회 (요구사항 검토 전체 등)
 PRD_BROAD_LIST_LIMIT = 500
+# 목록 API 상세 enrich 상한 — REQ_AUDIO 등 broad 는 모달 단건만 (429 방지)
+PRD_LIST_DETAIL_ENRICH_MAX = 24
 PRD_FETCH_IMPL_VERSION = "ootb-rest-v1-components-canonical"
 
 PRD_TYPE_TOKENS: tuple[str, ...] = (
@@ -1252,13 +1254,33 @@ async def _fetch_polarion_items(
                 filtered.append(r)
         rows = filtered
     slice_rows = rows[:limit]
-    do_enrich = enrich_details and len(slice_rows) <= PRD_BROAD_LIST_LIMIT
+    probe = slice_rows[: min(12, len(slice_rows))]
+    sparse_list = bool(probe) and sum(
+        1 for r in probe if _prd_list_row_is_sparse(flatten_workitem(r))
+    ) >= max(2, len(probe) // 3)
+    broad_list = limit >= PRD_BROAD_LIST_LIMIT or len(slice_rows) > PRD_LIST_LIMIT
+    cap = min(len(slice_rows), PRD_LIST_DETAIL_ENRICH_MAX)
+    do_enrich = (
+        enrich_details
+        and not broad_list
+        and sparse_list
+        and cap > 0
+        and len(slice_rows) <= PRD_LIST_LIMIT
+    )
     if do_enrich and slice_rows:
-        urls = [_workitem_self_url(r, project_key=project_key) for r in slice_rows]
+        enrich_rows = slice_rows[:cap]
+        urls = [_workitem_self_url(r, project_key=project_key) for r in enrich_rows]
         if any(urls):
             details = await _fetch_detail_batch(urls)
+            merged_by_id = {
+                workitem_id(flatten_workitem(enrich_rows[i]), enrich_rows[i]): det
+                for i, det in enumerate(details)
+                if det
+            }
             merged_rows: list[dict[str, Any]] = []
-            for row, det in zip(slice_rows, details):
+            for row in slice_rows:
+                wid = workitem_id(flatten_workitem(row), row)
+                det = merged_by_id.get(wid)
                 if det:
                     merged_rows.append({**row, "_detailMerged": det})
                 else:
