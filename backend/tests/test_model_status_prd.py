@@ -41,7 +41,7 @@ def test_prd_field_extractors_from_ootb_attrs():
     assert _extract_prd_status(flat) == "개발 승인"
     assert _extract_prd_updated(flat).startswith("2026-10-29 16:31")
     assert "오제준" in _extract_prd_assignee(flat)
-    row = normalize_prd_workitem({"attributes": flat}, project_key="AVSWReqMgmt")
+    row = normalize_prd_workitem({"attributes": flat, "_detailMerged": flat}, project_key="AVSWReqMgmt")
     assert row["status"] == "개발 승인"
     assert row["updated"].startswith("2026-10-29")
     assert row["initiative"] == "AVSWDEV-1177"

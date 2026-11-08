@@ -1,6 +1,8 @@
+import clsx from 'clsx'
 import { X, ExternalLink } from 'lucide-react'
 import type { RequirementsReviewPrdDetail, RequirementsReviewRow } from '../../types/requirementsReview'
 import { POLARION_PRD_UI } from '../../data/requirementsReviewCatalog'
+import { prdWorkflowBadgeClass } from '../../utils/requirementsReviewStatusBadge'
 
 const DETAIL_SECTIONS: { key: keyof RequirementsReviewPrdDetail; label: string; polarionField: string }[] = [
   { key: 'requestedReviewItems', label: '검토요청사항', polarionField: 'RequestedReviewItems' },
@@ -30,14 +32,33 @@ export default function RequirementsReviewDetailModal({ row, onClose }: Props) {
           <div className="min-w-0">
             <p className="text-xs font-mono text-gray-500">{row.id}</p>
             <h2 className="text-lg font-bold text-gray-900 mt-1 leading-snug">{row.title}</h2>
-            <p className="text-xs text-gray-500 mt-2">
-              Status:{' '}
-              {row.workflowStageId && row.workflowStageId !== 'other'
-                ? row.workflowStageLabel
-                : row.almStatus && row.almStatus !== '—'
-                  ? row.almStatus
-                  : row.workflowStageLabel || '—'}{' '}
-              · Owner: {row.devOwner || '—'}
+            <p className="text-xs text-gray-500 mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span
+                className={clsx(
+                  'inline-flex px-2 py-0.5 rounded font-semibold',
+                  prdWorkflowBadgeClass(row.workflowStageId)
+                )}
+              >
+                {row.workflowStageId && row.workflowStageId !== 'other'
+                  ? row.workflowStageLabel
+                  : row.almStatus && row.almStatus !== '—'
+                    ? row.almStatus
+                    : row.workflowStageLabel || '—'}
+              </span>
+              <span>Owner: {row.devOwner || '—'}</span>
+              {row.updated ? <span className="tabular-nums">Updated: {row.updated}</span> : null}
+              {row.initiativeUrl ? (
+                <a
+                  href={row.initiativeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-600 hover:underline font-mono"
+                >
+                  Initiative: {row.initiative || row.initiativeUrl}
+                </a>
+              ) : row.initiative ? (
+                <span className="font-mono">Initiative: {row.initiative}</span>
+              ) : null}
             </p>
           </div>
           <button

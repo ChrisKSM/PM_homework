@@ -28,7 +28,7 @@ fetch() {
   echo "  + $2"
 }
 
-PATCH_BUNDLE_ID="prd-patch-2026-02-polarion-status-id-map"
+PATCH_BUNDLE_ID="prd-patch-2026-02-dev-hyperlink-enrich"
 echo "=== model-status PRD + sprint (TV worklog) @ $REF ($PATCH_BUNDLE_ID) ==="
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
 fetch backend/services/model_status_prd_labels.py services/model_status_prd_labels.py

@@ -8,6 +8,7 @@ export interface ModelStatusPrdItem {
   created: string
   updated: string
   initiative?: string
+  initiativeUrl?: string
   deliveryDate?: string
   actionItem?: string
   detail?: {

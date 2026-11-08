@@ -81,6 +81,7 @@ export function mapPrdItemToReviewRow(
     workflowOrder: item.workflowOrder,
     updated: item.updated,
     initiative: item.initiative || '—',
+    initiativeUrl: item.initiativeUrl,
     deliveryDate: item.deliveryDate || '—',
     actionItem: item.actionItem || '—',
     detail: item.detail ?? {},

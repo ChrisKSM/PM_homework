@@ -490,48 +490,115 @@ def _extract_prd_updated(flat: dict[str, Any]) -> str:
         t = _safe_text(flat, key) or _field_text(flat.get(key))
         if t:
             return _format_prd_datetime(t)
+    for k, v in flat.items():
+        kl = str(k).lower()
+        if kl in ("created", "createdat") or "history" in kl:
+            continue
+        if kl.endswith("updated") or kl.endswith("modified") or kl in ("date", "timestamp"):
+            t = _field_text(v)
+            if t and any(ch.isdigit() for ch in t):
+                formatted = _format_prd_datetime(t)
+                if formatted:
+                    return formatted
     return ""
+
+
+def _extract_polarion_user_name(val: Any) -> str:
+    if isinstance(val, list):
+        parts = [_extract_polarion_user_name(v) for v in val]
+        joined = ", ".join(p for p in parts if p)
+        return joined[:200]
+    if isinstance(val, dict):
+        for k in ("name", "displayName", "title", "fullName", "label", "value"):
+            t = str(val.get(k) or "").strip()
+            if t and not t.startswith("http"):
+                return t
+        return _field_text(val)
+    return _field_text(val)
 
 
 def _extract_prd_assignee(flat: dict[str, Any]) -> str:
     for key in (
+        "dev",
+        "Dev",
+        "developer",
+        "Developer",
         "assignee",
         "Assignee",
         "assignees",
         "author",
         "Author",
-        "dev",
-        "Dev",
-        "developer",
     ):
         val = flat.get(key)
-        if isinstance(val, list):
-            parts = [_field_text(v) for v in val if _field_text(v)]
-            if parts:
-                return ", ".join(parts[:4])
-        t = _safe_text(flat, key) or _field_text(val)
+        if val is None:
+            continue
+        t = _extract_polarion_user_name(val)
         if t:
             return t
     for k, v in flat.items():
-        lk = str(k).lower()
-        if "assignee" in lk or lk in ("dev", "author") or "개발" in str(k):
-            t = _field_text(v)
+        lk = str(k).lower().replace(".", "")
+        if lk in ("dev", "developer") or lk.endswith("dev") or "assignee" in lk or "개발" in str(k):
+            t = _extract_polarion_user_name(v)
             if t:
                 return t
     return ""
 
 
-def _extract_prd_initiative(flat: dict[str, Any]) -> str:
+_JIRA_ISSUE_KEY_RE = re.compile(r"/browse/([A-Z][A-Z0-9_]+-\d+)", re.I)
+_JIRA_KEY_INLINE_RE = re.compile(r"\b([A-Z][A-Z0-9_]+-\d+)\b")
+
+
+def _jira_issue_key_from_uri(uri: str) -> str:
+    u = (uri or "").strip()
+    if not u:
+        return ""
+    m = _JIRA_ISSUE_KEY_RE.search(u)
+    if m:
+        return m.group(1).upper()
+    m2 = _JIRA_KEY_INLINE_RE.search(u)
+    return m2.group(1).upper() if m2 else ""
+
+
+def _extract_prd_initiative_links(flat: dict[str, Any]) -> tuple[str, str]:
+    """(표시 텍스트, URL) — Polarion Hyperlinks internal reference 우선."""
     for key in ("initiative", "Initiative", "linkedInitiative", "epic", "parent"):
         t = _field_text(flat.get(key))
         if t:
-            return t
+            url = t if t.startswith("http") else ""
+            label = _jira_issue_key_from_uri(t) or t
+            return label, url
     for k, v in flat.items():
         if "initiative" in str(k).lower():
             t = _field_text(v)
             if t:
-                return t
-    return ""
+                return _jira_issue_key_from_uri(t) or t, t if t.startswith("http") else ""
+
+    candidates: list[tuple[int, str, str]] = []
+    for hl in flat.get("_hyperlinks") or []:
+        if not isinstance(hl, dict):
+            continue
+        uri = str(hl.get("uri") or hl.get("url") or "").strip()
+        if not uri:
+            continue
+        role = str(hl.get("role") or "").lower()
+        key = _jira_issue_key_from_uri(uri)
+        if not key:
+            continue
+        score = 0
+        if "internal" in role:
+            score += 10
+        if "reference" in role:
+            score += 5
+        if "initiative" in role:
+            score += 8
+        if "jira" in uri.lower():
+            score += 3
+        candidates.append((score, key, uri))
+    if candidates:
+        candidates.sort(key=lambda x: (-x[0], x[1]))
+        _, label, url = candidates[0]
+        return label, url
+    return "", ""
 
 
 def _extract_prd_delivery_date(flat: dict[str, Any]) -> str:
@@ -599,6 +666,13 @@ def _extract_prd_detail_bundle(flat: dict[str, Any]) -> dict[str, str]:
     out: dict[str, str] = {}
     for dest, exact, fuzzy in specs:
         text = _pick_flat_field(flat, *exact, contains=fuzzy)
+        if not text and fuzzy:
+            for k, v in flat.items():
+                kl = str(k).lower().replace("_", "").replace("-", "").replace(".", "")
+                if any(sub.replace("_", "") in kl for sub in fuzzy):
+                    text = _field_text(v)
+                    if text and len(text) > 1:
+                        break
         if text:
             out[dest] = text
     return out
@@ -628,7 +702,7 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
     status = _extract_prd_status(flat)
     updated = _extract_prd_updated(flat)
     assignee = _extract_prd_assignee(flat)
-    initiative = _extract_prd_initiative(flat)
+    initiative, initiative_url = _extract_prd_initiative_links(flat)
     delivery = _extract_prd_delivery_date(flat)
     created_raw = _safe_text(flat, "created") or _field_text(flat.get("created"))
     return {
@@ -641,6 +715,7 @@ def normalize_prd_workitem(row: dict[str, Any], *, project_key: str) -> dict[str
         "created": _format_prd_datetime(created_raw)[:10] if created_raw else "",
         "updated": updated,
         "initiative": initiative,
+        "initiativeUrl": initiative_url,
         "deliveryDate": delivery,
         "actionItem": _pick_flat_field(flat, "actionItem", "ActionItem", contains=("actionitem",)),
         "detail": _extract_prd_detail_bundle(flat),
@@ -731,7 +806,11 @@ def _field_text(val: Any) -> str:
                 t = _strip_html_markup(str(inner))
                 if t:
                     return t
-        return str(val.get("name") or val.get("value") or val.get("id") or "").strip()
+        for k in ("name", "displayName", "title", "fullName", "label"):
+            t = str(val.get(k) or "").strip()
+            if t and not t.startswith("http"):
+                return t
+        return str(val.get("value") or val.get("id") or "").strip()
     if isinstance(val, list):
         return " ".join(_field_text(v) for v in val if v)
     return str(val).strip()
@@ -1081,14 +1160,7 @@ async def _fetch_polarion_items(
                 filtered.append(r)
         rows = filtered
     slice_rows = rows[:limit]
-    probe = slice_rows[: min(25, len(slice_rows))]
-    sparse_list = bool(probe) and sum(
-        1 for r in probe if _prd_list_row_is_sparse(flatten_workitem(r))
-    ) >= max(2, len(probe) // 3)
-    always_enrich_broad = limit >= PRD_BROAD_LIST_LIMIT or len(slice_rows) > PRD_LIST_LIMIT
-    do_enrich = enrich_details and len(slice_rows) <= PRD_BROAD_LIST_LIMIT and (
-        len(slice_rows) <= PRD_LIST_LIMIT or sparse_list or always_enrich_broad
-    )
+    do_enrich = enrich_details and len(slice_rows) <= PRD_BROAD_LIST_LIMIT
     if do_enrich and slice_rows:
         urls = [_workitem_self_url(r, project_key=project_key) for r in slice_rows]
         if any(urls):

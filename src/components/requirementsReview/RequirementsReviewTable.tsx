@@ -1,6 +1,7 @@
 import clsx from 'clsx'
 import { ExternalLink } from 'lucide-react'
 import type { RequirementsReviewRow } from '../../types/requirementsReview'
+import { prdWorkflowBadgeClass } from '../../utils/requirementsReviewStatusBadge'
 
 interface Props {
   rows: RequirementsReviewRow[]
@@ -73,11 +74,29 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
                   )}
                 </td>
                 <td className="px-3 py-3">
-                  <span className="inline-flex px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-800">
+                  <span
+                    className={clsx(
+                      'inline-flex px-2 py-0.5 rounded text-xs font-semibold',
+                      prdWorkflowBadgeClass(row.workflowStageId)
+                    )}
+                  >
                     {statusLabel(row)}
                   </span>
                 </td>
-                <td className="px-3 py-3 text-xs text-gray-700">{row.initiative || '—'}</td>
+                <td className="px-3 py-3 text-xs text-gray-700">
+                  {row.initiativeUrl ? (
+                    <a
+                      href={row.initiativeUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-blue-600 hover:underline font-mono"
+                    >
+                      {row.initiative || row.initiativeUrl}
+                    </a>
+                  ) : (
+                    row.initiative || '—'
+                  )}
+                </td>
                 <td className="px-3 py-3 text-xs text-gray-700">{row.devOwner || '—'}</td>
                 <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.deliveryDate || '—'}</td>
                 <td className="px-3 py-3 text-xs text-gray-600 max-w-[140px] truncate" title={row.actionItem}>

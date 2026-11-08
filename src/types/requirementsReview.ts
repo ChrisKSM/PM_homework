@@ -42,6 +42,7 @@ export interface RequirementsReviewAlmRow {
   workflowOrder?: number
   updated?: string
   initiative?: string
+  initiativeUrl?: string
   deliveryDate?: string
   actionItem?: string
   detail?: RequirementsReviewPrdDetail

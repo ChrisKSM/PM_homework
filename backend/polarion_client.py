@@ -270,10 +270,153 @@ async def fetch_list_page(
     return _parse_polarion_list_page(resp.json())
 
 
+def _jsonapi_included_index(doc: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+    index: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in doc.get("included") or []:
+        if not isinstance(item, dict):
+            continue
+        t = str(item.get("type") or "").strip()
+        i = str(item.get("id") or "").strip()
+        if t and i:
+            index[(t, i)] = item
+    return index
+
+
+def _resolve_jsonapi_ref(
+    ref: Any,
+    included: dict[tuple[str, str], dict[str, Any]],
+) -> Any:
+    if isinstance(ref, list):
+        return [_resolve_jsonapi_ref(r, included) for r in ref if r is not None]
+    if not isinstance(ref, dict):
+        return ref
+    t = str(ref.get("type") or "").strip()
+    i = str(ref.get("id") or "").strip()
+    if t and i and (t, i) in included:
+        inc = included[(t, i)]
+        attrs = dict(inc.get("attributes") or {})
+        attrs.setdefault("id", inc.get("id"))
+        attrs.setdefault("type", inc.get("type"))
+        return attrs
+    return ref
+
+
+def _hyperlink_from_obj(obj: dict[str, Any]) -> dict[str, str] | None:
+    a = obj.get("attributes") if isinstance(obj.get("attributes"), dict) else obj
+    if not isinstance(a, dict):
+        return None
+    role = str(a.get("role") or a.get("name") or a.get("type") or "").strip()
+    uri = str(a.get("uri") or a.get("url") or a.get("URL") or a.get("link") or "").strip()
+    if not uri and isinstance(a.get("target"), dict):
+        uri = str(a["target"].get("uri") or a["target"].get("url") or "").strip()
+    if not uri:
+        return None
+    return {"role": role, "uri": uri}
+
+
+def _collect_hyperlinks_from_document(
+    doc: dict[str, Any],
+    included: dict[tuple[str, str], dict[str, Any]],
+) -> list[dict[str, str]]:
+    out: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in doc.get("included") or []:
+        if not isinstance(item, dict):
+            continue
+        t = str(item.get("type") or "").lower()
+        if "hyperlink" not in t and "link" not in t:
+            continue
+        row = _hyperlink_from_obj(item)
+        if row and row["uri"] not in seen:
+            seen.add(row["uri"])
+            out.append(row)
+    data = doc.get("data")
+    if isinstance(data, list) and data:
+        data = data[0]
+    if isinstance(data, dict):
+        attrs = data.get("attributes") or {}
+        if isinstance(attrs, dict):
+            for key in ("hyperlinks", "Hyperlinks", "links"):
+                raw = attrs.get(key)
+                if isinstance(raw, list):
+                    for it in raw:
+                        if isinstance(it, dict):
+                            row = _hyperlink_from_obj(it)
+                            if row and row["uri"] not in seen:
+                                seen.add(row["uri"])
+                                out.append(row)
+        rels = data.get("relationships") or {}
+        if isinstance(rels, dict):
+            for rel_name, rel_body in rels.items():
+                if "hyperlink" not in str(rel_name).lower():
+                    continue
+                if not isinstance(rel_body, dict):
+                    continue
+                rd = rel_body.get("data")
+                resolved = _resolve_jsonapi_ref(rd, included)
+                if isinstance(resolved, list):
+                    for it in resolved:
+                        if isinstance(it, dict):
+                            row = _hyperlink_from_obj(it)
+                            if row and row["uri"] not in seen:
+                                seen.add(row["uri"])
+                                out.append(row)
+                elif isinstance(resolved, dict):
+                    row = _hyperlink_from_obj(resolved)
+                    if row and row["uri"] not in seen:
+                        seen.add(row["uri"])
+                        out.append(row)
+    return out
+
+
+def flatten_polarion_workitem_response(obj: Any) -> dict[str, Any]:
+    """JSON:API workitem 상세 — attributes + relationships(dev 등) + hyperlinks."""
+    if not isinstance(obj, dict):
+        return flatten_workitem(obj)
+    if "data" not in obj:
+        return flatten_workitem(obj)
+
+    included_index = _jsonapi_included_index(obj)
+    data = obj.get("data")
+    if isinstance(data, list):
+        data = data[0] if data else {}
+    if not isinstance(data, dict):
+        return flatten_workitem(obj)
+
+    flat = flatten_workitem(data)
+    attrs = data.get("attributes")
+    if isinstance(attrs, dict):
+        flat = {**flat, **attrs}
+    rels = data.get("relationships")
+    if isinstance(rels, dict):
+        for rel_name, rel_body in rels.items():
+            if not isinstance(rel_body, dict):
+                continue
+            rd = rel_body.get("data")
+            if rd is None:
+                continue
+            resolved = _resolve_jsonapi_ref(rd, included_index)
+            if resolved is not None:
+                flat[rel_name] = resolved
+    hyperlinks = _collect_hyperlinks_from_document(obj, included_index)
+    if hyperlinks:
+        flat["_hyperlinks"] = hyperlinks
+    return flat
+
+
 async def fetch_detail(self_url: str) -> dict[str, Any]:
     """workitem 상세 조회 (self link 사용)."""
-    resp = await _get_with_retry(self_url)
-    return flatten_workitem(resp.json())
+    include = "dev,author,assignee,hyperlinks"
+    if "?" in self_url:
+        url = f"{self_url}&include={include}"
+    else:
+        url = f"{self_url}?include={include}"
+    try:
+        resp = await _get_with_retry(url)
+        return flatten_polarion_workitem_response(resp.json())
+    except Exception:
+        resp = await _get_with_retry(self_url)
+        return flatten_polarion_workitem_response(resp.json())
 
 
 _WRAPPER_KEYS = ("data", "workitem", "workItem", "workitems", "workItems", "attributes", "fields")
