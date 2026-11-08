@@ -3,7 +3,7 @@ import type { OsType, ProductCategory } from '../types/requirementsReview'
 export const POLARION_PRD_UI =
   'https://alm-lge-hlm.singlex.com/polarion/#/project/AVSWReqMgmt/workitems/PRD'
 
-export const POLARION_AUDIO_DIVISION_QUERY = 'division.KEY:6'
+export const POLARION_AUDIO_DIVISION_QUERY = 'type:PRD AND division.KEY:6'
 
 export const POLARION_QUERIES = {
   audioDivision: `${POLARION_PRD_UI}?query=${encodeURIComponent(POLARION_AUDIO_DIVISION_QUERY)}`,

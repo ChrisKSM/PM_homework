@@ -22,7 +22,7 @@ from services.model_status_prd_service import (
 
 
 def test_fixed_prd_lucene_query_req_audio():
-    assert fixed_prd_lucene_query("REQ_AUDIO") == "division.KEY:6"
+    assert fixed_prd_lucene_query("REQ_AUDIO") == "type:PRD AND division.KEY:6"
     assert prd_list_limit_for_model("REQ_AUDIO") == PRD_BROAD_LIST_LIMIT
     assert prd_list_limit_for_model("H7_VI") == PRD_LIST_LIMIT
     assert fixed_prd_lucene_query("REQ_WIRELESS_SPEAKER").startswith("components:(")

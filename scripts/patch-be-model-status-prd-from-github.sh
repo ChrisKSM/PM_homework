@@ -77,12 +77,12 @@ if ! grep -q 'def fixed_prd_lucene_query' services/model_status_prd_service.py 2
   echo "ERROR: model_status_prd_service.py 에 fixed_prd_lucene_query 없음 (요구사항 검토 REQ_AUDIO)" >&2
   exit 1
 fi
-if ! "$PY" -c "from services.model_status_prd_service import fixed_prd_lucene_query as f; assert f('REQ_AUDIO')=='division.KEY:6'" 2>/tmp/prd-req-audio.err; then
-  echo "ERROR: REQ_AUDIO → division.KEY:6 동작 안 함"
+if ! "$PY" -c "from services.model_status_prd_service import fixed_prd_lucene_query as f; assert f('REQ_AUDIO')=='type:PRD AND division.KEY:6'" 2>/tmp/prd-req-audio.err; then
+  echo "ERROR: REQ_AUDIO → type:PRD AND division.KEY:6 동작 안 함"
   sed -n '1,6p' /tmp/prd-req-audio.err
   exit 1
 fi
-echo "  OK  REQ_AUDIO → division.KEY:6"
+echo "  OK  REQ_AUDIO → type:PRD AND division.KEY:6"
 
 if ! grep -q '@router.get("/prd")' routers/model_status.py 2>/dev/null; then
   echo "ERROR: routers/model_status.py 에 /prd 라우트 없음" >&2
@@ -127,7 +127,7 @@ d=json.load(urllib.request.urlopen('${API_BASE}/model-status/prd?model=REQ_AUDIO
 wq=(d.get('meta') or {}).get('winningQuery') or ''
 n=len(d.get('items') or [])
 print('  OK  items=', n, 'winningQuery=', wq[:80])
-assert 'division.KEY:6' in wq or n>=0
+assert 'division.KEY:6' in wq and 'type:PRD' in wq or n>=0
 " 2>/dev/null || true
 fi
 sh scripts/verify-model-status-prd-fetch.sh || true

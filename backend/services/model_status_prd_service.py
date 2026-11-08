@@ -133,11 +133,12 @@ def fixed_prd_lucene_query(model: str | None) -> str | None:
     raw = (model or "").strip()
     code = (normalize_model_code(model) or raw).upper()
     if code in ("REQ_AUDIO", "AUDIO"):
-        return "division.KEY:6"
+        # UI .../workitems/PRD?query=division.KEY:6 와 동일 — REST 는 workitems 이므로 type 명시
+        return "type:PRD AND division.KEY:6"
     if code == "REQ_NEW_HOME_AUDIO":
-        return "productCategory.KEY:뉴홈오디오"
+        return "type:PRD AND productCategory.KEY:뉴홈오디오"
     if code == "REQ_WIRELESS_HEADSET":
-        return "productCategory.KEY:무선헤드셋"
+        return "type:PRD AND productCategory.KEY:무선헤드셋"
     if code == "REQ_WIRELESS_SPEAKER":
         return build_components_query(_WIRELESS_SPEAKER_COMPONENTS)
     return None
