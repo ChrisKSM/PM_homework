@@ -1,250 +1,140 @@
-import { useCallback, useMemo, useState } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertCircle, Database, Loader2, RefreshCw, Shield } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AlertCircle, Loader2, RefreshCw } from 'lucide-react'
 import Header from '../components/layout/Header'
 import RequirementsReviewFilters from '../components/requirementsReview/RequirementsReviewFilters'
 import RequirementsReviewTable from '../components/requirementsReview/RequirementsReviewTable'
-import RequirementsReviewEditDrawer from '../components/requirementsReview/RequirementsReviewEditDrawer'
-import {
-  buildAlmQueryPreview,
-  MOCK_CUSTOM_LABEL_POOL,
-} from '../data/requirementsReviewMock'
-import type {
-  OsType,
-  ProductCategory,
-  RequirementsReviewMongoOverlay,
-  RequirementsReviewRow,
-  RequirementsReviewSortKey,
-} from '../types/requirementsReview'
-import {
-  canEditRequirementsReview,
-  getMockRequirementsReviewRole,
-  REQ_REVIEW_EDITOR_ROLE,
-  setMockRequirementsReviewRole,
-  type RequirementsReviewMockRole,
-} from '../utils/requirementsReviewAuth'
+import RequirementsReviewStatusCards, {
+  buildStatusCardCounts,
+} from '../components/requirementsReview/RequirementsReviewStatusCards'
+import RequirementsReviewDetailModal from '../components/requirementsReview/RequirementsReviewDetailModal'
+import { POLARION_PRD_UI, resolveApiModel } from '../data/requirementsReviewCatalog'
+import type { OsType, ProductCategory, RequirementsReviewRow } from '../types/requirementsReview'
 import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
-import { modelStatusApi } from '../api/modelStatusApi'
-import {
-  listRequirementsReviewModelCodes,
-  mapPrdItemToReviewRow,
-} from '../utils/requirementsReviewFromPrd'
+import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
+import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
+import type { PrdWorkflowStageId } from '../utils/modelStatusPrdWorkflow'
+import { PRD_WORKFLOW_COLUMNS } from '../utils/modelStatusPrdWorkflow'
 
-const OVERLAY_STORAGE_KEY = 'req-review-mongo-overlay-v1'
+const DEFAULT_API_MODEL = 'H7_VI'
 
-function loadOverlayMap(): Record<string, RequirementsReviewMongoOverlay> {
-  try {
-    const raw = localStorage.getItem(OVERLAY_STORAGE_KEY)
-    if (!raw) return {}
-    const parsed = JSON.parse(raw) as Record<string, RequirementsReviewMongoOverlay>
-    return parsed && typeof parsed === 'object' ? parsed : {}
-  } catch {
-    return {}
-  }
+function modelMatchesApplied(rowModel: string, appliedModelId: string): boolean {
+  if (appliedModelId === 'all') return true
+  const a = appliedModelId.toUpperCase()
+  const r = rowModel.toUpperCase()
+  return r === a || r.includes(a) || a.includes(r)
 }
 
-function sortRows(
-  rows: RequirementsReviewRow[],
-  sortKey: RequirementsReviewSortKey,
-  sortLabel: string
-): RequirementsReviewRow[] {
-  const copy = [...rows]
-  if (sortKey === 'customLabel' && sortLabel) {
-    copy.sort((a, b) => {
-      const aHas = a.customLabels.includes(sortLabel) ? 0 : 1
-      const bHas = b.customLabels.includes(sortLabel) ? 0 : 1
-      if (aHas !== bHas) return aHas - bHas
-      return a.id.localeCompare(b.id)
-    })
-    return copy
-  }
-  copy.sort((a, b) => {
-    switch (sortKey) {
-      case 'title':
-        return a.title.localeCompare(b.title, 'ko')
-      case 'appliedModel':
-        return a.appliedModel.localeCompare(b.appliedModel)
-      case 'appliedAt':
-        return (b.appliedAt || '').localeCompare(a.appliedAt || '')
-      case 'devPeriod':
-        return (a.devPeriod || '').localeCompare(b.devPeriod || '')
-      default:
-        return a.id.localeCompare(b.id)
-    }
+function sortByUpdated(rows: RequirementsReviewRow[]): RequirementsReviewRow[] {
+  return [...rows].sort((a, b) => {
+    const ua = a.updated || ''
+    const ub = b.updated || ''
+    if (ua !== ub) return ub.localeCompare(ua)
+    return a.id.localeCompare(b.id)
   })
-  return copy
 }
 
 export default function RequirementsReviewPage() {
-  const modelCodes = useMemo(() => listRequirementsReviewModelCodes(), [])
-  const [selectedModel, setSelectedModel] = useState(modelCodes[0] ?? 'H7_VI')
-  const [mockRole, setMockRole] = useState<RequirementsReviewMockRole>(() => getMockRequirementsReviewRole())
-  const [overlayMap, setOverlayMap] = useState<Record<string, RequirementsReviewMongoOverlay>>(() => loadOverlayMap())
-
+  const [productCategory, setProductCategory] = useState<ProductCategory | 'all'>('soundbar')
+  const [appliedModelId, setAppliedModelId] = useState('H7_VI')
   const [osType, setOsType] = useState<OsType | 'all'>('all')
-  const [productCategory, setProductCategory] = useState<ProductCategory | 'all'>('all')
-  const [appliedModel, setAppliedModel] = useState('all')
-  const [labelFilter, setLabelFilter] = useState('all')
-  const [sortKey, setSortKey] = useState<RequirementsReviewSortKey>('id')
-  const [sortLabel, setSortLabel] = useState('')
-  const [groupByOs, setGroupByOs] = useState(true)
+  const [stageFilter, setStageFilter] = useState<PrdWorkflowStageId | 'total' | null>(null)
+  const [detailRow, setDetailRow] = useState<RequirementsReviewRow | null>(null)
 
-  const [editRow, setEditRow] = useState<RequirementsReviewRow | null>(null)
-  const [draft, setDraft] = useState<RequirementsReviewMongoOverlay | null>(null)
+  const apiModel = useMemo(
+    () => (appliedModelId === 'all' ? DEFAULT_API_MODEL : resolveApiModel(appliedModelId)),
+    [appliedModelId]
+  )
 
-  const qc = useQueryClient()
-  const { data, isPending, isFetching, isError, error, refetch } = useRequirementsReviewPrd(selectedModel)
+  const { data, isPending, isFetching, isError, error, refetch } = useRequirementsReviewPrd(apiModel)
   const meta = data?.meta
-  const almQueryFragment =
-    meta?.winningQuery || buildAlmQueryPreview({ osType, productCategory, appliedModel, label: labelFilter })
+  const workflowColumns = data?.workflowColumns?.length ? data.workflowColumns : PRD_WORKFLOW_COLUMNS
 
-  const canEdit = canEditRequirementsReview(mockRole)
+  const almQuery = useMemo(
+    () =>
+      buildRequirementsReviewQueryPreview({
+        productCategory,
+        appliedModelId,
+        osType,
+        winningQuery: meta?.winningQuery,
+      }),
+    [productCategory, appliedModelId, osType, meta?.winningQuery]
+  )
 
   const allRows = useMemo(() => {
     const items = data?.items ?? []
-    return items.map((item) =>
-      mapPrdItemToReviewRow(item, selectedModel, overlayMap[item.id], almQueryFragment)
-    )
-  }, [data?.items, selectedModel, overlayMap, almQueryFragment])
-
-  const modelOptions = useMemo(
-    () => [...new Set(allRows.map((r) => r.appliedModel).filter(Boolean))].sort(),
-    [allRows]
-  )
-
-  const labelOptions = useMemo(() => {
-    const fromRows = new Set<string>()
-    allRows.forEach((r) => r.customLabels.forEach((l) => fromRows.add(l)))
-    MOCK_CUSTOM_LABEL_POOL.forEach((l) => fromRows.add(l))
-    return [...fromRows].sort()
-  }, [allRows])
+    const fragment = meta?.winningQuery || almQuery
+    return items.map((item) => mapPrdItemToReviewRow(item, apiModel, undefined, fragment))
+  }, [data?.items, apiModel, meta?.winningQuery, almQuery])
 
   const filteredRows = useMemo(() => {
     let list = allRows
-    if (osType !== 'all') list = list.filter((r) => r.osType === osType)
-    if (productCategory !== 'all') list = list.filter((r) => r.productCategory === productCategory)
-    if (appliedModel !== 'all') list = list.filter((r) => r.appliedModel === appliedModel)
-    if (labelFilter !== 'all') list = list.filter((r) => r.customLabels.includes(labelFilter))
-    return sortRows(list, sortKey, sortLabel)
-  }, [allRows, osType, productCategory, appliedModel, labelFilter, sortKey, sortLabel])
-
-  const almQuery = useMemo(() => {
-    const base = meta?.winningQuery || buildAlmQueryPreview({ osType, productCategory, appliedModel, label: labelFilter })
-    if (labelFilter !== 'all') {
-      return `${base} /* UI label: ${labelFilter} (Milvus/local) */`
+    if (productCategory !== 'all') {
+      list = list.filter((r) => r.productCategory === productCategory)
     }
-    return base
-  }, [meta?.winningQuery, osType, productCategory, appliedModel, labelFilter])
-
-  const saveLabelMutation = useMutation({
-    mutationFn: async (args: { prdId: string; reviewLabel: string; almLabels: string[] }) =>
-      modelStatusApi.savePrdReviewLabel({
-        model: selectedModel,
-        prdId: args.prdId,
-        reviewLabel: args.reviewLabel,
-        almLabels: args.almLabels,
-      }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['requirements-review-prd', selectedModel] })
-      void qc.invalidateQueries({ queryKey: ['model-status-prd', selectedModel] })
-    },
-  })
-
-  const switchRole = (role: RequirementsReviewMockRole) => {
-    setMockRequirementsReviewRole(role)
-    setMockRole(role)
-  }
-
-  const openEdit = useCallback(
-    (row: RequirementsReviewRow) => {
-      if (!canEdit) return
-      setEditRow(row)
-      setDraft({
-        customLabels: [...row.customLabels],
-        appliedAt: row.appliedAt,
-        devPeriod: row.devPeriod,
-        devOwner: row.devOwner,
-        updatedAt: row.updatedAt,
-        updatedBy: row.updatedBy,
-      })
-    },
-    [canEdit]
-  )
-
-  const saveOverlay = async () => {
-    if (!editRow || !draft) return
-    const reviewLabel = draft.customLabels.join(', ')
-    const next: RequirementsReviewMongoOverlay = {
-      ...draft,
-      updatedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      updatedBy: mockRole === 'editor' ? 'mock-editor' : 'mock-viewer',
+    if (appliedModelId !== 'all') {
+      list = list.filter((r) => modelMatchesApplied(r.appliedModel, appliedModelId))
     }
-    const map = { ...overlayMap, [editRow.id]: next }
-    setOverlayMap(map)
-    localStorage.setItem(OVERLAY_STORAGE_KEY, JSON.stringify(map))
-    try {
-      await saveLabelMutation.mutateAsync({
-        prdId: editRow.id,
-        reviewLabel,
-        almLabels: [],
-      })
-    } catch {
-      /* local overlay saved; BE label sync failed */
+    if (osType !== 'all') {
+      list = list.filter((r) => r.osType === osType)
     }
-    setEditRow(null)
-    setDraft(null)
-  }
+    if (stageFilter && stageFilter !== 'total') {
+      list = list.filter((r) =>
+        stageFilter === 'other'
+          ? r.workflowStageId === 'other' || !r.workflowStageId
+          : r.workflowStageId === stageFilter
+      )
+    }
+    return sortByUpdated(list)
+  }, [allRows, productCategory, appliedModelId, osType, stageFilter])
 
-  const apiTotal = meta?.total ?? data?.items?.length ?? 0
+  const statusCards = useMemo(() => {
+    let base = allRows
+    if (productCategory !== 'all') base = base.filter((r) => r.productCategory === productCategory)
+    if (appliedModelId !== 'all') base = base.filter((r) => modelMatchesApplied(r.appliedModel, appliedModelId))
+    if (osType !== 'all') base = base.filter((r) => r.osType === osType)
+    return buildStatusCardCounts(base, workflowColumns)
+  }, [allRows, productCategory, appliedModelId, osType, workflowColumns])
+
+  useEffect(() => {
+    setStageFilter(null)
+  }, [productCategory, appliedModelId, osType, apiModel])
+
+  const onCategoryChange = useCallback((cat: ProductCategory | 'all') => {
+    setProductCategory(cat)
+  }, [])
 
   return (
     <>
       <Header
         title="요구사항 검토"
-        subtitle="Polarion PRD (GET /api/model-status/prd) · Labels는 Milvus BE + 로컬 메타 overlay"
+        subtitle="Polarion PRD · category / components / labels 필터 · status 요약 · updated 정렬"
       />
 
       <div className="pt-16 p-6 space-y-6 max-w-[1400px]">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-              Polarion 적용모델 (API)
-            </label>
-            <select
-              className="text-sm border border-surface-border rounded-lg px-3 py-2 bg-white min-w-[160px]"
-              value={selectedModel}
-              onChange={(e) => setSelectedModel(e.target.value)}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-gray-600">
+            API 조회 모델: <span className="font-mono font-semibold text-gray-900">{apiModel}</span>
+            {appliedModelId === 'all' ? ' (적용모델 전체 — 기본 fetch)' : null}
+          </p>
+          <div className="flex items-center gap-2">
+            <a
+              href={POLARION_PRD_UI}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-indigo-600 underline"
             >
-              {modelCodes.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
+              Polarion PRD
+            </a>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-border text-sm text-gray-700 hover:bg-surface-page"
+            >
+              {isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              새로고침
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-surface-border text-sm text-gray-700 hover:bg-surface-page"
-          >
-            {isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-            새로고침
-          </button>
-          {meta?.source && (
-            <p className="text-xs text-gray-500 pb-2">
-              source: <span className="font-mono">{meta.source}</span>
-              {meta.polarionUrl && (
-                <>
-                  {' '}
-                  ·{' '}
-                  <a href={meta.polarionUrl} target="_blank" rel="noreferrer" className="text-indigo-600 underline">
-                    Polarion UI
-                  </a>
-                </>
-              )}
-            </p>
-          )}
         </div>
 
         {(isError || meta?.error) && (
@@ -253,74 +143,18 @@ export default function RequirementsReviewPage() {
             <div>
               <p className="font-semibold">PRD API 오류</p>
               <p className="mt-1">{meta?.error || (error instanceof Error ? error.message : String(error))}</p>
-              <p className="text-xs mt-1 text-red-700">Network: GET /api/model-status/prd?model={selectedModel}</p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="flex items-start gap-3 bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3">
-            <Database className="text-indigo-600 shrink-0 mt-0.5" size={18} />
-            <div className="text-sm text-gray-800">
-              <p className="font-semibold text-gray-900">ALM + Milvus labels</p>
-              <p className="text-gray-600 mt-1 leading-relaxed">
-                목록은 BE Polarion PRD API. 검토 라벨은 PUT /api/model-status/prd/labels (Milvus). 적용시점·개발기간·주체는
-                localStorage overlay.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
-            <Shield className="text-amber-700 shrink-0 mt-0.5" size={18} />
-            <div className="text-sm text-gray-800 w-full">
-              <p className="font-semibold text-gray-900">편집 권한 (mock → DEJ auth)</p>
-              <p className="text-gray-600 mt-1">
-                BE 연동 시{' '}
-                <code className="text-xs bg-white px-1 rounded">auth.valid(request, required_roles=[&quot;{REQ_REVIEW_EDITOR_ROLE}&quot;])</code>
-              </p>
-              <div className="flex flex-wrap gap-2 mt-3">
-                <button
-                  type="button"
-                  onClick={() => switchRole('viewer')}
-                  className={
-                    mockRole === 'viewer'
-                      ? 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-800 text-white'
-                      : 'px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-border bg-white'
-                  }
-                >
-                  Viewer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => switchRole('editor')}
-                  className={
-                    mockRole === 'editor'
-                      ? 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white'
-                      : 'px-3 py-1.5 rounded-lg text-xs font-medium border border-surface-border bg-white'
-                  }
-                >
-                  Editor ({REQ_REVIEW_EDITOR_ROLE})
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <RequirementsReviewFilters
-          osType={osType}
           productCategory={productCategory}
-          appliedModel={appliedModel}
-          labelFilter={labelFilter}
-          sortKey={sortKey}
-          sortLabel={sortLabel}
-          modelOptions={modelOptions}
-          labelOptions={labelOptions}
+          appliedModelId={appliedModelId}
+          osType={osType}
           almQuery={almQuery}
+          onProductCategoryChange={onCategoryChange}
+          onAppliedModelChange={setAppliedModelId}
           onOsTypeChange={setOsType}
-          onProductCategoryChange={setProductCategory}
-          onAppliedModelChange={setAppliedModel}
-          onLabelFilterChange={setLabelFilter}
-          onSortKeyChange={(v) => setSortKey(v as RequirementsReviewSortKey)}
-          onSortLabelChange={setSortLabel}
         />
 
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -331,41 +165,29 @@ export default function RequirementsReviewPage() {
               </span>
             ) : (
               <>
-                <span className="font-semibold text-gray-900">{filteredRows.length}</span>건 표시 · API{' '}
-                <span className="font-semibold text-gray-900">{apiTotal}</span>건
+                <span className="font-semibold text-gray-900">{filteredRows.length}</span>건 표시 · PRD API{' '}
+                <span className="font-semibold text-gray-900">{meta?.total ?? data?.items?.length ?? 0}</span>건
               </>
             )}
           </p>
-          <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={groupByOs}
-              onChange={(e) => setGroupByOs(e.target.checked)}
-              className="rounded border-gray-300"
-            />
-            OS type별 섹션 헤더로 그룹
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            정렬
+            <span className="px-2 py-1 rounded border border-surface-border bg-white text-xs font-medium">
+              updated (내림차순)
+            </span>
           </label>
         </div>
 
-        <RequirementsReviewTable
-          rows={filteredRows}
-          groupByOs={groupByOs}
-          canEdit={canEdit}
-          onEditRow={openEdit}
+        <RequirementsReviewStatusCards
+          cards={statusCards}
+          stageFilter={stageFilter}
+          onStageFilter={setStageFilter}
         />
+
+        <RequirementsReviewTable rows={filteredRows} onTitleClick={setDetailRow} />
       </div>
 
-      <RequirementsReviewEditDrawer
-        open={!!editRow}
-        row={editRow}
-        draft={draft}
-        onClose={() => {
-          setEditRow(null)
-          setDraft(null)
-        }}
-        onChange={(patch) => draft && setDraft({ ...draft, ...patch })}
-        onSave={() => void saveOverlay()}
-      />
+      <RequirementsReviewDetailModal row={detailRow} onClose={() => setDetailRow(null)} />
     </>
   )
 }

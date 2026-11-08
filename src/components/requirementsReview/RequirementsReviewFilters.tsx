@@ -1,95 +1,86 @@
 import clsx from 'clsx'
+import { ExternalLink } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { OsType, ProductCategory } from '../../types/requirementsReview'
-import { OS_TYPE_LABELS, PRODUCT_CATEGORY_LABELS } from '../../types/requirementsReview'
+import {
+  APPLIED_MODEL_OPTIONS,
+  OS_LABEL_OPTIONS,
+  POLARION_PRD_UI,
+  POLARION_QUERIES,
+  PRODUCT_CATEGORY_OPTIONS,
+  appliedModelsForCategory,
+} from '../../data/requirementsReviewCatalog'
 
 interface Props {
-  osType: OsType | 'all'
   productCategory: ProductCategory | 'all'
-  appliedModel: string
-  labelFilter: string
-  sortKey: string
-  sortLabel: string
-  modelOptions: string[]
-  labelOptions: string[]
+  appliedModelId: string
+  osType: OsType | 'all'
   almQuery: string
-  onOsTypeChange: (v: OsType | 'all') => void
   onProductCategoryChange: (v: ProductCategory | 'all') => void
   onAppliedModelChange: (v: string) => void
-  onLabelFilterChange: (v: string) => void
-  onSortKeyChange: (v: string) => void
-  onSortLabelChange: (v: string) => void
+  onOsTypeChange: (v: OsType | 'all') => void
 }
 
 const selectClass =
   'w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-lg-red/20 focus:border-lg-red'
 
+function StepLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="text-[11px] text-indigo-600 hover:underline inline-flex items-center gap-0.5"
+    >
+      {children}
+      <ExternalLink size={10} />
+    </a>
+  )
+}
+
 export default function RequirementsReviewFilters({
-  osType,
   productCategory,
-  appliedModel,
-  labelFilter,
-  sortKey,
-  sortLabel,
-  modelOptions,
-  labelOptions,
+  appliedModelId,
+  osType,
   almQuery,
-  onOsTypeChange,
   onProductCategoryChange,
   onAppliedModelChange,
-  onLabelFilterChange,
-  onSortKeyChange,
-  onSortLabelChange,
+  onOsTypeChange,
 }: Props) {
-  const osTabs: { id: OsType | 'all'; label: string }[] = [
-    { id: 'all', label: '전체 OS' },
-    { id: 'webOS', label: OS_TYPE_LABELS.webOS },
-    { id: 'non-webOS', label: OS_TYPE_LABELS['non-webOS'] },
-  ]
-
-  const categories: { id: ProductCategory | 'all'; label: string }[] = [
-    { id: 'all', label: '전체 카테고리' },
-    ...(
-      Object.entries(PRODUCT_CATEGORY_LABELS) as [ProductCategory, string][]
-    ).map(([id, label]) => ({ id, label })),
-  ]
+  const modelOptions =
+    productCategory === 'all' ? APPLIED_MODEL_OPTIONS : appliedModelsForCategory(productCategory)
 
   return (
     <div className="bg-white border border-surface-border rounded-xl p-5 space-y-5">
-      <div>
-        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">1. OS type</p>
-        <div className="flex flex-wrap gap-2">
-          {osTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => onOsTypeChange(tab.id)}
-              className={clsx(
-                'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
-                osType === tab.id
-                  ? 'bg-indigo-600 text-white border-indigo-600'
-                  : 'bg-surface-page text-gray-700 border-surface-border hover:border-gray-300'
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">1. 요구사항 (기본 PRD)</p>
+          <p className="text-sm text-gray-600 mt-1">Polarion AVSWReqMgmt · type PRD</p>
         </div>
+        <StepLink href={POLARION_PRD_UI}>Polarion PRD 전체</StepLink>
       </div>
 
+      <Divider />
+
       <div>
-        <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">2. Product category</p>
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">2. Product category</p>
+          <StepLink href={POLARION_QUERIES.productCategory}>HAS_VALUE:productCategory.KEY</StepLink>
+        </div>
         <div className="flex flex-wrap gap-2">
-          {categories.map((cat) => (
+          <button
+            type="button"
+            onClick={() => onProductCategoryChange('all')}
+            className={pillClass(productCategory === 'all')}
+          >
+            전체
+          </button>
+          {PRODUCT_CATEGORY_OPTIONS.map((cat) => (
             <button
               key={cat.id}
               type="button"
               onClick={() => onProductCategoryChange(cat.id)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
-                productCategory === cat.id
-                  ? 'bg-lg-red-light text-lg-red border-red-200'
-                  : 'bg-white text-gray-700 border-surface-border hover:bg-surface-page'
-              )}
+              className={pillClass(productCategory === cat.id)}
             >
               {cat.label}
             </button>
@@ -97,73 +88,49 @@ export default function RequirementsReviewFilters({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-            3. 적용모델
-          </label>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">3. 적용모델</p>
+            <StepLink href={POLARION_QUERIES.components}>HAS_VALUE:components</StepLink>
+          </div>
           <select
             className={selectClass}
-            value={appliedModel}
+            value={appliedModelId}
             onChange={(e) => onAppliedModelChange(e.target.value)}
           >
-            <option value="all">전체</option>
+            <option value="all">선택 — 전체</option>
             {modelOptions.map((m) => (
-              <option key={m} value={m}>
-                {m}
+              <option key={m.id} value={m.id}>
+                {m.label} ({m.componentHint})
               </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-            4. Labels (Mongo)
-          </label>
-          <select
-            className={selectClass}
-            value={labelFilter}
-            onChange={(e) => onLabelFilterChange(e.target.value)}
-          >
-            <option value="all">전체</option>
-            {labelOptions.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+            <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">4. Labels (ALM)</p>
+            <StepLink href={POLARION_QUERIES.labels}>HAS_VALUE:labels</StepLink>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => onOsTypeChange('all')} className={pillClass(osType === 'all')}>
+              전체
+            </button>
+            {OS_LABEL_OPTIONS.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => onOsTypeChange(tab.id)}
+                className={pillClass(osType === tab.id)}
+              >
+                {tab.label}
+              </button>
             ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-            정렬
-          </label>
-          <select className={selectClass} value={sortKey} onChange={(e) => onSortKeyChange(e.target.value)}>
-            <option value="id">ALM ID</option>
-            <option value="title">제목</option>
-            <option value="appliedModel">적용모델</option>
-            <option value="customLabel">커스텀 Label 우선</option>
-            <option value="appliedAt">적용시점</option>
-            <option value="devPeriod">개발기간</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
-            Label sort 기준
-          </label>
-          <select
-            className={selectClass}
-            value={sortLabel}
-            disabled={sortKey !== 'customLabel'}
-            onChange={(e) => onSortLabelChange(e.target.value)}
-          >
-            <option value="">— 선택 —</option>
-            {labelOptions.map((l) => (
-              <option key={l} value={l}>
-                {l}
-              </option>
-            ))}
-          </select>
+          </div>
         </div>
       </div>
+
+      <Divider />
 
       <div>
         <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">ALM query (preview)</p>
@@ -171,9 +138,26 @@ export default function RequirementsReviewFilters({
           {almQuery}
         </code>
         <p className="text-xs text-gray-500 mt-2">
-          BE winningQuery (Polarion REST) · Label 필터는 Milvus/로컬 UI 전용
+          표시 순서: updated (Polarion{' '}
+          <a href={POLARION_QUERIES.updatedToday} className="text-indigo-600 underline" target="_blank" rel="noreferrer">
+            updated:$today$
+          </a>
+          )
         </p>
       </div>
     </div>
   )
+}
+
+function pillClass(active: boolean) {
+  return clsx(
+    'px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
+    active
+      ? 'bg-indigo-600 text-white border-indigo-600'
+      : 'bg-white text-gray-700 border-surface-border hover:bg-surface-page'
+  )
+}
+
+function Divider() {
+  return <hr className="border-surface-border" />
 }

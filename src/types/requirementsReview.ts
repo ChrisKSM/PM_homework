@@ -19,6 +19,15 @@ export const OS_TYPE_LABELS: Record<OsType, string> = {
 }
 
 /** ALM(Polarion)에서 읽어올 기본 행 — mock */
+export interface RequirementsReviewPrdDetail {
+  requestedReviewItems?: string
+  requestReason?: string
+  userValue?: string
+  userFunctionDetail?: string
+  operationDetail?: string
+  comments?: string
+}
+
 export interface RequirementsReviewAlmRow {
   id: string
   title: string
@@ -28,6 +37,14 @@ export interface RequirementsReviewAlmRow {
   almStatus: string
   almQueryFragment: string
   polarionUrl?: string
+  workflowStageId?: string
+  workflowStageLabel?: string
+  workflowOrder?: number
+  updated?: string
+  initiative?: string
+  deliveryDate?: string
+  actionItem?: string
+  detail?: RequirementsReviewPrdDetail
 }
 
 /** MongoDB overlay — 편집 가능 필드 (ALM 쓰기 권한 없음) */
@@ -42,10 +59,4 @@ export interface RequirementsReviewMongoOverlay {
 
 export type RequirementsReviewRow = RequirementsReviewAlmRow & RequirementsReviewMongoOverlay
 
-export type RequirementsReviewSortKey =
-  | 'id'
-  | 'title'
-  | 'appliedModel'
-  | 'customLabel'
-  | 'appliedAt'
-  | 'devPeriod'
+export type RequirementsReviewSortKey = 'updated' | 'id' | 'title' | 'status'

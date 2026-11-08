@@ -76,6 +76,15 @@ export function mapPrdItemToReviewRow(
     almStatus: item.status || item.workflowStageLabel || '—',
     almQueryFragment,
     polarionUrl: item.polarionUrl,
+    workflowStageId: item.workflowStageId,
+    workflowStageLabel: item.workflowStageLabel,
+    workflowOrder: item.workflowOrder,
+    updated: item.updated,
+    initiative: '—',
+    deliveryDate: '—',
+    actionItem: '—',
+    detail: {},
+    devOwner: item.assignee || base.devOwner,
     ...base,
   }
 }

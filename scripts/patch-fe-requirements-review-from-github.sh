@@ -26,11 +26,15 @@ fetch src/pages/RequirementsReviewPage.tsx src/pages/RequirementsReviewPage.tsx
 fetch src/hooks/useRequirementsReviewPrd.ts src/hooks/useRequirementsReviewPrd.ts
 fetch src/utils/requirementsReviewFromPrd.ts src/utils/requirementsReviewFromPrd.ts
 fetch src/types/requirementsReview.ts src/types/requirementsReview.ts
+fetch src/data/requirementsReviewCatalog.ts src/data/requirementsReviewCatalog.ts
 fetch src/data/requirementsReviewMock.ts src/data/requirementsReviewMock.ts
+fetch src/utils/requirementsReviewPolarionQuery.ts src/utils/requirementsReviewPolarionQuery.ts
 fetch src/utils/requirementsReviewAuth.ts src/utils/requirementsReviewAuth.ts
 fetch src/components/requirementsReview/RequirementsReviewFilters.tsx src/components/requirementsReview/RequirementsReviewFilters.tsx
 fetch src/components/requirementsReview/RequirementsReviewTable.tsx src/components/requirementsReview/RequirementsReviewTable.tsx
 fetch src/components/requirementsReview/RequirementsReviewEditDrawer.tsx src/components/requirementsReview/RequirementsReviewEditDrawer.tsx
+fetch src/components/requirementsReview/RequirementsReviewStatusCards.tsx src/components/requirementsReview/RequirementsReviewStatusCards.tsx
+fetch src/components/requirementsReview/RequirementsReviewDetailModal.tsx src/components/requirementsReview/RequirementsReviewDetailModal.tsx
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch scripts/patch-fe-be-shared-url.sh scripts/patch-fe-be-shared-url.sh
