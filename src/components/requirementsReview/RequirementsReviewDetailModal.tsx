@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { Loader2, X, ExternalLink } from 'lucide-react'
 import type { RequirementsReviewPrdDetail, RequirementsReviewRow } from '../../types/requirementsReview'
@@ -17,10 +18,11 @@ const DETAIL_SECTIONS: { key: keyof RequirementsReviewPrdDetail; label: string; 
 interface Props {
   row: RequirementsReviewRow | null
   loading?: boolean
+  planSlot?: ReactNode
   onClose: () => void
 }
 
-export default function RequirementsReviewDetailModal({ row, loading = false, onClose }: Props) {
+export default function RequirementsReviewDetailModal({ row, loading = false, planSlot, onClose }: Props) {
   if (!row) return null
 
   const detail = row.detail ?? {}
@@ -80,6 +82,7 @@ export default function RequirementsReviewDetailModal({ row, loading = false, on
               Polarion 상세 불러오는 중…
             </p>
           ) : null}
+          {planSlot}
           <div>
             <h3 className="text-sm font-bold text-gray-900 mb-3">요구사항 구체화</h3>
             <div className="space-y-4">

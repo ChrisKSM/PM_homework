@@ -61,4 +61,33 @@ export interface RequirementsReviewMongoOverlay {
 
 export type RequirementsReviewRow = RequirementsReviewAlmRow & RequirementsReviewMongoOverlay
 
+export type ApplyScope = 'product' | 'app' | 'tv'
+
+export const APPLY_SCOPE_OPTIONS: { id: ApplyScope; label: string }[] = [
+  { id: 'product', label: '제품' },
+  { id: 'app', label: '앱' },
+  { id: 'tv', label: 'TV' },
+]
+
+/** 요구사항별 적용 계획 — BE /model-status/prd/plans (Milvus requirements_review_plans) */
+export interface RequirementsReviewPlan {
+  prdId: string
+  /** 적용 MR 월 YYYY-MM — 2027-01 → "27년 1월 MR" */
+  applyMonth: string
+  applyScopes: ApplyScope[]
+  devTeam: string
+  actionItem: string
+  /** YYYY-MM-DD */
+  dueDate: string
+  updatedAt?: string
+  updatedBy?: string
+}
+
+export type RequirementsReviewPlanInput = Omit<RequirementsReviewPlan, 'updatedAt'>
+
+export interface RequirementsReviewPlansResponse {
+  items: RequirementsReviewPlan[]
+  meta: { collection: string; total: number }
+}
+
 export type RequirementsReviewSortKey = 'updated' | 'id' | 'title' | 'status'

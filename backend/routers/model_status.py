@@ -560,3 +560,46 @@ async def model_status_prd_save_label(body: ModelStatusPrdLabelBody):
         raise HTTPException(status_code=503, detail=str(e)) from e
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"PRD label 저장 오류: {e}") from e
+
+
+class RequirementsReviewPlanBody(BaseModel):
+    prdId: str = Field(..., description="Polarion workitem id e.g. AVRM-5135")
+    applyMonth: str = Field("", description="적용 MR 월 YYYY-MM (예: 2027-01 → 27년 1월 MR)")
+    applyScopes: list[str] = Field(default_factory=list, description="product | app | tv")
+    devTeam: str = Field("", description="개발팀")
+    actionItem: str = Field("", description="Action item")
+    dueDate: str = Field("", description="Action item due date YYYY-MM-DD")
+    updatedBy: str = Field("", description="편집자")
+
+
+@router.get("/prd/plans")
+async def requirements_review_plans():
+    """요구사항 검토 적용 계획 — Milvus requirements_review_plans."""
+    from services.requirements_review_plan_store import COLLECTION, list_plans
+
+    try:
+        items = list_plans()
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    return {"items": items, "meta": {"collection": COLLECTION, "total": len(items)}}
+
+
+@router.put("/prd/plans")
+async def requirements_review_save_plan(body: RequirementsReviewPlanBody):
+    from services.requirements_review_plan_store import save_plan
+
+    try:
+        doc = save_plan(
+            prd_id=body.prdId,
+            apply_month=body.applyMonth,
+            apply_scopes=body.applyScopes,
+            dev_team=body.devTeam,
+            action_item=body.actionItem,
+            due_date=body.dueDate,
+            updated_by=body.updatedBy,
+        )
+        return {"ok": True, "plan": doc}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e

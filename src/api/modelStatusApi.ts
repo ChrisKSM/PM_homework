@@ -20,6 +20,11 @@ import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt
 import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
 import type { ModelStatusPrdLabelSaveBody, ModelStatusPrdResponse } from '../types/modelStatusPrd'
 import type { ModelStatusSprintResponse } from '../types/modelStatusSprint'
+import type {
+  RequirementsReviewPlan,
+  RequirementsReviewPlanInput,
+  RequirementsReviewPlansResponse,
+} from '../types/requirementsReview'
 import { sprintJiraLabelForModel } from '../data/modelStatusSprintJiraLabels'
 import {
   initiativeJiraLabelForModel,
@@ -106,6 +111,14 @@ export const modelStatusApi = {
 
   savePrdReviewLabel: (body: ModelStatusPrdLabelSaveBody) =>
     client.put<{ ok: boolean }>('/model-status/prd/labels', body).then((r) => r.data),
+
+  getRequirementsReviewPlans: () =>
+    client.get<RequirementsReviewPlansResponse>('/model-status/prd/plans').then((r) => r.data),
+
+  saveRequirementsReviewPlan: (body: RequirementsReviewPlanInput) =>
+    client
+      .put<{ ok: boolean; plan: RequirementsReviewPlan }>('/model-status/prd/plans', body)
+      .then((r) => r.data),
 
   getSprintDashboard: (model: string) => {
     const label = sprintJiraLabelForModel(model)

@@ -7,9 +7,18 @@ import RequirementsReviewStatusCards, {
   buildStatusCardCounts,
 } from '../components/requirementsReview/RequirementsReviewStatusCards'
 import RequirementsReviewDetailModal from '../components/requirementsReview/RequirementsReviewDetailModal'
+import RequirementsReviewPlanFilters from '../components/requirementsReview/RequirementsReviewPlanFilters'
+import RequirementsReviewPlanForm from '../components/requirementsReview/RequirementsReviewPlanForm'
 import { POLARION_PRD_UI, resolveRequirementsReviewApiModel, type CategoryScope } from '../data/requirementsReviewCatalog'
-import type { OsType, RequirementsReviewRow } from '../types/requirementsReview'
+import type {
+  ApplyScope,
+  OsType,
+  RequirementsReviewPlan,
+  RequirementsReviewRow,
+} from '../types/requirementsReview'
 import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
+import { useRequirementsReviewPlans } from '../hooks/useRequirementsReviewPlans'
+import { PLAN_FILTER_UNSET } from '../utils/requirementsReviewPlan'
 import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
 import { requirementsReviewRowNeedsPrefetch } from '../utils/requirementsReviewPrefetch'
 import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
@@ -19,6 +28,16 @@ import { PRD_WORKFLOW_COLUMNS } from '../utils/modelStatusPrdWorkflow'
 
 const PRD_ROW_PREFETCH_CONCURRENCY = 3
 const PRD_ROW_PREFETCH_MAX = 80
+
+function matchesApplyMonth(plan: RequirementsReviewPlan | undefined, applyMonth: string): boolean {
+  if (applyMonth === 'all') return true
+  if (applyMonth === PLAN_FILTER_UNSET) return !plan?.applyMonth
+  return plan?.applyMonth === applyMonth
+}
+
+function matchesApplyScope(plan: RequirementsReviewPlan | undefined, scope: ApplyScope | 'all'): boolean {
+  return scope === 'all' || Boolean(plan?.applyScopes?.includes(scope))
+}
 
 function sortByUpdated(rows: RequirementsReviewRow[]): RequirementsReviewRow[] {
   return [...rows].sort((a, b) => {
@@ -37,6 +56,10 @@ export default function RequirementsReviewPage() {
   const [detailRow, setDetailRow] = useState<RequirementsReviewRow | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [rowOverrides, setRowOverrides] = useState<Record<string, RequirementsReviewRow>>({})
+  const [applyMonth, setApplyMonth] = useState<string>('all')
+  const [applyScope, setApplyScope] = useState<ApplyScope | 'all'>('all')
+  const plans = useRequirementsReviewPlans()
+  const { plansById } = plans
 
   const apiModel = useMemo(
     () => resolveRequirementsReviewApiModel(category, subModelId),
@@ -65,11 +88,54 @@ export default function RequirementsReviewPage() {
     return items.map((item) => mapPrdItemToReviewRow(item, apiModel, undefined, fragment))
   }, [data?.items, apiModel, meta?.winningQuery, almQuery])
 
-  const filteredRows = useMemo(() => {
-    let list = allRows.map((r) => rowOverrides[r.id] ?? r)
-    if (osType !== 'all') {
-      list = list.filter((r) => r.osType === osType)
+  const osRows = useMemo(() => {
+    const list = allRows.map((r) => rowOverrides[r.id] ?? r)
+    return osType === 'all' ? list : list.filter((r) => r.osType === osType)
+  }, [allRows, rowOverrides, osType])
+
+  const planFacets = useMemo(() => {
+    const byScope = osRows.filter((r) => matchesApplyScope(plansById[r.id], applyScope))
+    const monthMap = new Map<string, number>()
+    let unsetCount = 0
+    for (const r of byScope) {
+      const m = plansById[r.id]?.applyMonth
+      if (m) monthMap.set(m, (monthMap.get(m) ?? 0) + 1)
+      else unsetCount += 1
     }
+    const byMonth = osRows.filter((r) => matchesApplyMonth(plansById[r.id], applyMonth))
+    const scopeCounts: Record<ApplyScope, number> = { product: 0, app: 0, tv: 0 }
+    for (const r of byMonth) {
+      for (const s of plansById[r.id]?.applyScopes ?? []) scopeCounts[s] += 1
+    }
+    return {
+      monthCounts: [...monthMap.entries()]
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([month, count]) => ({ month, count })),
+      unsetCount,
+      totalCount: byScope.length,
+      scopeCounts,
+    }
+  }, [osRows, plansById, applyMonth, applyScope])
+
+  const planRows = useMemo(
+    () =>
+      osRows.filter(
+        (r) => matchesApplyMonth(plansById[r.id], applyMonth) && matchesApplyScope(plansById[r.id], applyScope)
+      ),
+    [osRows, plansById, applyMonth, applyScope]
+  )
+
+  const teamSuggestions = useMemo(
+    () => [...new Set(Object.values(plansById).map((p) => p.devTeam).filter(Boolean))].sort(),
+    [plansById]
+  )
+  const knownMonths = useMemo(
+    () => Object.values(plansById).map((p) => p.applyMonth).filter(Boolean),
+    [plansById]
+  )
+
+  const filteredRows = useMemo(() => {
+    let list = planRows
     if (stageFilter && stageFilter !== 'total') {
       list = list.filter((r) =>
         stageFilter === 'other'
@@ -78,13 +144,12 @@ export default function RequirementsReviewPage() {
       )
     }
     return sortByUpdated(list)
-  }, [allRows, osType, stageFilter, rowOverrides])
+  }, [planRows, stageFilter])
 
-  const statusCards = useMemo(() => {
-    let base = allRows
-    if (osType !== 'all') base = base.filter((r) => r.osType === osType)
-    return buildStatusCardCounts(base, workflowColumns)
-  }, [allRows, osType, workflowColumns])
+  const statusCards = useMemo(
+    () => buildStatusCardCounts(planRows, workflowColumns),
+    [planRows, workflowColumns]
+  )
 
   useEffect(() => {
     setSubModelId('all')
@@ -93,7 +158,7 @@ export default function RequirementsReviewPage() {
 
   useEffect(() => {
     setStageFilter(null)
-  }, [subModelId, osType, apiModel])
+  }, [subModelId, osType, apiModel, applyMonth, applyScope])
 
   useEffect(() => {
     setRowOverrides({})
@@ -213,6 +278,24 @@ export default function RequirementsReviewPage() {
           onOsTypeChange={setOsType}
         />
 
+        <RequirementsReviewPlanFilters
+          {...planFacets}
+          applyMonth={applyMonth}
+          applyScope={applyScope}
+          onApplyMonthChange={setApplyMonth}
+          onApplyScopeChange={setApplyScope}
+        />
+
+        {plans.source === 'local' && !plans.isLoading ? (
+          <div className="flex gap-2 items-start bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-xs text-amber-800">
+            <AlertCircle size={16} className="shrink-0" />
+            <p>
+              적용 계획 API(<span className="font-mono">/api/model-status/prd/plans</span>) 미연결 — 이 브라우저에만
+              임시 저장됩니다. {plans.loadError ? `(${plans.loadError})` : null}
+            </p>
+          </div>
+        ) : null}
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-gray-600">
             {isPending ? (
@@ -245,12 +328,26 @@ export default function RequirementsReviewPage() {
           onStageFilter={setStageFilter}
         />
 
-        <RequirementsReviewTable rows={filteredRows} onIdClick={onIdClick} />
+        <RequirementsReviewTable rows={filteredRows} plansById={plansById} onIdClick={onIdClick} />
       </div>
 
       <RequirementsReviewDetailModal
         row={detailRow}
         loading={detailLoading}
+        planSlot={
+          detailRow ? (
+            <RequirementsReviewPlanForm
+              key={detailRow.id}
+              prdId={detailRow.id}
+              plan={plansById[detailRow.id]}
+              teamSuggestions={teamSuggestions}
+              knownMonths={knownMonths}
+              source={plans.source}
+              saving={plans.isSaving}
+              onSave={plans.savePlan}
+            />
+          ) : null
+        }
         onClose={() => {
           setDetailRow(null)
           setDetailLoading(false)
