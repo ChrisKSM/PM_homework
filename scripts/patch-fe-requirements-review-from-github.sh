@@ -24,6 +24,8 @@ fetch src/store/dashboardStore.ts src/store/dashboardStore.ts
 fetch src/App.tsx src/App.tsx
 fetch src/pages/RequirementsReviewPage.tsx src/pages/RequirementsReviewPage.tsx
 fetch src/hooks/useRequirementsReviewPrd.ts src/hooks/useRequirementsReviewPrd.ts
+fetch src/hooks/useRequirementsReviewPlans.ts src/hooks/useRequirementsReviewPlans.ts
+fetch src/utils/requirementsReviewPlan.ts src/utils/requirementsReviewPlan.ts
 fetch src/utils/requirementsReviewFromPrd.ts src/utils/requirementsReviewFromPrd.ts
 fetch src/utils/requirementsReviewPrefetch.ts src/utils/requirementsReviewPrefetch.ts
 fetch src/types/requirementsReview.ts src/types/requirementsReview.ts
@@ -38,6 +40,8 @@ fetch src/components/requirementsReview/RequirementsReviewEditDrawer.tsx src/com
 fetch src/components/requirementsReview/RequirementsReviewStatusCards.tsx src/components/requirementsReview/RequirementsReviewStatusCards.tsx
 fetch src/components/requirementsReview/RequirementsReviewDetailModal.tsx src/components/requirementsReview/RequirementsReviewDetailModal.tsx
 fetch src/components/requirementsReview/InitiativeLinksCell.tsx src/components/requirementsReview/InitiativeLinksCell.tsx
+fetch src/components/requirementsReview/RequirementsReviewPlanForm.tsx src/components/requirementsReview/RequirementsReviewPlanForm.tsx
+fetch src/components/requirementsReview/RequirementsReviewPlanFilters.tsx src/components/requirementsReview/RequirementsReviewPlanFilters.tsx
 fetch src/api/modelStatusApi.ts src/api/modelStatusApi.ts
 fetch src/types/modelStatusPrd.ts src/types/modelStatusPrd.ts
 fetch scripts/patch-fe-be-shared-url.sh scripts/patch-fe-be-shared-url.sh
@@ -58,6 +62,8 @@ src/data/requirementsReviewMock.ts
 src/utils/requirementsReviewAuth.ts
 src/components/requirementsReview/RequirementsReviewTable.tsx
 src/components/requirementsReview/RequirementsReviewEditDrawer.tsx
+src/components/requirementsReview/RequirementsReviewPlanForm.tsx
+src/hooks/useRequirementsReviewPlans.ts
 "
 MISS=0
 for f in $REQ_FILES; do

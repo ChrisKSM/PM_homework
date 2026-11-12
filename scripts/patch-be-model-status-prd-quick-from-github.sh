@@ -24,10 +24,12 @@ fetch() {
   echo "  + $2"
 }
 
-BUNDLE="prd-quick-2026-11-workitem-fields-assignee-comments"
+BUNDLE="prd-quick-2026-11-review-plans"
 echo "=== PRD quick patch @ $REF ($BUNDLE) ==="
 fetch backend/polarion_client.py polarion_client.py
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
+fetch backend/services/requirements_review_plan_store.py services/requirements_review_plan_store.py
+fetch backend/routers/model_status.py routers/model_status.py
 
 PY="${PY:-python3}"
 command -v "$PY" >/dev/null 2>&1 || PY=python
@@ -46,6 +48,8 @@ if ! grep -q PRD_BROAD_SPARSE_ENRICH_MAX services/model_status_prd_service.py 2>
 fi
 "$PY" -c "from polarion_client import normalize_polarion_workitem_id, workitem_id; assert normalize_polarion_workitem_id('AVSWReqMgmt/AVRM-5327')=='AVRM-5327'"
 echo "  OK  import + id normalize"
+"$PY" -c "from services.requirements_review_plan_store import normalize_plan_input as n; assert n(prd_id='AVRM-1', apply_month='2027-01')['applyMonth']=='2027-01'"
+echo "  OK  requirements_review_plan_store"
 
 if [ -f scripts/restart-be-route-port.sh ]; then
   sh scripts/restart-be-route-port.sh
@@ -71,5 +75,7 @@ assert iid and iid!='AVSWReqMgmt', iid
 assert 'AVRM-5153' in url, url
 print('  OK  workitem id=', iid, '| owner=', it.get('assignee') or '-', '| updated=', it.get('updated') or '-', '| comments=', len((it.get('detail') or {}).get('comments') or ''), 'chars')
 " 2>/dev/null || echo "  (workitem smoke skip — Polarion 429/502 가능)"
+  PLANS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 --max-time 15 "${API_BASE}/model-status/prd/plans" 2>/dev/null || echo "000")
+  echo "  GET /model-status/prd/plans HTTP $PLANS (503 = Milvus 미연결)"
 fi
 echo "=== quick patch done ($BUNDLE) ==="
