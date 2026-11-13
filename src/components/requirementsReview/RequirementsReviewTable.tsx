@@ -30,14 +30,14 @@ export default function RequirementsReviewTable({ rows, plansById, onIdClick }: 
   return (
     <div className="bg-white border border-surface-border rounded-xl overflow-hidden">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1280px] text-left">
+        <table className="w-full min-w-[1200px] text-left">
           <thead className="bg-surface-page border-b border-surface-border">
             <tr className="text-xs font-bold uppercase tracking-wider text-gray-600">
               <th className="px-3 py-3">ID</th>
               <th className="px-3 py-3">Title</th>
               <th className="px-3 py-3">Status</th>
               <th className="px-3 py-3 whitespace-nowrap">적용 시점</th>
-              <th className="px-3 py-3 whitespace-nowrap">범위 · 개발팀</th>
+              <th className="px-3 py-3 whitespace-nowrap">적용 범위</th>
               <th className="px-3 py-3">Initiative</th>
               <th className="px-3 py-3">Owner</th>
               <th className="px-3 py-3">Delivery Date</th>
@@ -49,6 +49,7 @@ export default function RequirementsReviewTable({ rows, plansById, onIdClick }: 
             {rows.map((row, index) => {
               const plan = plansById[row.id]
               const actionItem = plan?.actionItem || (row.actionItem !== '—' ? row.actionItem : '')
+              const deliveryDate = plan?.dueDate || (row.deliveryDate !== '—' ? row.deliveryDate : '')
               return (
               <tr
                 key={row.id}
@@ -100,7 +101,7 @@ export default function RequirementsReviewTable({ rows, plansById, onIdClick }: 
                     <span className="text-gray-400">미정</span>
                   )}
                 </td>
-                <td className="px-3 py-3 text-xs text-gray-700 max-w-[160px]">
+                <td className="px-3 py-3 text-xs text-gray-700">
                   {plan?.applyScopes?.length ? (
                     <div className="flex flex-wrap gap-1">
                       {plan.applyScopes.map((s) => (
@@ -109,10 +110,9 @@ export default function RequirementsReviewTable({ rows, plansById, onIdClick }: 
                         </span>
                       ))}
                     </div>
-                  ) : null}
-                  <p className={clsx('truncate', plan?.applyScopes?.length && 'mt-1')} title={plan?.devTeam}>
-                    {plan?.devTeam || (plan?.applyScopes?.length ? '' : '—')}
-                  </p>
+                  ) : (
+                    '—'
+                  )}
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-700 max-w-[140px]">
                   <InitiativeLinksCell
@@ -122,21 +122,16 @@ export default function RequirementsReviewTable({ rows, plansById, onIdClick }: 
                   />
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-700">{row.devOwner || '—'}</td>
-                <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.deliveryDate || '—'}</td>
-                <td className="px-3 py-3 text-xs text-gray-600 max-w-[200px]">
-                  <p className="truncate" title={actionItem}>
-                    {actionItem || '—'}
-                  </p>
-                  {plan?.dueDate ? (
-                    <p
-                      className={clsx(
-                        'mt-0.5 tabular-nums',
-                        isDueOverdue(plan.dueDate) ? 'text-red-600 font-semibold' : 'text-gray-500'
-                      )}
-                    >
-                      Due {plan.dueDate}
-                    </p>
-                  ) : null}
+                <td
+                  className={clsx(
+                    'px-3 py-3 text-xs whitespace-nowrap tabular-nums',
+                    isDueOverdue(deliveryDate) && plan?.dueDate ? 'text-red-600 font-semibold' : 'text-gray-700'
+                  )}
+                >
+                  {deliveryDate || '—'}
+                </td>
+                <td className="px-3 py-3 text-xs text-gray-600 max-w-[220px] truncate" title={actionItem}>
+                  {actionItem || '—'}
                 </td>
                 <td className="px-3 py-3 text-xs text-gray-500 text-right whitespace-nowrap tabular-nums">
                   {row.updated || '—'}

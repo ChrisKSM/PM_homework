@@ -24,11 +24,12 @@ fetch() {
   echo "  + $2"
 }
 
-BUNDLE="prd-quick-2026-11-review-plans"
+BUNDLE="prd-quick-2026-11-review-plans-jira-due"
 echo "=== PRD quick patch @ $REF ($BUNDLE) ==="
 fetch backend/polarion_client.py polarion_client.py
 fetch backend/services/model_status_prd_service.py services/model_status_prd_service.py
 fetch backend/services/requirements_review_plan_store.py services/requirements_review_plan_store.py
+fetch backend/services/requirements_review_jira_due.py services/requirements_review_jira_due.py
 fetch backend/routers/model_status.py routers/model_status.py
 
 PY="${PY:-python3}"
@@ -50,6 +51,8 @@ fi
 echo "  OK  import + id normalize"
 "$PY" -c "from services.requirements_review_plan_store import normalize_plan_input as n; assert n(prd_id='AVRM-1', apply_month='2027-01')['applyMonth']=='2027-01'"
 echo "  OK  requirements_review_plan_store"
+"$PY" -c "from services.requirements_review_jira_due import parse_issue_keys as p; assert p('tvplat-1')==['TVPLAT-1']; import tvjira_client"
+echo "  OK  requirements_review_jira_due (+ tvjira_client)"
 
 if [ -f scripts/restart-be-route-port.sh ]; then
   sh scripts/restart-be-route-port.sh

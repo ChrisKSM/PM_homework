@@ -18,7 +18,7 @@ import type {
 } from '../types/requirementsReview'
 import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
 import { useRequirementsReviewPlans } from '../hooks/useRequirementsReviewPlans'
-import { PLAN_FILTER_UNSET } from '../utils/requirementsReviewPlan'
+import { PLAN_FILTER_UNSET, initiativeJiraKeys } from '../utils/requirementsReviewPlan'
 import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
 import { requirementsReviewRowNeedsPrefetch } from '../utils/requirementsReviewPrefetch'
 import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
@@ -339,6 +339,7 @@ export default function RequirementsReviewPage() {
             <RequirementsReviewPlanForm
               key={detailRow.id}
               prdId={detailRow.id}
+              initiativeKeys={initiativeJiraKeys(detailRow)}
               plan={plansById[detailRow.id]}
               teamSuggestions={teamSuggestions}
               knownMonths={knownMonths}

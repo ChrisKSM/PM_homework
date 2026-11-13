@@ -21,6 +21,7 @@ import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpK
 import type { ModelStatusPrdLabelSaveBody, ModelStatusPrdResponse } from '../types/modelStatusPrd'
 import type { ModelStatusSprintResponse } from '../types/modelStatusSprint'
 import type {
+  InitiativeDueDate,
   RequirementsReviewPlan,
   RequirementsReviewPlanInput,
   RequirementsReviewPlansResponse,
@@ -114,6 +115,13 @@ export const modelStatusApi = {
 
   getRequirementsReviewPlans: () =>
     client.get<RequirementsReviewPlansResponse>('/model-status/prd/plans').then((r) => r.data),
+
+  getInitiativeDueDates: (keys: string[]) =>
+    client
+      .get<{ items: InitiativeDueDate[] }>('/model-status/prd/initiative-due', {
+        params: { keys: keys.join(',') },
+      })
+      .then((r) => r.data.items),
 
   saveRequirementsReviewPlan: (body: RequirementsReviewPlanInput) =>
     client

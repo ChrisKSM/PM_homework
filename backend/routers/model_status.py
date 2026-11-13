@@ -584,6 +584,24 @@ async def requirements_review_plans():
     return {"items": items, "meta": {"collection": COLLECTION, "total": len(items)}}
 
 
+@router.get("/prd/initiative-due")
+async def requirements_review_initiative_due(
+    keys: str = Query(..., description="Initiative Jira key(s), comma-separated e.g. TVPLAT-850395"),
+):
+    """편집창 Due date '가져오기' — TV Jira issue duedate."""
+    from services.requirements_review_jira_due import fetch_initiative_due_dates, parse_issue_keys
+
+    try:
+        key_list = parse_issue_keys(keys)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    try:
+        items = await fetch_initiative_due_dates(key_list)
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e)) from e
+    return {"items": items}
+
+
 @router.put("/prd/plans")
 async def requirements_review_save_plan(body: RequirementsReviewPlanBody):
     from services.requirements_review_plan_store import save_plan

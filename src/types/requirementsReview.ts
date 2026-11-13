@@ -85,6 +85,15 @@ export interface RequirementsReviewPlan {
 
 export type RequirementsReviewPlanInput = Omit<RequirementsReviewPlan, 'updatedAt'>
 
+export interface InitiativeDueDate {
+  key: string
+  url: string
+  dueDate: string
+  summary?: string
+  status?: string
+  error?: string
+}
+
 export interface RequirementsReviewPlansResponse {
   items: RequirementsReviewPlan[]
   meta: { collection: string; total: number }
