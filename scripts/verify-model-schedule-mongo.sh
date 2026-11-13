@@ -63,15 +63,24 @@ sys.exit(0 if d.get('ok') else 1)
 "
 
 echo ""
-echo "--- BE /api/model-schedule/diagnose ---"
-if curl -sf http://127.0.0.1:8000/api/model-schedule/diagnose >/tmp/diag.json 2>/dev/null; then
-  "$PY" -m json.tool /tmp/diag.json
+echo "--- BE /api/model-schedule/diagnose (port 8000) ---"
+BE_PORT=""
+for p in 8000; do
+  if curl -sf "http://127.0.0.1:${p}/health" >/dev/null 2>&1; then
+    BE_PORT=$p
+    break
+  fi
+done
+if [ -n "$BE_PORT" ]; then
+  echo "  uvicorn port: $BE_PORT"
+  curl -sf "http://127.0.0.1:${BE_PORT}/api/model-schedule/diagnose" | "$PY" -m json.tool
 else
-  echo "(uvicorn 미실행 — skip)"
+  echo "(uvicorn 미실행 — port 8000 health 실패)"
 fi
 
 echo ""
 echo "=== 참고 ==="
 echo "  Milvus 포트: 19530"
-echo "  uvicorn 도 같은 venv 로 실행: $PY -m uvicorn main:app --host 0.0.0.0 --port 8000"
+echo "  BE pod 표준: uv run --frozen python -m uvicorn main:app --host 0.0.0.0 --port 8000"
+echo "  pymilvus 는 uvicorn 과 같은 venv 에: uv run pip install pymilvus"
 echo "=== Done ==="

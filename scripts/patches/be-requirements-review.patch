@@ -1,0 +1,585 @@
+diff --git a/polarion_client.py b/polarion_client.py
+index 57804a3..56a2822 100644
+--- a/polarion_client.py
++++ b/polarion_client.py
+@@ -164,6 +164,22 @@ def _ootb_uses_jsonapi_pagination(list_path: str | None) -> bool:
+     return seg == "workitems"
+ 
+ 
++# getWorkItem(s) 기본 sparse fieldset 은 updated / hyperlinks / custom field 를 빼고 돌려줌
++WORKITEM_LIST_FIELD_PARAMS: dict[str, str] = {
++    "fields[workitems]": "@all",
++    "fields[users]": "@all",
++    "include": "assignee",
++}
++WORKITEM_DETAIL_FIELD_PARAMS: dict[str, str] = {
++    "fields[workitems]": "@all",
++    "fields[users]": "@all",
++    "fields[workitem_comments]": "@all",
++    "include": "assignee,author,comments",
++}
++# fields/include 를 400 으로 거절한 목록 endpoint — 이후 기본 파라미터만 사용
++_LIST_FIELD_PARAMS_REJECTED: set[str] = set()
++
++
+ def _list_query_params(
+     query: str,
+     page: int,
+@@ -200,14 +216,38 @@ def _safe_text(attrs: dict, key: str) -> str:
+     return str(val).strip()
+ 
+ 
+-def _unwrap_ootb_workitem(row: dict[str, Any]) -> dict[str, Any]:
+-    """Polarion rest/v1 JSON:API → flat row (attributes + id + links)."""
++def _unwrap_ootb_workitem(
++    row: dict[str, Any],
++    included: dict[tuple[str, str], dict[str, Any]] | None = None,
++) -> dict[str, Any]:
++    """Polarion rest/v1 JSON:API → flat row (attributes + id + links + relationships)."""
+     if "attributes" in row and isinstance(row.get("attributes"), dict):
+         flat = dict(row["attributes"])
+         if row.get("id") and not flat.get("id"):
+             flat["id"] = row["id"]
+         if row.get("links"):
+             flat["links"] = row["links"]
++        rels = row.get("relationships")
++        if isinstance(rels, dict):
++            for rel_name in ("assignee", "author"):
++                rel_body = rels.get(rel_name)
++                if not isinstance(rel_body, dict) or rel_name in flat:
++                    continue
++                rd = rel_body.get("data")
++                if rd:
++                    flat[rel_name] = _resolve_jsonapi_ref(rd, included or {})
++        raw_hls = flat.get("hyperlinks")
++        hyperlinks = [
++            h
++            for h in (
++                _hyperlink_from_obj(it)
++                for it in (raw_hls if isinstance(raw_hls, list) else [])
++                if isinstance(it, dict)
++            )
++            if h
++        ]
++        if hyperlinks and not flat.get("_hyperlinks"):
++            flat["_hyperlinks"] = hyperlinks
+         return flat
+     return row
+ 
+@@ -219,7 +259,10 @@ def _parse_polarion_list_page(data: Any) -> tuple[list[dict[str, Any]], int]:
+         if raw_list and isinstance(raw_list[0], dict) and (
+             "attributes" in raw_list[0] or raw_list[0].get("type") == "workitems"
+         ):
+-            workitems = [_unwrap_ootb_workitem(it) for it in raw_list if isinstance(it, dict)]
++            included = _jsonapi_included_index(data)
++            workitems = [
++                _unwrap_ootb_workitem(it, included) for it in raw_list if isinstance(it, dict)
++            ]
+             meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+             total_raw = meta.get("totalCount", meta.get("total", meta.get("totalItems")))
+             try:
+@@ -267,7 +310,16 @@ async def fetch_list_page(
+ ) -> tuple[list[dict[str, Any]], int]:
+     """Polarion workitem 목록 페이지 조회. (workitems, totalCount) 반환."""
+     params = _list_query_params(query, page, page_size, list_path=list_path)
+-    resp = await _get_with_retry(_list_endpoint(project_key, list_path=list_path), params=params)
++    url = _list_endpoint(project_key, list_path=list_path)
++    if _is_ootb_rest_v1() and url not in _LIST_FIELD_PARAMS_REJECTED:
++        try:
++            resp = await _get_with_retry(url, params={**params, **WORKITEM_LIST_FIELD_PARAMS})
++            return _parse_polarion_list_page(resp.json())
++        except httpx.HTTPStatusError as exc:
++            if exc.response.status_code != 400:
++                raise
++            _LIST_FIELD_PARAMS_REJECTED.add(url)
++    resp = await _get_with_retry(url, params=params)
+     return _parse_polarion_list_page(resp.json())
+ 
+ 
+@@ -402,9 +454,93 @@ def flatten_polarion_workitem_response(obj: Any) -> dict[str, Any]:
+     hyperlinks = _collect_hyperlinks_from_document(obj, included_index)
+     if hyperlinks:
+         flat["_hyperlinks"] = hyperlinks
++    comments_text = format_jsonapi_workitem_comments(obj)
++    if comments_text:
++        flat["_commentsText"] = comments_text
+     return flat
+ 
+ 
++def _html_to_text(raw: str) -> str:
++    s = re.sub(r"(?i)<br\s*/?>|</p>|</div>|</li>", "\n", raw or "")
++    s = re.sub(r"<[^>]+>", "", s)
++    s = s.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
++    s = re.sub(r"[ \t]+", " ", s)
++    s = re.sub(r"\n\s*\n+", "\n", s)
++    return s.strip()
++
++
++def _comment_body_text(val: Any) -> str:
++    if isinstance(val, dict):
++        body = str(val.get("value") or "")
++        if str(val.get("type") or "").lower() == "text/html":
++            return _html_to_text(body)
++        return body.strip()
++    return str(val or "").strip()
++
++
++def _jsonapi_user_label(ref: Any, included: dict[tuple[str, str], dict[str, Any]]) -> str:
++    if not isinstance(ref, dict):
++        return ""
++    resolved = _resolve_jsonapi_ref(ref, included)
++    if isinstance(resolved, dict):
++        name = str(resolved.get("name") or "").strip()
++        if name:
++            return name
++    return str(ref.get("id") or "").strip()
++
++
++def _workitem_comment_refs(doc: Any) -> list[Any]:
++    if not isinstance(doc, dict):
++        return []
++    data = doc.get("data")
++    if isinstance(data, list):
++        data = data[0] if data else {}
++    if not isinstance(data, dict):
++        return []
++    rel = (data.get("relationships") or {}).get("comments")
++    if isinstance(rel, dict) and isinstance(rel.get("data"), list):
++        return rel["data"]
++    return []
++
++
++def format_jsonapi_workitem_comments(doc: Any) -> str:
++    """workitem_comments (include=comments 또는 /comments 응답) → 모달 표시용 텍스트."""
++    if not isinstance(doc, dict):
++        return ""
++    included = _jsonapi_included_index(doc)
++    comments: list[dict[str, Any]] = []
++    data = doc.get("data")
++    if isinstance(data, list) and all(
++        isinstance(it, dict) and it.get("type") == "workitem_comments" for it in data
++    ):
++        comments = list(data)
++    else:
++        for ref in _workitem_comment_refs(doc):
++            if not isinstance(ref, dict):
++                continue
++            inc = included.get((str(ref.get("type") or ""), str(ref.get("id") or "")))
++            if inc:
++                comments.append(inc)
++    rows: list[tuple[str, str]] = []
++    for c in comments:
++        attrs = c.get("attributes") if isinstance(c.get("attributes"), dict) else {}
++        text = _comment_body_text(attrs.get("text"))
++        if not text:
++            continue
++        created = str(attrs.get("created") or "").replace("T", " ").replace("Z", "")[:16]
++        author_rel = (c.get("relationships") or {}).get("author")
++        author = ""
++        if isinstance(author_rel, dict):
++            author = _jsonapi_user_label(author_rel.get("data"), included)
++        head = " · ".join(p for p in (created, author) if p)
++        title = str(attrs.get("title") or "").strip()
++        if title:
++            head = f"{head} — {title}" if head else title
++        rows.append((created, f"[{head}]\n{text}" if head else text))
++    rows.sort(key=lambda r: r[0])
++    return "\n\n".join(r[1] for r in rows)
++
++
+ def _user_ref_has_name(val: Any) -> bool:
+     if isinstance(val, dict):
+         return bool(str(val.get("name") or val.get("displayName") or "").strip())
+@@ -527,10 +663,9 @@ async def fetch_detail_light(self_url: str) -> dict[str, Any]:
+     """목록 배치용 — HTTP 1~2회 (429 방지)."""
+     base = self_url.split("?")[0]
+     doc: dict[str, Any] | None = None
+-    for include in ("dev", ""):
++    for params in (WORKITEM_LIST_FIELD_PARAMS, None):
+         try:
+-            url = f"{base}?include={include}" if include else base
+-            resp = await _get_with_retry(url)
++            resp = await _get_with_retry(base, params=params)
+             doc = resp.json()
+             break
+         except Exception:
+@@ -559,22 +694,43 @@ async def fetch_workitem_enriched(
+     base = f"{_base_url()}/projects/{project_key}/workitems/{wid}"
+     flat: dict[str, Any] = {}
+     doc: dict[str, Any] | None = None
+-    for q in ("?include=dev", ""):
++    variants: tuple[dict[str, str] | None, ...] = (
++        WORKITEM_DETAIL_FIELD_PARAMS,
++        {"fields[workitems]": "@all"},
++        None,
++    )
++    for params in variants:
++        label = "&".join(f"{k}={v}" for k, v in (params or {}).items())
+         try:
+-            resp = await _get_with_retry(f"{base}{q}")
++            resp = await _get_with_retry(base, params=params)
+             doc = resp.json()
+             part = flatten_polarion_workitem_response(doc)
+             _deep_merge_leaf_keys(doc.get("data") if isinstance(doc, dict) else doc, part)
+             part = await _follow_relationship_related(doc, part)
+             flat = _merge_richer_flat(flat, part)
+-            debug["attempts"].append({"url": f"{base}{q}", "ok": True, "keys": len(part)})
++            debug["attempts"].append({"url": base, "params": label, "ok": True, "keys": len(part)})
+             if _flat_has_min_prd_fields(flat):
+                 break
+         except Exception as exc:
+-            debug["attempts"].append({"url": f"{base}{q}", "ok": False, "error": str(exc)[:120]})
++            debug["attempts"].append(
++                {"url": base, "params": label, "ok": False, "error": str(exc)[:120]}
++            )
+     if doc and not _flat_has_min_prd_fields(flat):
+         flat = await _follow_relationship_related(doc, flat)
+ 
++    if doc and not flat.get("_commentsText") and _workitem_comment_refs(doc):
++        try:
++            resp = await _get_with_retry(
++                f"{base}/comments",
++                params={"fields[workitem_comments]": "@all", "include": "author"},
++            )
++            text = format_jsonapi_workitem_comments(resp.json())
++            if text:
++                flat["_commentsText"] = text
++            debug["commentsEndpoint"] = bool(text)
++        except Exception as exc:
++            debug["commentsEndpoint"] = f"error: {str(exc)[:120]}"
++
+     if not flat.get("_hyperlinks"):
+         await asyncio.sleep(DETAIL_BATCH_STAGGER_SEC)
+         flat = await _try_merge_polarion_hyperlinks(
+diff --git a/routers/model_status.py b/routers/model_status.py
+index 6a005f1..4537b6d 100644
+--- a/routers/model_status.py
++++ b/routers/model_status.py
+@@ -560,3 +560,64 @@ async def model_status_prd_save_label(body: ModelStatusPrdLabelBody):
+         raise HTTPException(status_code=503, detail=str(e)) from e
+     except Exception as e:
+         raise HTTPException(status_code=502, detail=f"PRD label 저장 오류: {e}") from e
++
++
++class RequirementsReviewPlanBody(BaseModel):
++    prdId: str = Field(..., description="Polarion workitem id e.g. AVRM-5135")
++    applyMonth: str = Field("", description="적용 MR 월 YYYY-MM (예: 2027-01 → 27년 1월 MR)")
++    applyScopes: list[str] = Field(default_factory=list, description="product | app | tv")
++    devTeam: str = Field("", description="개발팀")
++    actionItem: str = Field("", description="Action item")
++    dueDate: str = Field("", description="Action item due date YYYY-MM-DD")
++    updatedBy: str = Field("", description="편집자")
++
++
++@router.get("/prd/plans")
++async def requirements_review_plans():
++    """요구사항 검토 적용 계획 — Milvus requirements_review_plans."""
++    from services.requirements_review_plan_store import COLLECTION, list_plans
++
++    try:
++        items = list_plans()
++    except RuntimeError as e:
++        raise HTTPException(status_code=503, detail=str(e)) from e
++    return {"items": items, "meta": {"collection": COLLECTION, "total": len(items)}}
++
++
++@router.get("/prd/initiative-due")
++async def requirements_review_initiative_due(
++    keys: str = Query(..., description="Initiative Jira key(s), comma-separated e.g. TVPLAT-850395"),
++):
++    """편집창 Due date '가져오기' — TV Jira issue duedate."""
++    from services.requirements_review_jira_due import fetch_initiative_due_dates, parse_issue_keys
++
++    try:
++        key_list = parse_issue_keys(keys)
++    except ValueError as e:
++        raise HTTPException(status_code=400, detail=str(e)) from e
++    try:
++        items = await fetch_initiative_due_dates(key_list)
++    except ValueError as e:
++        raise HTTPException(status_code=503, detail=str(e)) from e
++    return {"items": items}
++
++
++@router.put("/prd/plans")
++async def requirements_review_save_plan(body: RequirementsReviewPlanBody):
++    from services.requirements_review_plan_store import save_plan
++
++    try:
++        doc = save_plan(
++            prd_id=body.prdId,
++            apply_month=body.applyMonth,
++            apply_scopes=body.applyScopes,
++            dev_team=body.devTeam,
++            action_item=body.actionItem,
++            due_date=body.dueDate,
++            updated_by=body.updatedBy,
++        )
++        return {"ok": True, "plan": doc}
++    except ValueError as e:
++        raise HTTPException(status_code=400, detail=str(e)) from e
++    except RuntimeError as e:
++        raise HTTPException(status_code=503, detail=str(e)) from e
+diff --git a/services/model_status_prd_service.py b/services/model_status_prd_service.py
+index fe637b6..1019c6f 100644
+--- a/services/model_status_prd_service.py
++++ b/services/model_status_prd_service.py
+@@ -523,55 +523,53 @@ def _extract_polarion_user_name(val: Any) -> str:
+ 
+ def _owner_field_key_priority(k: str) -> int:
+     kl = k.lower().replace("-", "").replace("_", "")
+-    if kl in ("dev", "devkey"):
++    if "assignee" in kl:
+         return 0
+-    if kl.endswith("devkey") or ".dev." in k.lower() or kl == "devowner":
++    if kl in ("dev", "devkey"):
+         return 1
+-    if kl.endswith("dev") or kl == "developer":
++    if kl.endswith("devkey") or ".dev." in k.lower() or kl == "devowner":
+         return 2
+-    if "assignee" in kl:
+-        return 4
+-    if "개발" in k:
++    if kl.endswith("dev") or kl == "developer":
+         return 3
++    if "개발" in k:
++        return 4
+     if kl in ("author",):
+         return 6
+     return 9
+ 
+ 
+ def _extract_prd_assignee_with_field(flat: dict[str, Any]) -> tuple[str, str]:
+-    candidates: list[tuple[int, str, str]] = []
++    """Owner — relationships.assignee (include=assignee 시 users.name, 없으면 user id)."""
++    candidates: list[tuple[int, int, str, str]] = []
+     for key in (
++        "assignee",
++        "Assignee",
++        "assignees",
+         "dev",
+         "Dev",
+         "dev.KEY",
+         "devKey",
+         "developer",
+         "Developer",
+-        "assignee",
+-        "Assignee",
+-        "assignees",
+-        "author",
+-        "Author",
+     ):
+         val = flat.get(key)
+         if val is None:
+             continue
+         t = _extract_polarion_user_name(val)
+         if t:
+-            candidates.append((_owner_field_key_priority(key), t, key))
++            candidates.append((_owner_field_key_priority(key), 0, t, key))
+     for k, v in flat.items():
+         pri = _owner_field_key_priority(str(k))
+-        if pri >= 9:
++        if pri > 4:
+             continue
+-        lk = str(k).lower()
+-        if pri <= 3 or "assignee" in lk or "개발" in str(k):
+-            t = _extract_polarion_user_name(v)
+-            if t and not t.startswith("http") and len(t) < 120:
+-                candidates.append((pri, t, str(k)))
++        t = _extract_polarion_user_name(v)
++        if t and not t.startswith("http") and len(t) < 120:
++            candidates.append((pri, 1, t, str(k)))
+     if not candidates:
+         return "", ""
+-    candidates.sort(key=lambda x: (x[0], len(x[1])))
+-    return candidates[0][1], candidates[0][2]
++    # 정확한 키 우선 — deep_merge 의 relationships.assignee.data[0].id 같은 leaf 는 이름 대신 id
++    candidates.sort(key=lambda x: (x[0], x[1], len(x[2])))
++    return candidates[0][2], candidates[0][3]
+ 
+ 
+ def _extract_prd_assignee(flat: dict[str, Any]) -> str:
+@@ -781,11 +779,8 @@ def _extract_prd_detail_bundle(flat: dict[str, Any]) -> dict[str, str]:
+             ("OperationDetailDescription", "operationDetailDescription", "operationDetail"),
+             ("operationdetail", "동작성", "동작구체화"),
+         ),
+-        (
+-            "comments",
+-            ("comments", "Comments", "comments.text", "comment"),
+-            ("comment",),
+-        ),
++        # relationships.comments 는 {type,id} ref 뿐이라 원문은 included workitem_comments 에서 조립
++        ("comments", ("_commentsText",), ()),
+     ]
+     out: dict[str, str] = {}
+     for dest, exact, fuzzy in specs:
+diff --git a/services/requirements_review_jira_due.py b/services/requirements_review_jira_due.py
+new file mode 100644
+index 0000000..9e5a567
+--- /dev/null
++++ b/services/requirements_review_jira_due.py
+@@ -0,0 +1,62 @@
++"""요구사항 검토 — Initiative(TV Jira) due date 조회 (편집창 '가져오기' 전용)."""
++from __future__ import annotations
++
++import asyncio
++import re
++from typing import Any
++
++import httpx
++
++MAX_KEYS = 6
++_ISSUE_KEY_RE = re.compile(r"^[A-Z][A-Z0-9_]+-\d+$")
++
++
++def parse_issue_keys(raw: str) -> list[str]:
++    keys: list[str] = []
++    for part in re.split(r"[,\s]+", raw or ""):
++        key = part.strip().upper()
++        if not key:
++            continue
++        if not _ISSUE_KEY_RE.match(key):
++            raise ValueError(f"invalid Jira issue key: {part!r}")
++        if key not in keys:
++            keys.append(key)
++    if not keys:
++        raise ValueError("keys required")
++    if len(keys) > MAX_KEYS:
++        raise ValueError(f"at most {MAX_KEYS} keys")
++    return keys
++
++
++def _error_text(exc: Exception) -> str:
++    if isinstance(exc, httpx.HTTPStatusError):
++        code = exc.response.status_code
++        if code == 404:
++            return "Jira 이슈 없음 (404)"
++        if code in (401, 403):
++            return f"Jira 권한 없음 ({code})"
++        return f"Jira HTTP {code}"
++    return str(exc)[:160]
++
++
++async def fetch_initiative_due_dates(keys: list[str]) -> list[dict[str, Any]]:
++    from tvjira_client import tvjira_get_issue, tvjira_issue_browse_url
++
++    async def one(key: str) -> dict[str, Any]:
++        row: dict[str, Any] = {"key": key, "url": tvjira_issue_browse_url(key), "dueDate": ""}
++        try:
++            issue = await tvjira_get_issue(key, ["duedate", "summary", "status"])
++        except ValueError:
++            raise
++        except Exception as exc:
++            row["error"] = _error_text(exc)
++            return row
++        fields = issue.get("fields") or {}
++        due = str(fields.get("duedate") or "").strip()
++        row["dueDate"] = due[:10]
++        row["summary"] = str(fields.get("summary") or "")
++        status = fields.get("status")
++        row["status"] = str(status.get("name") or "") if isinstance(status, dict) else ""
++        return row
++
++    return list(await asyncio.gather(*(one(k) for k in keys)))
+diff --git a/services/requirements_review_plan_store.py b/services/requirements_review_plan_store.py
+new file mode 100644
+index 0000000..5018e42
+--- /dev/null
++++ b/services/requirements_review_plan_store.py
+@@ -0,0 +1,96 @@
++"""요구사항 검토 적용 계획 — Milvus(requirements_review_plans) 저장 (mongo_helper).
++
++prdId 단위 1문서: 적용 시점(MR 월) · 적용 범위 · 개발팀 · Action item · Due date.
++"""
++from __future__ import annotations
++
++import re
++from datetime import datetime, timezone
++from typing import Any
++
++from services import mongo_helper
++
++COLLECTION = "requirements_review_plans"
++APPLY_SCOPES: tuple[str, ...] = ("product", "app", "tv")
++
++_PRD_ID_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*-\d+$")
++_APPLY_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
++_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
++
++
++def _now_iso() -> str:
++    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
++
++
++def _clean_prd_id(raw: str) -> str:
++    prd_id = (raw or "").strip()
++    if "/" in prd_id:
++        prd_id = prd_id.rsplit("/", 1)[-1]
++    # row_id 는 Milvus filter 문자열에 그대로 들어가므로 workitem id 형식만 허용
++    if not _PRD_ID_RE.match(prd_id):
++        raise ValueError(f"invalid prdId: {raw!r}")
++    return prd_id
++
++
++def normalize_plan_input(
++    *,
++    prd_id: str,
++    apply_month: str = "",
++    apply_scopes: list[str] | None = None,
++    dev_team: str = "",
++    action_item: str = "",
++    due_date: str = "",
++    updated_by: str = "",
++) -> dict[str, Any]:
++    pid = _clean_prd_id(prd_id)
++    month = (apply_month or "").strip()
++    if month and not _APPLY_MONTH_RE.match(month):
++        raise ValueError("applyMonth must be YYYY-MM")
++    due = (due_date or "").strip()
++    if due:
++        if not _DATE_RE.match(due):
++            raise ValueError("dueDate must be YYYY-MM-DD")
++        datetime.strptime(due, "%Y-%m-%d")
++    scopes: list[str] = []
++    for s in apply_scopes or []:
++        key = str(s or "").strip().lower()
++        if key not in APPLY_SCOPES:
++            raise ValueError(f"applyScopes must be one of {', '.join(APPLY_SCOPES)}")
++        if key not in scopes:
++            scopes.append(key)
++    scopes.sort(key=APPLY_SCOPES.index)
++    return {
++        "id": pid,
++        "prdId": pid,
++        "applyMonth": month,
++        "applyScopes": scopes,
++        "devTeam": (dev_team or "").strip()[:80],
++        "actionItem": (action_item or "").strip()[:4000],
++        "dueDate": due,
++        "updatedBy": (updated_by or "").strip()[:80],
++    }
++
++
++def list_plans() -> list[dict[str, Any]]:
++    if not mongo_helper.ensure_collection(COLLECTION):
++        raise RuntimeError(mongo_helper.collection_error(COLLECTION))
++    docs = mongo_helper.get_all_documents(COLLECTION, use_cache=False)
++    return [d for d in docs if d.get("prdId")]
++
++
++def save_plan(**fields: Any) -> dict[str, Any]:
++    doc = normalize_plan_input(**fields)
++    if not mongo_helper.ensure_collection(COLLECTION):
++        raise RuntimeError(mongo_helper.collection_error(COLLECTION))
++    existing = next(
++        (d for d in mongo_helper.get_all_documents(COLLECTION) if d.get("prdId") == doc["prdId"]),
++        None,
++    )
++    doc["updatedAt"] = _now_iso()
++    doc["createdAt"] = (existing or {}).get("createdAt") or doc["updatedAt"]
++    if existing:
++        if not mongo_helper.update_document(COLLECTION, doc["id"], doc):
++            raise RuntimeError("plan update failed")
++    elif not mongo_helper.insert_documents(COLLECTION, [doc]):
++        raise RuntimeError("plan insert failed")
++    return doc
