@@ -1,0 +1,1084 @@
+diff --git a/src/api/modelStatusApi.ts b/src/api/modelStatusApi.ts
+index 9bfb11e..138d251 100644
+--- a/src/api/modelStatusApi.ts
++++ b/src/api/modelStatusApi.ts
+@@ -20,6 +20,12 @@ import type { ModelReleaseGanttResponse } from '../types/modelStatusReleaseGantt
+ import type { ModelStatusStorySpKpiResponse } from '../types/modelStatusStorySpKpi'
+ import type { ModelStatusPrdLabelSaveBody, ModelStatusPrdResponse } from '../types/modelStatusPrd'
+ import type { ModelStatusSprintResponse } from '../types/modelStatusSprint'
++import type {
++  InitiativeDueDate,
++  RequirementsReviewPlan,
++  RequirementsReviewPlanInput,
++  RequirementsReviewPlansResponse,
++} from '../types/requirementsReview'
+ import { sprintJiraLabelForModel } from '../data/modelStatusSprintJiraLabels'
+ import {
+   initiativeJiraLabelForModel,
+@@ -107,6 +113,21 @@ export const modelStatusApi = {
+   savePrdReviewLabel: (body: ModelStatusPrdLabelSaveBody) =>
+     client.put<{ ok: boolean }>('/model-status/prd/labels', body).then((r) => r.data),
+ 
++  getRequirementsReviewPlans: () =>
++    client.get<RequirementsReviewPlansResponse>('/model-status/prd/plans').then((r) => r.data),
++
++  getInitiativeDueDates: (keys: string[]) =>
++    client
++      .get<{ items: InitiativeDueDate[] }>('/model-status/prd/initiative-due', {
++        params: { keys: keys.join(',') },
++      })
++      .then((r) => r.data.items),
++
++  saveRequirementsReviewPlan: (body: RequirementsReviewPlanInput) =>
++    client
++      .put<{ ok: boolean; plan: RequirementsReviewPlan }>('/model-status/prd/plans', body)
++      .then((r) => r.data),
++
+   getSprintDashboard: (model: string) => {
+     const label = sprintJiraLabelForModel(model)
+     const params: { model: string; label?: string } = { model }
+diff --git a/src/components/requirementsReview/RequirementsReviewDetailModal.tsx b/src/components/requirementsReview/RequirementsReviewDetailModal.tsx
+index a3d7262..5a37239 100644
+--- a/src/components/requirementsReview/RequirementsReviewDetailModal.tsx
++++ b/src/components/requirementsReview/RequirementsReviewDetailModal.tsx
+@@ -1,3 +1,4 @@
++import type { ReactNode } from 'react'
+ import clsx from 'clsx'
+ import { Loader2, X, ExternalLink } from 'lucide-react'
+ import type { RequirementsReviewPrdDetail, RequirementsReviewRow } from '../../types/requirementsReview'
+@@ -17,10 +18,11 @@ const DETAIL_SECTIONS: { key: keyof RequirementsReviewPrdDetail; label: string;
+ interface Props {
+   row: RequirementsReviewRow | null
+   loading?: boolean
++  planSlot?: ReactNode
+   onClose: () => void
+ }
+ 
+-export default function RequirementsReviewDetailModal({ row, loading = false, onClose }: Props) {
++export default function RequirementsReviewDetailModal({ row, loading = false, planSlot, onClose }: Props) {
+   if (!row) return null
+ 
+   const detail = row.detail ?? {}
+@@ -80,6 +82,7 @@ export default function RequirementsReviewDetailModal({ row, loading = false, on
+               Polarion 상세 불러오는 중…
+             </p>
+           ) : null}
++          {planSlot}
+           <div>
+             <h3 className="text-sm font-bold text-gray-900 mb-3">요구사항 구체화</h3>
+             <div className="space-y-4">
+diff --git a/src/components/requirementsReview/RequirementsReviewPlanFilters.tsx b/src/components/requirementsReview/RequirementsReviewPlanFilters.tsx
+new file mode 100644
+index 0000000..6cb63dc
+--- /dev/null
++++ b/src/components/requirementsReview/RequirementsReviewPlanFilters.tsx
+@@ -0,0 +1,117 @@
++import type { ReactNode } from 'react'
++import clsx from 'clsx'
++import type { ApplyScope } from '../../types/requirementsReview'
++import { APPLY_SCOPE_OPTIONS } from '../../types/requirementsReview'
++import { PLAN_FILTER_UNSET, formatApplyMonth } from '../../utils/requirementsReviewPlan'
++
++interface Props {
++  monthCounts: { month: string; count: number }[]
++  unsetCount: number
++  totalCount: number
++  scopeCounts: Record<ApplyScope, number>
++  applyMonth: string
++  applyScope: ApplyScope | 'all'
++  onApplyMonthChange: (v: string) => void
++  onApplyScopeChange: (v: ApplyScope | 'all') => void
++}
++
++export default function RequirementsReviewPlanFilters({
++  monthCounts,
++  unsetCount,
++  totalCount,
++  scopeCounts,
++  applyMonth,
++  applyScope,
++  onApplyMonthChange,
++  onApplyScopeChange,
++}: Props) {
++  return (
++    <div className="bg-white border border-surface-border rounded-xl p-5 space-y-4">
++      <div>
++        <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">적용 시점</p>
++        <div className="flex flex-wrap gap-2">
++          <Pill active={applyMonth === 'all'} onClick={() => onApplyMonthChange('all')} count={totalCount}>
++            전체
++          </Pill>
++          {monthCounts.map(({ month, count }) => (
++            <Pill
++              key={month}
++              active={applyMonth === month}
++              onClick={() => onApplyMonthChange(month)}
++              count={count}
++            >
++              {formatApplyMonth(month)} 적용
++            </Pill>
++          ))}
++          <Pill
++            active={applyMonth === PLAN_FILTER_UNSET}
++            onClick={() => onApplyMonthChange(PLAN_FILTER_UNSET)}
++            count={unsetCount}
++            muted
++          >
++            미정
++          </Pill>
++        </div>
++      </div>
++      <div>
++        <p className="text-xs font-bold text-gray-800 uppercase tracking-wider mb-2">적용 범위</p>
++        <div className="flex flex-wrap gap-2">
++          <Pill active={applyScope === 'all'} onClick={() => onApplyScopeChange('all')}>
++            전체
++          </Pill>
++          {APPLY_SCOPE_OPTIONS.map((o) => (
++            <Pill
++              key={o.id}
++              active={applyScope === o.id}
++              onClick={() => onApplyScopeChange(o.id)}
++              count={scopeCounts[o.id]}
++            >
++              {o.label}
++            </Pill>
++          ))}
++        </div>
++      </div>
++    </div>
++  )
++}
++
++function Pill({
++  active,
++  onClick,
++  count,
++  muted = false,
++  children,
++}: {
++  active: boolean
++  onClick: () => void
++  count?: number
++  muted?: boolean
++  children: ReactNode
++}) {
++  return (
++    <button
++      type="button"
++      onClick={onClick}
++      className={clsx(
++        'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors',
++        active
++          ? 'bg-indigo-600 text-white border-indigo-600'
++          : muted
++            ? 'bg-surface-page text-gray-500 border-surface-border hover:bg-white'
++            : 'bg-white text-gray-700 border-surface-border hover:bg-surface-page'
++      )}
++    >
++      {children}
++      {count != null ? (
++        <span
++          className={clsx(
++            'text-[11px] tabular-nums px-1.5 rounded',
++            active ? 'bg-white/20 text-white' : 'bg-surface-page text-gray-500'
++          )}
++        >
++          {count}
++        </span>
++      ) : null}
++    </button>
++  )
++}
+diff --git a/src/components/requirementsReview/RequirementsReviewPlanForm.tsx b/src/components/requirementsReview/RequirementsReviewPlanForm.tsx
+new file mode 100644
+index 0000000..6f234dd
+--- /dev/null
++++ b/src/components/requirementsReview/RequirementsReviewPlanForm.tsx
+@@ -0,0 +1,348 @@
++import { useEffect, useMemo, useState } from 'react'
++import clsx from 'clsx'
++import dayjs from 'dayjs'
++import { AlertTriangle, CalendarClock, Check, Download, Loader2, Save } from 'lucide-react'
++import type {
++  ApplyScope,
++  InitiativeDueDate,
++  RequirementsReviewPlan,
++  RequirementsReviewPlanInput,
++} from '../../types/requirementsReview'
++import { APPLY_SCOPE_OPTIONS } from '../../types/requirementsReview'
++import {
++  applyMonthOptions,
++  emptyPlan,
++  formatApplyMonth,
++  isDueOverdue,
++} from '../../utils/requirementsReviewPlan'
++import type { PlanStoreSource } from '../../hooks/useRequirementsReviewPlans'
++import { modelStatusApi } from '../../api/modelStatusApi'
++
++interface Props {
++  prdId: string
++  initiativeKeys: string[]
++  plan?: RequirementsReviewPlan
++  teamSuggestions: string[]
++  knownMonths: string[]
++  source: PlanStoreSource
++  saving: boolean
++  onSave: (input: RequirementsReviewPlanInput) => Promise<unknown>
++}
++
++function toInput(prdId: string, plan?: RequirementsReviewPlan): RequirementsReviewPlanInput {
++  if (!plan) return emptyPlan(prdId)
++  return {
++    prdId,
++    applyMonth: plan.applyMonth || '',
++    applyScopes: plan.applyScopes || [],
++    devTeam: plan.devTeam || '',
++    actionItem: plan.actionItem || '',
++    dueDate: plan.dueDate || '',
++  }
++}
++
++type DueFetchState =
++  | { kind: 'idle' }
++  | { kind: 'loading' }
++  | { kind: 'applied'; key: string; dueDate: string }
++  | { kind: 'choose'; items: InitiativeDueDate[] }
++  | { kind: 'empty'; items: InitiativeDueDate[] }
++  | { kind: 'error'; message: string }
++
++function requestErrorText(e: unknown): string {
++  const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
++  if (typeof detail === 'string') return detail
++  return e instanceof Error ? e.message : String(e)
++}
++
++export default function RequirementsReviewPlanForm({
++  prdId,
++  initiativeKeys,
++  plan,
++  teamSuggestions,
++  knownMonths,
++  source,
++  saving,
++  onSave,
++}: Props) {
++  const saved = useMemo(() => toInput(prdId, plan), [prdId, plan])
++  const [draft, setDraft] = useState<RequirementsReviewPlanInput>(saved)
++  const [error, setError] = useState<string | null>(null)
++  const [justSaved, setJustSaved] = useState(false)
++  const [dueFetch, setDueFetch] = useState<DueFetchState>({ kind: 'idle' })
++
++  useEffect(() => {
++    setDraft(saved)
++    setError(null)
++  }, [saved])
++
++  const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
++  const months = useMemo(
++    () => applyMonthOptions([...knownMonths, saved.applyMonth]),
++    [knownMonths, saved.applyMonth]
++  )
++  const overdue = isDueOverdue(draft.dueDate)
++
++  const patch = (p: Partial<RequirementsReviewPlanInput>) => {
++    setDraft((d) => ({ ...d, ...p }))
++    setJustSaved(false)
++  }
++
++  const toggleScope = (scope: ApplyScope) => {
++    const set = new Set(draft.applyScopes)
++    if (set.has(scope)) set.delete(scope)
++    else set.add(scope)
++    patch({ applyScopes: APPLY_SCOPE_OPTIONS.map((o) => o.id).filter((id) => set.has(id)) })
++  }
++
++  const fetchInitiativeDue = async () => {
++    setDueFetch({ kind: 'loading' })
++    try {
++      const items = await modelStatusApi.getInitiativeDueDates(initiativeKeys)
++      const withDue = items.filter((i) => i.dueDate)
++      const distinct = [...new Set(withDue.map((i) => i.dueDate))]
++      if (distinct.length === 1) {
++        patch({ dueDate: distinct[0] })
++        setDueFetch({ kind: 'applied', key: withDue.map((i) => i.key).join(', '), dueDate: distinct[0] })
++      } else if (distinct.length > 1) {
++        setDueFetch({ kind: 'choose', items: withDue })
++      } else {
++        setDueFetch({ kind: 'empty', items })
++      }
++    } catch (e) {
++      setDueFetch({ kind: 'error', message: requestErrorText(e) })
++    }
++  }
++
++  const pickDue = (item: InitiativeDueDate) => {
++    patch({ dueDate: item.dueDate })
++    setDueFetch({ kind: 'applied', key: item.key, dueDate: item.dueDate })
++  }
++
++  const submit = async () => {
++    setError(null)
++    try {
++      await onSave(draft)
++      setJustSaved(true)
++    } catch (e) {
++      setError(e instanceof Error ? e.message : String(e))
++    }
++  }
++
++  return (
++    <section className="border border-indigo-100 bg-indigo-50/40 rounded-xl p-4 space-y-4">
++      <div className="flex flex-wrap items-center justify-between gap-2">
++        <h3 className="text-sm font-bold text-gray-900 inline-flex items-center gap-1.5">
++          <CalendarClock size={16} className="text-indigo-600" />
++          적용 계획
++        </h3>
++        <span
++          className={clsx(
++            'text-[10px] px-1.5 py-0.5 rounded font-medium',
++            source === 'server' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'
++          )}
++        >
++          {source === 'server' ? 'DB 저장' : '브라우저 임시 저장 (BE 미연결)'}
++        </span>
++      </div>
++
++      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
++        <label className="block">
++          <span className="block text-xs font-bold text-gray-700 mb-1">적용 시점</span>
++          <select
++            value={draft.applyMonth}
++            onChange={(e) => patch({ applyMonth: e.target.value })}
++            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white"
++          >
++            <option value="">미정</option>
++            {months.map((m) => (
++              <option key={m} value={m}>
++                {formatApplyMonth(m)} 적용
++              </option>
++            ))}
++          </select>
++        </label>
++
++        <div>
++          <span className="block text-xs font-bold text-gray-700 mb-1">적용 범위</span>
++          <div className="flex gap-2">
++            {APPLY_SCOPE_OPTIONS.map((o) => {
++              const active = draft.applyScopes.includes(o.id)
++              return (
++                <button
++                  key={o.id}
++                  type="button"
++                  aria-pressed={active}
++                  onClick={() => toggleScope(o.id)}
++                  className={clsx(
++                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium border transition-colors',
++                    active
++                      ? 'bg-indigo-600 text-white border-indigo-600'
++                      : 'bg-white text-gray-700 border-surface-border hover:bg-surface-page'
++                  )}
++                >
++                  {o.label}
++                </button>
++              )
++            })}
++          </div>
++        </div>
++
++        <label className="block sm:col-span-2">
++          <span className="block text-xs font-bold text-gray-700 mb-1">개발팀</span>
++          <input
++            list="requirements-review-dev-teams"
++            value={draft.devTeam}
++            onChange={(e) => patch({ devTeam: e.target.value })}
++            placeholder="예: Audio SW 1팀"
++            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white"
++          />
++          <datalist id="requirements-review-dev-teams">
++            {teamSuggestions.map((t) => (
++              <option key={t} value={t} />
++            ))}
++          </datalist>
++        </label>
++
++        <label className="block sm:col-span-2">
++          <span className="block text-xs font-bold text-gray-700 mb-1">Action Item</span>
++          <textarea
++            value={draft.actionItem}
++            onChange={(e) => patch({ actionItem: e.target.value })}
++            rows={3}
++            placeholder="후속 조치 · 담당 · 확인 사항을 기술하세요"
++            className="w-full text-sm border border-surface-border rounded-lg px-3 py-2 bg-white resize-y"
++          />
++        </label>
++
++        <div className="sm:col-span-2">
++          <label htmlFor={`plan-due-${prdId}`} className="block text-xs font-bold text-gray-700 mb-1">
++            Due date <span className="font-normal text-gray-500">(목록 Delivery Date)</span>
++          </label>
++          <div className="flex flex-wrap items-center gap-2">
++            <input
++              id={`plan-due-${prdId}`}
++              type="date"
++              value={draft.dueDate}
++              onChange={(e) => {
++                patch({ dueDate: e.target.value })
++                setDueFetch({ kind: 'idle' })
++              }}
++              className={clsx(
++                'w-44 text-sm border rounded-lg px-3 py-2 bg-white tabular-nums',
++                overdue ? 'border-red-300 text-red-700' : 'border-surface-border'
++              )}
++            />
++            <button
++              type="button"
++              onClick={fetchInitiativeDue}
++              disabled={!initiativeKeys.length || dueFetch.kind === 'loading'}
++              title={
++                initiativeKeys.length
++                  ? `Initiative Jira due date 가져오기 (${initiativeKeys.join(', ')})`
++                  : 'Initiative Jira 링크가 없는 요구사항입니다'
++              }
++              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm border border-surface-border text-gray-700 bg-white hover:bg-surface-page disabled:opacity-40"
++            >
++              {dueFetch.kind === 'loading' ? (
++                <Loader2 size={14} className="animate-spin" />
++              ) : (
++                <Download size={14} />
++              )}
++              가져오기
++            </button>
++            {!initiativeKeys.length ? (
++              <span className="text-[11px] text-gray-400">Initiative 링크 없음 — 직접 입력</span>
++            ) : null}
++            {overdue ? (
++              <span className="text-[11px] text-red-600 inline-flex items-center gap-1">
++                <AlertTriangle size={11} /> 기한 지남
++              </span>
++            ) : null}
++          </div>
++          <DueFetchResult state={dueFetch} onPick={pickDue} />
++        </div>
++
++        <div className="sm:col-span-2 flex items-center justify-end gap-2">
++          {plan?.updatedAt && !dirty ? (
++            <span className="text-[11px] text-gray-500 tabular-nums mr-auto sm:mr-0">
++              {justSaved ? <Check size={11} className="inline text-emerald-600 mr-0.5" /> : null}
++              저장 {dayjs(plan.updatedAt).format('YYYY-MM-DD HH:mm')}
++            </span>
++          ) : null}
++          <button
++            type="button"
++            onClick={() => {
++              setDraft(saved)
++              setDueFetch({ kind: 'idle' })
++            }}
++            disabled={!dirty || saving}
++            className="px-3 py-2 rounded-lg text-sm border border-surface-border text-gray-700 bg-white hover:bg-surface-page disabled:opacity-40"
++          >
++            되돌리기
++          </button>
++          <button
++            type="button"
++            onClick={submit}
++            disabled={!dirty || saving}
++            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40"
++          >
++            {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
++            저장
++          </button>
++        </div>
++      </div>
++
++      {error ? <p className="text-xs text-red-700 bg-red-50 rounded-lg px-3 py-2">{error}</p> : null}
++    </section>
++  )
++}
++
++function DueFetchResult({
++  state,
++  onPick,
++}: {
++  state: DueFetchState
++  onPick: (item: InitiativeDueDate) => void
++}) {
++  if (state.kind === 'idle' || state.kind === 'loading') return null
++  if (state.kind === 'applied') {
++    return (
++      <p className="text-[11px] text-emerald-700 mt-1.5">
++        {state.key} Jira due {state.dueDate} 반영 — 저장을 눌러야 DB에 저장됩니다
++      </p>
++    )
++  }
++  if (state.kind === 'error') {
++    return <p className="text-[11px] text-red-700 mt-1.5">Jira 조회 실패: {state.message}</p>
++  }
++  if (state.kind === 'choose') {
++    return (
++      <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
++        <span className="text-gray-600">Initiative 별 due date가 다릅니다 — 선택:</span>
++        {state.items.map((i) => (
++          <button
++            key={i.key}
++            type="button"
++            onClick={() => onPick(i)}
++            title={i.summary}
++            className="px-2 py-1 rounded border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50 tabular-nums"
++          >
++            {i.key} · {i.dueDate}
++          </button>
++        ))}
++      </div>
++    )
++  }
++  return (
++    <p className="text-[11px] text-amber-700 mt-1.5">
++      Jira due date 없음
++      {state.items.map((i) => (
++        <span key={i.key} className="ml-1.5">
++          · {i.key}
++          {i.error ? ` (${i.error})` : ''}
++        </span>
++      ))}
++    </p>
++  )
++}
+diff --git a/src/components/requirementsReview/RequirementsReviewTable.tsx b/src/components/requirementsReview/RequirementsReviewTable.tsx
+index 7dd0ad4..7b0d3cb 100644
+--- a/src/components/requirementsReview/RequirementsReviewTable.tsx
++++ b/src/components/requirementsReview/RequirementsReviewTable.tsx
+@@ -1,11 +1,13 @@
+ import clsx from 'clsx'
+ import { ExternalLink } from 'lucide-react'
+-import type { RequirementsReviewRow } from '../../types/requirementsReview'
++import type { RequirementsReviewPlan, RequirementsReviewRow } from '../../types/requirementsReview'
+ import { prdWorkflowBadgeClass } from '../../utils/requirementsReviewStatusBadge'
++import { applyScopeLabel, formatApplyMonth, isDueOverdue } from '../../utils/requirementsReviewPlan'
+ import InitiativeLinksCell from './InitiativeLinksCell'
+ 
+ interface Props {
+   rows: RequirementsReviewRow[]
++  plansById: Record<string, RequirementsReviewPlan>
+   onIdClick: (row: RequirementsReviewRow) => void
+ }
+ 
+@@ -16,11 +18,11 @@ function statusLabel(row: RequirementsReviewRow): string {
+   return row.almStatus || row.workflowStageLabel || '—'
+ }
+ 
+-export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
++export default function RequirementsReviewTable({ rows, plansById, onIdClick }: Props) {
+   if (rows.length === 0) {
+     return (
+       <div className="bg-white border border-surface-border rounded-xl px-6 py-12 text-center text-sm text-gray-500">
+-        필터 조건에 맞는 요구사항이 없습니다. Product category · 적용모델 · Labels를 조정하세요.
++        필터 조건에 맞는 요구사항이 없습니다. Product category · Labels · 적용 시점 · 적용 범위를 조정하세요.
+       </div>
+     )
+   }
+@@ -28,12 +30,14 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
+   return (
+     <div className="bg-white border border-surface-border rounded-xl overflow-hidden">
+       <div className="overflow-x-auto">
+-        <table className="w-full min-w-[1024px] text-left">
++        <table className="w-full min-w-[1200px] text-left">
+           <thead className="bg-surface-page border-b border-surface-border">
+             <tr className="text-xs font-bold uppercase tracking-wider text-gray-600">
+               <th className="px-3 py-3">ID</th>
+               <th className="px-3 py-3">Title</th>
+               <th className="px-3 py-3">Status</th>
++              <th className="px-3 py-3 whitespace-nowrap">적용 시점</th>
++              <th className="px-3 py-3 whitespace-nowrap">적용 범위</th>
+               <th className="px-3 py-3">Initiative</th>
+               <th className="px-3 py-3">Owner</th>
+               <th className="px-3 py-3">Delivery Date</th>
+@@ -42,7 +46,11 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
+             </tr>
+           </thead>
+           <tbody>
+-            {rows.map((row, index) => (
++            {rows.map((row, index) => {
++              const plan = plansById[row.id]
++              const actionItem = plan?.actionItem || (row.actionItem !== '—' ? row.actionItem : '')
++              const deliveryDate = plan?.dueDate || (row.deliveryDate !== '—' ? row.deliveryDate : '')
++              return (
+               <tr
+                 key={row.id}
+                 className={clsx(
+@@ -84,6 +92,28 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
+                     {statusLabel(row)}
+                   </span>
+                 </td>
++                <td className="px-3 py-3 text-xs whitespace-nowrap">
++                  {plan?.applyMonth ? (
++                    <span className="inline-flex px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold">
++                      {formatApplyMonth(plan.applyMonth)}
++                    </span>
++                  ) : (
++                    <span className="text-gray-400">미정</span>
++                  )}
++                </td>
++                <td className="px-3 py-3 text-xs text-gray-700">
++                  {plan?.applyScopes?.length ? (
++                    <div className="flex flex-wrap gap-1">
++                      {plan.applyScopes.map((s) => (
++                        <span key={s} className="px-1.5 py-0.5 rounded border border-surface-border bg-white">
++                          {applyScopeLabel(s)}
++                        </span>
++                      ))}
++                    </div>
++                  ) : (
++                    '—'
++                  )}
++                </td>
+                 <td className="px-3 py-3 text-xs text-gray-700 max-w-[140px]">
+                   <InitiativeLinksCell
+                     initiative={row.initiative}
+@@ -92,15 +122,23 @@ export default function RequirementsReviewTable({ rows, onIdClick }: Props) {
+                   />
+                 </td>
+                 <td className="px-3 py-3 text-xs text-gray-700">{row.devOwner || '—'}</td>
+-                <td className="px-3 py-3 text-xs text-gray-700 whitespace-nowrap">{row.deliveryDate || '—'}</td>
+-                <td className="px-3 py-3 text-xs text-gray-600 max-w-[140px] truncate" title={row.actionItem}>
+-                  {row.actionItem || '—'}
++                <td
++                  className={clsx(
++                    'px-3 py-3 text-xs whitespace-nowrap tabular-nums',
++                    isDueOverdue(deliveryDate) && plan?.dueDate ? 'text-red-600 font-semibold' : 'text-gray-700'
++                  )}
++                >
++                  {deliveryDate || '—'}
++                </td>
++                <td className="px-3 py-3 text-xs text-gray-600 max-w-[220px] truncate" title={actionItem}>
++                  {actionItem || '—'}
+                 </td>
+                 <td className="px-3 py-3 text-xs text-gray-500 text-right whitespace-nowrap tabular-nums">
+                   {row.updated || '—'}
+                 </td>
+               </tr>
+-            ))}
++              )
++            })}
+           </tbody>
+         </table>
+       </div>
+diff --git a/src/hooks/useRequirementsReviewPlans.ts b/src/hooks/useRequirementsReviewPlans.ts
+new file mode 100644
+index 0000000..c3599f0
+--- /dev/null
++++ b/src/hooks/useRequirementsReviewPlans.ts
+@@ -0,0 +1,83 @@
++import { useMemo } from 'react'
++import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
++import { isAxiosError } from 'axios'
++import { modelStatusApi } from '../api/modelStatusApi'
++import type { RequirementsReviewPlan, RequirementsReviewPlanInput } from '../types/requirementsReview'
++import { readLocalPlans, writeLocalPlan } from '../utils/requirementsReviewPlan'
++
++export type PlanStoreSource = 'server' | 'local'
++
++interface PlansState {
++  items: RequirementsReviewPlan[]
++  source: PlanStoreSource
++  error?: string
++}
++
++const QUERY_KEY = ['requirements-review-plans']
++
++/** BE 미배포(404) · Milvus 장애(503) · 네트워크 오류 — 브라우저 임시 저장으로 대체 */
++function shouldFallbackToLocal(err: unknown): boolean {
++  if (!isAxiosError(err)) return false
++  const status = err.response?.status
++  return status === undefined || status === 404 || status === 502 || status === 503
++}
++
++function errorText(err: unknown): string {
++  if (isAxiosError(err)) {
++    const detail = err.response?.data?.detail
++    return typeof detail === 'string' ? detail : err.message
++  }
++  return err instanceof Error ? err.message : String(err)
++}
++
++export function useRequirementsReviewPlans() {
++  const queryClient = useQueryClient()
++
++  const query = useQuery<PlansState>({
++    queryKey: QUERY_KEY,
++    queryFn: async () => {
++      try {
++        const res = await modelStatusApi.getRequirementsReviewPlans()
++        return { items: res.items ?? [], source: 'server' }
++      } catch (err) {
++        if (!shouldFallbackToLocal(err)) throw err
++        return { items: readLocalPlans(), source: 'local', error: errorText(err) }
++      }
++    },
++    staleTime: 30_000,
++    retry: 0,
++  })
++
++  const mutation = useMutation({
++    mutationFn: async (input: RequirementsReviewPlanInput): Promise<PlansState> => {
++      const prev = queryClient.getQueryData<PlansState>(QUERY_KEY)
++      if (prev?.source !== 'local') {
++        try {
++          const { plan } = await modelStatusApi.saveRequirementsReviewPlan(input)
++          const items = [...(prev?.items ?? []).filter((p) => p.prdId !== plan.prdId), plan]
++          return { items, source: 'server' }
++        } catch (err) {
++          if (!shouldFallbackToLocal(err)) throw new Error(errorText(err))
++        }
++      }
++      const items = writeLocalPlan({ ...input, updatedAt: new Date().toISOString() })
++      return { items, source: 'local', error: prev?.error }
++    },
++    onSuccess: (next) => queryClient.setQueryData(QUERY_KEY, next),
++  })
++
++  const byId = useMemo(() => {
++    const map: Record<string, RequirementsReviewPlan> = {}
++    for (const p of query.data?.items ?? []) map[p.prdId] = p
++    return map
++  }, [query.data?.items])
++
++  return {
++    plansById: byId,
++    source: query.data?.source ?? 'server',
++    loadError: query.data?.error ?? (query.error ? errorText(query.error) : undefined),
++    isLoading: query.isPending,
++    savePlan: mutation.mutateAsync,
++    isSaving: mutation.isPending,
++  }
++}
+diff --git a/src/pages/RequirementsReviewPage.tsx b/src/pages/RequirementsReviewPage.tsx
+index ed35767..efc46dc 100644
+--- a/src/pages/RequirementsReviewPage.tsx
++++ b/src/pages/RequirementsReviewPage.tsx
+@@ -7,9 +7,18 @@ import RequirementsReviewStatusCards, {
+   buildStatusCardCounts,
+ } from '../components/requirementsReview/RequirementsReviewStatusCards'
+ import RequirementsReviewDetailModal from '../components/requirementsReview/RequirementsReviewDetailModal'
++import RequirementsReviewPlanFilters from '../components/requirementsReview/RequirementsReviewPlanFilters'
++import RequirementsReviewPlanForm from '../components/requirementsReview/RequirementsReviewPlanForm'
+ import { POLARION_PRD_UI, resolveRequirementsReviewApiModel, type CategoryScope } from '../data/requirementsReviewCatalog'
+-import type { OsType, RequirementsReviewRow } from '../types/requirementsReview'
++import type {
++  ApplyScope,
++  OsType,
++  RequirementsReviewPlan,
++  RequirementsReviewRow,
++} from '../types/requirementsReview'
+ import { useRequirementsReviewPrd } from '../hooks/useRequirementsReviewPrd'
++import { useRequirementsReviewPlans } from '../hooks/useRequirementsReviewPlans'
++import { PLAN_FILTER_UNSET, initiativeJiraKeys } from '../utils/requirementsReviewPlan'
+ import { mapPrdItemToReviewRow } from '../utils/requirementsReviewFromPrd'
+ import { requirementsReviewRowNeedsPrefetch } from '../utils/requirementsReviewPrefetch'
+ import { buildRequirementsReviewQueryPreview } from '../utils/requirementsReviewPolarionQuery'
+@@ -20,6 +29,16 @@ import { PRD_WORKFLOW_COLUMNS } from '../utils/modelStatusPrdWorkflow'
+ const PRD_ROW_PREFETCH_CONCURRENCY = 3
+ const PRD_ROW_PREFETCH_MAX = 80
+ 
++function matchesApplyMonth(plan: RequirementsReviewPlan | undefined, applyMonth: string): boolean {
++  if (applyMonth === 'all') return true
++  if (applyMonth === PLAN_FILTER_UNSET) return !plan?.applyMonth
++  return plan?.applyMonth === applyMonth
++}
++
++function matchesApplyScope(plan: RequirementsReviewPlan | undefined, scope: ApplyScope | 'all'): boolean {
++  return scope === 'all' || Boolean(plan?.applyScopes?.includes(scope))
++}
++
+ function sortByUpdated(rows: RequirementsReviewRow[]): RequirementsReviewRow[] {
+   return [...rows].sort((a, b) => {
+     const ua = a.updated || ''
+@@ -37,6 +56,10 @@ export default function RequirementsReviewPage() {
+   const [detailRow, setDetailRow] = useState<RequirementsReviewRow | null>(null)
+   const [detailLoading, setDetailLoading] = useState(false)
+   const [rowOverrides, setRowOverrides] = useState<Record<string, RequirementsReviewRow>>({})
++  const [applyMonth, setApplyMonth] = useState<string>('all')
++  const [applyScope, setApplyScope] = useState<ApplyScope | 'all'>('all')
++  const plans = useRequirementsReviewPlans()
++  const { plansById } = plans
+ 
+   const apiModel = useMemo(
+     () => resolveRequirementsReviewApiModel(category, subModelId),
+@@ -65,11 +88,54 @@ export default function RequirementsReviewPage() {
+     return items.map((item) => mapPrdItemToReviewRow(item, apiModel, undefined, fragment))
+   }, [data?.items, apiModel, meta?.winningQuery, almQuery])
+ 
+-  const filteredRows = useMemo(() => {
+-    let list = allRows.map((r) => rowOverrides[r.id] ?? r)
+-    if (osType !== 'all') {
+-      list = list.filter((r) => r.osType === osType)
++  const osRows = useMemo(() => {
++    const list = allRows.map((r) => rowOverrides[r.id] ?? r)
++    return osType === 'all' ? list : list.filter((r) => r.osType === osType)
++  }, [allRows, rowOverrides, osType])
++
++  const planFacets = useMemo(() => {
++    const byScope = osRows.filter((r) => matchesApplyScope(plansById[r.id], applyScope))
++    const monthMap = new Map<string, number>()
++    let unsetCount = 0
++    for (const r of byScope) {
++      const m = plansById[r.id]?.applyMonth
++      if (m) monthMap.set(m, (monthMap.get(m) ?? 0) + 1)
++      else unsetCount += 1
+     }
++    const byMonth = osRows.filter((r) => matchesApplyMonth(plansById[r.id], applyMonth))
++    const scopeCounts: Record<ApplyScope, number> = { product: 0, app: 0, tv: 0 }
++    for (const r of byMonth) {
++      for (const s of plansById[r.id]?.applyScopes ?? []) scopeCounts[s] += 1
++    }
++    return {
++      monthCounts: [...monthMap.entries()]
++        .sort(([a], [b]) => a.localeCompare(b))
++        .map(([month, count]) => ({ month, count })),
++      unsetCount,
++      totalCount: byScope.length,
++      scopeCounts,
++    }
++  }, [osRows, plansById, applyMonth, applyScope])
++
++  const planRows = useMemo(
++    () =>
++      osRows.filter(
++        (r) => matchesApplyMonth(plansById[r.id], applyMonth) && matchesApplyScope(plansById[r.id], applyScope)
++      ),
++    [osRows, plansById, applyMonth, applyScope]
++  )
++
++  const teamSuggestions = useMemo(
++    () => [...new Set(Object.values(plansById).map((p) => p.devTeam).filter(Boolean))].sort(),
++    [plansById]
++  )
++  const knownMonths = useMemo(
++    () => Object.values(plansById).map((p) => p.applyMonth).filter(Boolean),
++    [plansById]
++  )
++
++  const filteredRows = useMemo(() => {
++    let list = planRows
+     if (stageFilter && stageFilter !== 'total') {
+       list = list.filter((r) =>
+         stageFilter === 'other'
+@@ -78,13 +144,12 @@ export default function RequirementsReviewPage() {
+       )
+     }
+     return sortByUpdated(list)
+-  }, [allRows, osType, stageFilter, rowOverrides])
++  }, [planRows, stageFilter])
+ 
+-  const statusCards = useMemo(() => {
+-    let base = allRows
+-    if (osType !== 'all') base = base.filter((r) => r.osType === osType)
+-    return buildStatusCardCounts(base, workflowColumns)
+-  }, [allRows, osType, workflowColumns])
++  const statusCards = useMemo(
++    () => buildStatusCardCounts(planRows, workflowColumns),
++    [planRows, workflowColumns]
++  )
+ 
+   useEffect(() => {
+     setSubModelId('all')
+@@ -93,7 +158,7 @@ export default function RequirementsReviewPage() {
+ 
+   useEffect(() => {
+     setStageFilter(null)
+-  }, [subModelId, osType, apiModel])
++  }, [subModelId, osType, apiModel, applyMonth, applyScope])
+ 
+   useEffect(() => {
+     setRowOverrides({})
+@@ -213,6 +278,24 @@ export default function RequirementsReviewPage() {
+           onOsTypeChange={setOsType}
+         />
+ 
++        <RequirementsReviewPlanFilters
++          {...planFacets}
++          applyMonth={applyMonth}
++          applyScope={applyScope}
++          onApplyMonthChange={setApplyMonth}
++          onApplyScopeChange={setApplyScope}
++        />
++
++        {plans.source === 'local' && !plans.isLoading ? (
++          <div className="flex gap-2 items-start bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 text-xs text-amber-800">
++            <AlertCircle size={16} className="shrink-0" />
++            <p>
++              적용 계획 API(<span className="font-mono">/api/model-status/prd/plans</span>) 미연결 — 이 브라우저에만
++              임시 저장됩니다. {plans.loadError ? `(${plans.loadError})` : null}
++            </p>
++          </div>
++        ) : null}
++
+         <div className="flex flex-wrap items-center justify-between gap-3">
+           <p className="text-sm text-gray-600">
+             {isPending ? (
+@@ -245,12 +328,27 @@ export default function RequirementsReviewPage() {
+           onStageFilter={setStageFilter}
+         />
+ 
+-        <RequirementsReviewTable rows={filteredRows} onIdClick={onIdClick} />
++        <RequirementsReviewTable rows={filteredRows} plansById={plansById} onIdClick={onIdClick} />
+       </div>
+ 
+       <RequirementsReviewDetailModal
+         row={detailRow}
+         loading={detailLoading}
++        planSlot={
++          detailRow ? (
++            <RequirementsReviewPlanForm
++              key={detailRow.id}
++              prdId={detailRow.id}
++              initiativeKeys={initiativeJiraKeys(detailRow)}
++              plan={plansById[detailRow.id]}
++              teamSuggestions={teamSuggestions}
++              knownMonths={knownMonths}
++              source={plans.source}
++              saving={plans.isSaving}
++              onSave={plans.savePlan}
++            />
++          ) : null
++        }
+         onClose={() => {
+           setDetailRow(null)
+           setDetailLoading(false)
+diff --git a/src/types/requirementsReview.ts b/src/types/requirementsReview.ts
+index 717dec0..f1f6a2f 100644
+--- a/src/types/requirementsReview.ts
++++ b/src/types/requirementsReview.ts
+@@ -61,4 +61,42 @@ export interface RequirementsReviewMongoOverlay {
+ 
+ export type RequirementsReviewRow = RequirementsReviewAlmRow & RequirementsReviewMongoOverlay
+ 
++export type ApplyScope = 'product' | 'app' | 'tv'
++
++export const APPLY_SCOPE_OPTIONS: { id: ApplyScope; label: string }[] = [
++  { id: 'product', label: '제품' },
++  { id: 'app', label: '앱' },
++  { id: 'tv', label: 'TV' },
++]
++
++/** 요구사항별 적용 계획 — BE /model-status/prd/plans (Milvus requirements_review_plans) */
++export interface RequirementsReviewPlan {
++  prdId: string
++  /** 적용 MR 월 YYYY-MM — 2027-01 → "27년 1월 MR" */
++  applyMonth: string
++  applyScopes: ApplyScope[]
++  devTeam: string
++  actionItem: string
++  /** YYYY-MM-DD */
++  dueDate: string
++  updatedAt?: string
++  updatedBy?: string
++}
++
++export type RequirementsReviewPlanInput = Omit<RequirementsReviewPlan, 'updatedAt'>
++
++export interface InitiativeDueDate {
++  key: string
++  url: string
++  dueDate: string
++  summary?: string
++  status?: string
++  error?: string
++}
++
++export interface RequirementsReviewPlansResponse {
++  items: RequirementsReviewPlan[]
++  meta: { collection: string; total: number }
++}
++
+ export type RequirementsReviewSortKey = 'updated' | 'id' | 'title' | 'status'
+diff --git a/src/utils/requirementsReviewPlan.ts b/src/utils/requirementsReviewPlan.ts
+new file mode 100644
+index 0000000..8baa563
+--- /dev/null
++++ b/src/utils/requirementsReviewPlan.ts
+@@ -0,0 +1,84 @@
++import dayjs from 'dayjs'
++import type {
++  ApplyScope,
++  RequirementsReviewPlan,
++  RequirementsReviewPlanInput,
++  RequirementsReviewRow,
++} from '../types/requirementsReview'
++import { APPLY_SCOPE_OPTIONS } from '../types/requirementsReview'
++
++export const PLAN_FILTER_UNSET = '__unset'
++
++/** 2027-01 → "27년 1월 MR" */
++export function formatApplyMonth(applyMonth: string | undefined): string {
++  const m = /^(\d{4})-(\d{2})$/.exec((applyMonth || '').trim())
++  if (!m) return ''
++  return `${m[1].slice(2)}년 ${Number(m[2])}월 MR`
++}
++
++export const APPLY_MONTH_OPTIONS: readonly string[] = Array.from(
++  { length: 12 },
++  (_, i) => `2027-${String(i + 1).padStart(2, '0')}`
++)
++
++/** 27년 1월 ~ 12월 MR (+ 범위 밖으로 이미 저장된 값은 유지 표시) */
++export function applyMonthOptions(extra: string[] = []): string[] {
++  const out = new Set<string>(APPLY_MONTH_OPTIONS)
++  extra.filter((m) => /^\d{4}-\d{2}$/.test(m)).forEach((m) => out.add(m))
++  return [...out].sort()
++}
++
++export function applyScopeLabel(scope: ApplyScope): string {
++  return APPLY_SCOPE_OPTIONS.find((o) => o.id === scope)?.label ?? scope
++}
++
++export function isDueOverdue(dueDate: string | undefined, today = dayjs()): boolean {
++  if (!dueDate) return false
++  const d = dayjs(dueDate)
++  return d.isValid() && d.isBefore(today, 'day')
++}
++
++const JIRA_KEY_RE = /\b[A-Z][A-Z0-9_]+-\d+\b/g
++
++/** Initiative 링크(Polarion hyperlinks → TV Jira) 의 issue key — 최대 6개 */
++export function initiativeJiraKeys(
++  row: Pick<RequirementsReviewRow, 'initiative' | 'initiativeLinks'>
++): string[] {
++  const keys = new Set<string>()
++  for (const l of row.initiativeLinks ?? []) {
++    for (const k of (l.key || '').toUpperCase().match(JIRA_KEY_RE) ?? []) keys.add(k)
++  }
++  if (!keys.size) {
++    for (const k of (row.initiative || '').toUpperCase().match(JIRA_KEY_RE) ?? []) keys.add(k)
++  }
++  return [...keys].slice(0, 6)
++}
++
++export function emptyPlan(prdId: string): RequirementsReviewPlanInput {
++  return { prdId, applyMonth: '', applyScopes: [], devTeam: '', actionItem: '', dueDate: '' }
++}
++
++export function planHasContent(plan: RequirementsReviewPlanInput | undefined): boolean {
++  if (!plan) return false
++  return Boolean(
++    plan.applyMonth || plan.applyScopes.length || plan.devTeam || plan.actionItem || plan.dueDate
++  )
++}
++
++const LOCAL_KEY = 'requirements-review-plans.v1'
++
++export function readLocalPlans(): RequirementsReviewPlan[] {
++  try {
++    const raw = window.localStorage.getItem(LOCAL_KEY)
++    const parsed = raw ? JSON.parse(raw) : []
++    return Array.isArray(parsed) ? parsed : []
++  } catch {
++    return []
++  }
++}
++
++export function writeLocalPlan(plan: RequirementsReviewPlan): RequirementsReviewPlan[] {
++  const next = [...readLocalPlans().filter((p) => p.prdId !== plan.prdId), plan]
++  window.localStorage.setItem(LOCAL_KEY, JSON.stringify(next))
++  return next
++}
