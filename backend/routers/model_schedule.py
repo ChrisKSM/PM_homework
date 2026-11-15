@@ -21,6 +21,7 @@ from services.delivery_portal_overview_sync import (
     OVERVIEW_SYNC_LOGIC_VERSION,
     apply_delivery_portal_audio_products,
     apply_delivery_portal_to_models,
+    compare_overview_with_portal,
     debug_portal_schedules_for_overview,
 )
 
@@ -265,6 +266,21 @@ async def debug_overview_portal_schedules(overview_id: str = "ov-s90c"):
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"debug 오류: {e}") from e
+
+
+@router.get("/overview/compare-delivery-portal")
+async def compare_overview_delivery_portal():
+    """전 모델 일정 저장본 SW 이벤트 ↔ Delivery Portal 날짜 비교 (Mongo 변경 없음)."""
+    try:
+        portal = await fetch_all_deliveries_data()
+        docs = mongo_helper.get_all_documents(COLLECTION_OVERVIEW, use_cache=False)
+        for doc in docs:
+            doc.pop("_id", None)
+        return compare_overview_with_portal(docs, portal)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"compare 오류: {e}") from e
 
 
 def _is_overview_share(req: ScheduleShareRequest) -> bool:
