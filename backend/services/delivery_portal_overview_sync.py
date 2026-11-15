@@ -13,6 +13,8 @@ from typing import Any
 
 from services.delivery_portal_catalog import (
     AUDIO_PRODUCT_CATEGORIES,
+    clean_portal_text,
+    extract_product_category,
     iter_portal_program_rows,
     merge_portal_schedule_lists,
     overview_category_from_portal,
@@ -51,7 +53,7 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
 OVERVIEW_IDS_TO_REMOVE: set[str] = {"ov-m5-vi"}
 
 # BE pod 배포 확인용 (sync API 응답에 포함)
-OVERVIEW_SYNC_LOGIC_VERSION = "20260404-seed-sw-fallback"
+OVERVIEW_SYNC_LOGIC_VERSION = "20261115-linked-program-exclusive"
 
 # Portal all_deliveries 에 placeholder QP(6mo+) 가 올 때 seed milestone 날짜 사용
 SW_MILESTONE_MAX_DAYS = 90
@@ -350,37 +352,6 @@ def _overview_id_to_preferred_program_id() -> dict[str, str]:
     return {link["overview_id"]: link["program_id"].lower() for link in OVERVIEW_PROGRAM_LINKS}
 
 
-def _apply_linked_program_overrides(
-    models: list[dict[str, Any]],
-    portal: dict[str, Any],
-    *,
-    dry_run: bool,
-    portal_events_acc: dict[str, list[dict[str, Any]]],
-    saved_hw_by_oid: dict[str, list[dict[str, Any]]],
-) -> list[dict[str, str]]:
-    """PO 확정 UUID — merged schedules 로 events 덮어씀 (중복 S90C program 방지)."""
-    by_id = {m.get("id"): m for m in models if m.get("id")}
-    applied: list[dict[str, str]] = []
-    for link in OVERVIEW_PROGRAM_LINKS:
-        oid = link["overview_id"]
-        model = by_id.get(oid)
-        if not model:
-            continue
-        found = merged_audio_schedules_for_program(portal, link["program_id"])
-        if not found:
-            continue
-        _platform, _pi, schedules, _pd = found
-        events = schedules_to_events(schedules)
-        portal_events_acc[oid] = events
-        applied.append({"overview_id": oid, "program_id": link["program_id"]})
-        if not dry_run:
-            model["events"] = combine_portal_events_with_saved_hw(
-                saved_hw_by_oid.get(oid),
-                events,
-            )
-    return applied
-
-
 def apply_delivery_portal_to_models(
     models: list[dict[str, Any]],
     portal: dict[str, Any],
@@ -456,6 +427,42 @@ def _program_id_to_overview_id() -> dict[str, str]:
     return {link["program_id"].lower(): link["overview_id"] for link in OVERVIEW_PROGRAM_LINKS}
 
 
+def _resolve_row_overview_id(
+    row: dict[str, Any],
+    pid_to_oid: dict[str, str],
+    by_model_key: dict[str, str],
+) -> str:
+    prog_id = str(row.get("program_id") or "").lower()
+    oid = pid_to_oid.get(prog_id) or str(row.get("overview_id") or "")
+    if oid:
+        return oid
+    mongo_model = str(row.get("model") or "")
+    return by_model_key.get(_norm_model_key(mongo_model)) or slug_overview_id(
+        mongo_model,
+        str(row.get("program_detail") or ""),
+    )
+
+
+def _model_key_index(models: list[dict[str, Any]]) -> dict[str, str]:
+    by_model_key: dict[str, str] = {}
+    for m in models:
+        mid = m.get("id")
+        mk = _norm_model_key(str(m.get("model") or ""))
+        if mid and mk and mk not in by_model_key:
+            by_model_key[mk] = str(mid)
+    return by_model_key
+
+
+def _linked_program_ids_present(rows: list[dict[str, Any]]) -> dict[str, str]:
+    """overview_id → PO 확정 program UUID (해당 program 이 Portal 목록에 있을 때만)."""
+    present = {str(r.get("program_id") or "").lower() for r in rows}
+    return {
+        link["overview_id"]: link["program_id"].lower()
+        for link in OVERVIEW_PROGRAM_LINKS
+        if link["program_id"].lower() in present
+    }
+
+
 def _blank_overview_model(
     oid: str,
     *,
@@ -498,18 +505,14 @@ def apply_delivery_portal_audio_products(
     PO linked ids 우선; 없으면 model명으로 기존 row 매칭; 없으면 신규 추가.
     """
     by_id = {m.get("id"): m for m in models if m.get("id")}
-    by_model_key: dict[str, str] = {}
-    for m in models:
-        mid = m.get("id")
-        mk = _norm_model_key(str(m.get("model") or ""))
-        if mid and mk and mk not in by_model_key:
-            by_model_key[mk] = str(mid)
+    by_model_key = _model_key_index(models)
 
     pid_to_oid = _program_id_to_overview_id()
     removed: list[str] = []
     updated: list[dict[str, Any]] = []
     created: list[dict[str, Any]] = []
     skipped: list[str] = []
+    ignored_for_linked: list[dict[str, str]] = []
 
     saved_hw_by_oid = snapshot_hw_events_by_overview_id(models)
     if not dry_run:
@@ -527,12 +530,16 @@ def apply_delivery_portal_audio_products(
     cat_set = set(product_categories)
     # overview_id 당 여러 program UUID schedules → raw 병합 후 events 변환
     portal_schedules_acc: dict[str, list[list[dict[str, Any]]]] = {}
-    for row in iter_portal_program_rows(
-        portal,
-        product_categories=cat_set,
-        department="Audio",
-        require_schedules=True,
-    ):
+    rows = list(
+        iter_portal_program_rows(
+            portal,
+            product_categories=cat_set,
+            department="Audio",
+            require_schedules=True,
+        )
+    )
+    linked_pid_by_oid = _linked_program_ids_present(rows)
+    for row in rows:
         prog_id = str(row["program_id"] or "").lower()
         if not prog_id:
             skipped.append("missing_program_id")
@@ -544,13 +551,20 @@ def apply_delivery_portal_audio_products(
             continue
 
         mongo_model = str(row.get("model") or "")
-        oid = pid_to_oid.get(prog_id) or str(row.get("overview_id") or "")
-        if not oid:
-            mk = _norm_model_key(mongo_model)
-            oid = by_model_key.get(mk) or slug_overview_id(
-                mongo_model,
-                str(row.get("program_detail") or ""),
+        oid = _resolve_row_overview_id(row, pid_to_oid, by_model_key)
+
+        # 같은 overview 로 묶이는 다른 program(H7_VI MRx, 중복 S90C 등)의 동명 SIT/FC/QP 가
+        # 짧은 구간 우선 병합으로 확정 program 날짜를 덮어쓰지 않도록 제외.
+        linked_pid = linked_pid_by_oid.get(oid)
+        if linked_pid and prog_id != linked_pid:
+            ignored_for_linked.append(
+                {
+                    "overview_id": oid,
+                    "program_id": row["program_id"],
+                    "program_detail": str(row.get("program_detail") or ""),
+                }
             )
+            continue
 
         model = by_id.get(oid)
         is_new = model is None
@@ -621,6 +635,7 @@ def apply_delivery_portal_audio_products(
         "updated": updated,
         "created": created,
         "skipped_no_events": skipped[:20],
+        "ignored_for_linked_program": ignored_for_linked,
         "portal_program_count": len(updated) + len(created),
         "model_count": len(models),
     }
@@ -656,7 +671,10 @@ def debug_portal_schedules_for_overview(
             }
         )
 
-    schedule_lists = [r["schedules"] for r in rows if r["schedules"]]
+    used_rows = rows
+    if linked_pid and any(str(r["program_id"] or "").lower() == linked_pid for r in rows):
+        used_rows = [r for r in rows if str(r["program_id"] or "").lower() == linked_pid]
+    schedule_lists = [r["schedules"] for r in used_rows if r["schedules"]]
     merged = merge_portal_schedule_lists(schedule_lists)
     preview = schedules_to_events(merged)
     preview = reconcile_portal_sw_with_seed(oid, preview)
@@ -671,4 +689,197 @@ def debug_portal_schedules_for_overview(
         "qp_schedule_rows_raw": qp_rows,
         "events_preview": preview,
         "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION,
+    }
+
+
+def _span_label(ev: dict[str, Any]) -> str:
+    start = str(ev.get("start") or "")
+    end = str(ev.get("end") or "") or start
+    return start if start == end else f"{start}~{end}"
+
+
+def _sw_events_by_key(events: list[dict[str, Any]] | None) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = {}
+    for ev in events or []:
+        if _is_hw_event(ev):
+            continue
+        key = _sw_event_label_key(str(ev.get("name") or ""))
+        if key:
+            out.setdefault(key, []).append(ev)
+    for evs in out.values():
+        evs.sort(key=lambda e: (str(e.get("start") or ""), str(e.get("end") or "")))
+    return out
+
+
+def _portal_schedule_candidates(row: dict[str, Any], cats: set[str]) -> list[dict[str, Any]]:
+    """program_info 의 Audio detail 별 raw schedule (sync 와 같은 detail 필터)."""
+    pi = row.get("program_info") or {}
+    out: list[dict[str, Any]] = []
+    for d in pi.get("details") or []:
+        if str(d.get("department") or "") != "Audio" or d.get("show") == "N":
+            continue
+        if cats and extract_product_category(pi, d) not in cats:
+            continue
+        for s in d.get("schedules") or []:
+            name = _event_name(str(s.get("test_name") or ""))
+            start, end = _portal_schedule_start_end(s)
+            if not start:
+                continue
+            out.append(
+                {
+                    "name": name,
+                    "kind": _infer_kind(name),
+                    "start": start,
+                    "end": end or start,
+                    "date_source": "plan" if _norm_date(s.get("plan_start_date")) else "actual",
+                    "detail_model": str(d.get("model") or ""),
+                }
+            )
+    return out
+
+
+def compare_overview_with_portal(
+    models: list[dict[str, Any]],
+    portal: dict[str, Any],
+    *,
+    product_categories: tuple[str, ...] = AUDIO_PRODUCT_CATEGORIES,
+) -> dict[str, Any]:
+    """
+    전 모델 일정(저장본) SW 이벤트 ↔ Delivery Portal 날짜 비교.
+
+    screen   : Mongo 에 저장되어 화면에 보이는 날짜
+    expected : 지금 sync(scope=audio_products) 하면 들어갈 날짜
+    portal   : overview 로 매핑되는 program/detail 별 raw schedule 날짜
+    """
+    import copy
+
+    cats = set(product_categories)
+    expected_models = copy.deepcopy(models)
+    apply_delivery_portal_audio_products(
+        expected_models, portal, dry_run=False, product_categories=product_categories
+    )
+    saved_by_id = {str(m.get("id")): m for m in models if m.get("id")}
+    expected_by_id = {str(m.get("id")): m for m in expected_models if m.get("id")}
+
+    pid_to_oid = _program_id_to_overview_id()
+    by_model_key = _model_key_index(models)
+    rows = list(
+        iter_portal_program_rows(
+            portal,
+            product_categories=cats,
+            department="Audio",
+            require_schedules=False,
+        )
+    )
+    linked_pid_by_oid = _linked_program_ids_present([r for r in rows if r.get("schedules")])
+
+    candidates_by_oid: dict[str, list[dict[str, Any]]] = {}
+    programs_by_oid: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        oid = _resolve_row_overview_id(row, pid_to_oid, by_model_key)
+        prog_id = str(row.get("program_id") or "").lower()
+        linked_pid = linked_pid_by_oid.get(oid)
+        used = not (linked_pid and prog_id != linked_pid)
+        programs_by_oid.setdefault(oid, []).append(
+            {
+                "program_id": row.get("program_id"),
+                "program_detail": clean_portal_text(str(row.get("program_detail") or "")),
+                "used": used,
+            }
+        )
+        for c in _portal_schedule_candidates(row, cats):
+            if c["kind"] == "hw":
+                continue
+            candidates_by_oid.setdefault(oid, []).append(
+                {
+                    **c,
+                    "program_id": row.get("program_id"),
+                    "program_detail": clean_portal_text(str(row.get("program_detail") or "")),
+                    "used": used,
+                }
+            )
+
+    ordered_ids = [str(m.get("id")) for m in models if m.get("id")]
+    ordered_ids += [oid for oid in expected_by_id if oid not in saved_by_id]
+
+    counts: dict[str, int] = {}
+    out_models: list[dict[str, Any]] = []
+    for oid in ordered_ids:
+        if oid in OVERVIEW_IDS_TO_REMOVE:
+            continue
+        saved = saved_by_id.get(oid) or {}
+        expected = expected_by_id.get(oid) or {}
+        screen_sw = _sw_events_by_key(saved.get("events"))
+        expected_sw = _sw_events_by_key(expected.get("events"))
+        cands = candidates_by_oid.get(oid, [])
+        cand_by_key: dict[str, list[dict[str, Any]]] = {}
+        for c in cands:
+            cand_by_key.setdefault(_sw_event_label_key(c["name"]), []).append(c)
+
+        keys = list(dict.fromkeys([*screen_sw, *expected_sw, *cand_by_key]))
+        events_out: list[dict[str, Any]] = []
+        for key in keys:
+            screen = screen_sw.get(key) or []
+            exp = expected_sw.get(key) or []
+            key_cands = cand_by_key.get(key) or []
+            used_spans = {_span_label(c) for c in key_cands if c["used"]}
+            exp_spans = [_span_label(e) for e in exp]
+            screen_spans = [_span_label(e) for e in screen]
+
+            flags: list[str] = []
+            if screen and exp:
+                flags.append("ok" if screen_spans == exp_spans else "stale")
+            elif exp:
+                flags.append("missing_on_screen")
+            elif screen:
+                flags.append("not_in_portal")
+            elif used_spans:
+                flags.append("dropped_by_sync")
+            else:
+                flags.append("other_program_only")
+            if len(used_spans) > 1:
+                flags.append("multiple_portal_dates")
+            if exp and used_spans and not set(exp_spans) & used_spans:
+                flags.append("seed_override")
+            if (exp or screen) and any(
+                not c["used"] and _span_label(c) not in exp_spans for c in key_cands
+            ):
+                flags.append("other_program_dates")
+            for f in flags:
+                counts[f] = counts.get(f, 0) + 1
+
+            name_src = (exp or screen or key_cands or [{"name": key}])[0]
+            events_out.append(
+                {
+                    "name": str(name_src.get("name") or key),
+                    "screen": screen_spans,
+                    "expected": exp_spans,
+                    "portal": [
+                        {
+                            "span": _span_label(c),
+                            "program_detail": c["program_detail"],
+                            "detail_model": c["detail_model"],
+                            "date_source": c["date_source"],
+                            "used": c["used"],
+                        }
+                        for c in sorted(key_cands, key=lambda c: (not c["used"], c["start"], c["end"]))
+                    ],
+                    "flags": flags,
+                }
+            )
+        events_out.sort(key=lambda e: ((e["expected"] or e["screen"] or [p["span"] for p in e["portal"]] or [""])[0]))
+        out_models.append(
+            {
+                "overview_id": oid,
+                "model": str(saved.get("model") or expected.get("model") or ""),
+                "linked_program_id": linked_pid_by_oid.get(oid),
+                "programs": programs_by_oid.get(oid, []),
+                "events": events_out,
+            }
+        )
+
+    return {
+        "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION,
+        "flag_counts": counts,
+        "models": out_models,
     }
