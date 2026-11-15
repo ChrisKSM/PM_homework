@@ -76,20 +76,16 @@ const META_STICKY_LEFT = OVERVIEW_META_COLUMNS.map((_, i) =>
   OVERVIEW_META_COLUMNS.slice(0, i).reduce((sum, c) => sum + c.minW, 0),
 )
 const DELETE_COL_W = 32
-const LAST_META_IDX = OVERVIEW_META_COLUMNS.length - 1
+const FROZEN_EDGE_SHADOW = 'shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]'
 
-function stickyMetaThClass(i: number) {
-  return clsx(
-    'sticky z-[12] bg-gray-50',
-    i === LAST_META_IDX && 'shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]',
-  )
+function stickyMetaThClass(i: number, frozen: number) {
+  if (i >= frozen) return 'bg-gray-50'
+  return clsx('sticky z-[12] bg-gray-50', i === frozen - 1 && FROZEN_EDGE_SHADOW)
 }
 
-function stickyMetaTdClass(i: number) {
-  return clsx(
-    'sticky z-[11] bg-white',
-    i === LAST_META_IDX && 'shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]',
-  )
+function stickyMetaTdClass(i: number, frozen: number) {
+  if (i >= frozen) return 'bg-white'
+  return clsx('sticky z-[11] bg-white', i === frozen - 1 && FROZEN_EDGE_SHADOW)
 }
 
 export default function OverviewScheduleTable({
@@ -101,6 +97,8 @@ export default function OverviewScheduleTable({
   onTimelineClick,
   onDeleteModel,
   renderMetaCell,
+  frozenMetaCount = OVERVIEW_META_COLUMNS.length,
+  stickyHeader = false,
 }: {
   displayRows: OverviewDisplayRow[]
   dates: Date[]
@@ -110,12 +108,22 @@ export default function OverviewScheduleTable({
   onTimelineClick?: (modelId: string, kind: 'hw' | 'sw', d: Date, e: React.MouseEvent) => void
   onDeleteModel?: (modelId: string) => void
   renderMetaCell?: (row: OverviewDisplayRow, key: OverviewMetaKey) => React.ReactNode
+  /** 왼쪽부터 가로 스크롤 시 고정할 메타 열 수 (기본: 전부) */
+  frozenMetaCount?: number
+  /** 세로 스크롤 시 월/일 머리글 고정 — 부모가 overflow-y 스크롤 컨테이너여야 함 */
+  stickyHeader?: boolean
 }) {
   const catMerge = calcOverviewMerge(displayRows, overviewCategoryKey)
   const modelMerge = calcOverviewMerge(displayRows, overviewGroupKey)
   const monthHdr = monthSpans(dates)
   const leftW = OVERVIEW_META_COLUMNS.reduce((s, c) => s + c.minW, 0) + (showDeleteCol ? DELETE_COL_W : 0)
   const metaKeys = OVERVIEW_META_COLUMNS.map((c) => c.key)
+  const frozen = Math.max(1, Math.min(frozenMetaCount, OVERVIEW_META_COLUMNS.length))
+  const allMetaFrozen = frozen === OVERVIEW_META_COLUMNS.length
+  const unfrozenHeaderSpan = OVERVIEW_META_COLUMNS.length - frozen + (showDeleteCol ? 1 : 0)
+  const deleteColSticky = allMetaFrozen
+  // 삭제 열까지 고정되면 그림자는 삭제 열에만
+  const metaEdge = deleteColSticky && showDeleteCol ? frozen + 1 : frozen
 
   const isModelLast = (ri: number) => {
     if (ri >= displayRows.length - 1) return true
@@ -135,13 +143,22 @@ export default function OverviewScheduleTable({
   const cell = renderMetaCell ?? defaultMeta
 
   return (
-    <table className="text-xs border-collapse table-fixed" style={{ minWidth: leftW + dates.length * CW, overflow: 'hidden' }}>
-      <thead>
+    <table
+      className="text-xs border-collapse table-fixed"
+      style={{ minWidth: leftW + dates.length * CW, overflow: stickyHeader ? undefined : 'hidden' }}
+    >
+      <thead className={stickyHeader ? 'sticky top-0 z-[20]' : undefined}>
         <tr className="bg-gray-50 border-b border-gray-200">
           <th
-            colSpan={OVERVIEW_META_COLUMNS.length + (showDeleteCol ? 1 : 0)}
-            className="border-r border-surface-border px-2 py-1 text-left text-[10px] text-gray-500 sticky left-0 z-[13] bg-gray-50 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]"
+            colSpan={allMetaFrozen ? OVERVIEW_META_COLUMNS.length + (showDeleteCol ? 1 : 0) : frozen}
+            className={clsx(
+              'border-r border-surface-border px-2 py-1 text-left text-[10px] text-gray-500 sticky left-0 z-[13] bg-gray-50',
+              FROZEN_EDGE_SHADOW,
+            )}
           />
+          {!allMetaFrozen && unfrozenHeaderSpan > 0 && (
+            <th colSpan={unfrozenHeaderSpan} className="border-r border-surface-border bg-gray-50" />
+          )}
           {monthHdr.map((m, i) => (
             <th
               key={i}
@@ -158,13 +175,13 @@ export default function OverviewScheduleTable({
               key={col.key}
               className={clsx(
                 'border-r border-surface-border px-1.5 py-2 text-gray-500 font-semibold text-[10px] whitespace-nowrap text-center',
-                stickyMetaThClass(i),
+                stickyMetaThClass(i, metaEdge),
               )}
               style={{
                 width: col.minW,
                 minWidth: col.minW,
                 maxWidth: 'maxW' in col ? col.maxW : col.minW,
-                left: META_STICKY_LEFT[i],
+                left: i < frozen ? META_STICKY_LEFT[i] : undefined,
               }}
             >
               {col.label}
@@ -172,8 +189,15 @@ export default function OverviewScheduleTable({
           ))}
           {showDeleteCol && (
             <th
-              className="sticky z-[12] bg-gray-50 border-r border-surface-border px-1 py-2 text-gray-400 text-[9px] text-center shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]"
-              style={{ width: DELETE_COL_W, minWidth: DELETE_COL_W, left: leftW - DELETE_COL_W }}
+              className={clsx(
+                'bg-gray-50 border-r border-surface-border px-1 py-2 text-gray-400 text-[9px] text-center',
+                deleteColSticky && clsx('sticky z-[12]', FROZEN_EDGE_SHADOW),
+              )}
+              style={{
+                width: DELETE_COL_W,
+                minWidth: DELETE_COL_W,
+                left: deleteColSticky ? leftW - DELETE_COL_W : undefined,
+              }}
             >
               삭제
             </th>
@@ -210,7 +234,7 @@ export default function OverviewScheduleTable({
                   rowSpan={cm.rowSpan}
                   className={clsx(
                     'border-r border-surface-border px-1.5 text-[10px] text-gray-600 align-middle text-center',
-                    stickyMetaTdClass(0),
+                    stickyMetaTdClass(0, metaEdge),
                   )}
                   style={{ left: META_STICKY_LEFT[0] }}
                 >
@@ -232,10 +256,10 @@ export default function OverviewScheduleTable({
                           isModel ? 'text-[11px] font-semibold' : 'text-[10px] text-gray-600',
                           key === 'soc' && 'font-mono',
                           key === 'spec' && 'px-1 text-[9px] overflow-visible',
-                          stickyMetaTdClass(i),
+                          stickyMetaTdClass(i, metaEdge),
                         )}
                         style={{
-                          left: META_STICKY_LEFT[i],
+                          left: i < frozen ? META_STICKY_LEFT[i] : undefined,
                           width: col.minW,
                           minWidth: col.minW,
                           maxWidth: 'maxW' in col ? col.maxW : col.minW,
@@ -250,8 +274,15 @@ export default function OverviewScheduleTable({
               {showDeleteCol && row.lineIndex === 0 && !mm.hidden && (
                 <td
                   rowSpan={mm.rowSpan}
-                  className="sticky z-[11] bg-white border-r border-surface-border px-1 text-center align-middle shadow-[4px_0_6px_-2px_rgba(0,0,0,0.12)]"
-                  style={{ left: leftW - DELETE_COL_W, width: DELETE_COL_W, minWidth: DELETE_COL_W }}
+                  className={clsx(
+                    'bg-white border-r border-surface-border px-1 text-center align-middle',
+                    deleteColSticky && clsx('sticky z-[11]', FROZEN_EDGE_SHADOW),
+                  )}
+                  style={{
+                    left: deleteColSticky ? leftW - DELETE_COL_W : undefined,
+                    width: DELETE_COL_W,
+                    minWidth: DELETE_COL_W,
+                  }}
                 >
                   {editing && onDeleteModel ? (
                     <button type="button" onClick={() => onDeleteModel(row.modelId)} className="text-red-400 hover:text-red-600">

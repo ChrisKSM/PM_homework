@@ -18,6 +18,7 @@ import OverviewEventEditor, { type OverviewEventDraft } from '../components/mode
 import OverviewScheduleTable, { HW_LEGEND, SW_LEGEND } from '../components/modelSchedule/OverviewScheduleTable'
 import OverviewSnapshotDialog from '../components/modelSchedule/OverviewSnapshotDialog'
 import { modelScheduleApi } from '../api/modelScheduleApi'
+import { useViewportFitHeight } from '../hooks/useViewportFitHeight'
 import { OVERVIEW_MOCK_MODELS } from '../data/modelScheduleOverviewMock'
 import type { OverviewEvent, OverviewEventKind, OverviewModel } from '../types/modelScheduleOverview'
 import {
@@ -280,6 +281,7 @@ export default function ModelScheduleOverviewPage() {
   const dates = useMemo(() => buildOverviewTimelineDates(new Date()), [])
   const viewStart = useMemo(() => (dates[0] ? timelineDayStart(dates[0]) : timelineDayStart(new Date())), [dates])
   const timelineLabel = useMemo(() => overviewTimelinePeriodLabel(dates), [dates])
+  const [tableScrollRef, tableScrollHeight] = useViewportFitHeight<HTMLDivElement>()
   const today = timelineDayStart(new Date())
   const todayOff = useMemo(() => {
     const iso = timelineToISO(today)
@@ -636,8 +638,12 @@ export default function ModelScheduleOverviewPage() {
         {displayRows.length === 0 ? (
           <div className="border border-surface-border rounded-xl bg-white p-8 text-center text-gray-500 text-sm">표시할 모델 데이터가 없습니다.</div>
         ) : (
-          <div className="border border-surface-border rounded-xl bg-white">
-            <div className="overview-schedule-scroll overflow-x-auto overflow-y-visible [&_table_tbody_td]:overflow-hidden">
+          <div className="border border-surface-border rounded-xl bg-white overflow-hidden">
+            <div
+              ref={tableScrollRef}
+              className="overview-schedule-scroll overflow-auto overscroll-contain [&_table_tbody_td]:overflow-hidden"
+              style={{ maxHeight: tableScrollHeight }}
+            >
               <OverviewScheduleTable
                 displayRows={displayRows}
                 dates={dates}
@@ -647,12 +653,14 @@ export default function ModelScheduleOverviewPage() {
                 onTimelineClick={handleTimelineClick}
                 onDeleteModel={deleteModel}
                 renderMetaCell={renderMetaCell}
+                frozenMetaCount={3}
+                stickyHeader
               />
             </div>
           </div>
         )}
         <p className="text-[10px] text-gray-400 mt-2 text-right">
-          빨간 세로선 = 오늘 ({fmt(today)}) · 가로 스크롤로 {dates.length}일 표시
+          빨간 세로선 = 오늘 ({fmt(today)}) · 머리글·제품군~개발등급 고정 · 표 안에서 상하/좌우 스크롤 ({dates.length}일)
         </p>
       </div>
 
