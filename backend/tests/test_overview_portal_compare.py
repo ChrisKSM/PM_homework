@@ -4,7 +4,7 @@ from services.delivery_portal_overview_sync import (
     debug_portal_schedules_for_overview,
 )
 
-LINKED_S90C = "7a4e1363-a5de-450f-adbe-3aa023e273b6"
+LINKED_S90C = "5c0a2117-859b-4098-b60a-e1825b392d72"
 OTHER_S90C = "b39d2ab0-e63c-44ad-8945-54f7ec1561b7"
 
 
@@ -97,6 +97,8 @@ def test_compare_flags_stale_missing_and_other_program_dates():
     assert models[0]["events"] == before
     row = next(m for m in out["models"] if m["overview_id"] == "ov-s90c")
     assert row["linked_program_id"] == LINKED_S90C
+    assert "ov-s90c" not in {m["overview_id"] for m in out["missing_linked_programs"]}
+    assert "ov-h5" in {m["overview_id"] for m in out["missing_linked_programs"]}
     by_name = {e["name"]: e for e in row["events"]}
 
     sit1 = by_name["SIT 1"]

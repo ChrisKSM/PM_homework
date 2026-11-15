@@ -41,6 +41,8 @@ LABEL = {
 print(f"sync_logic_version: {data.get('sync_logic_version')}")
 counts = data.get("flag_counts") or {}
 print("요약: " + ", ".join(f"{LABEL.get(k, k)} {v}" for k, v in sorted(counts.items())))
+for link in data.get("missing_linked_programs") or []:
+    print(f"  ! 확정 program 이 Portal 에 없음: {link['overview_id']} {link['label']} {link['program_id']} (program 재생성 여부 확인)")
 print("  * 화면 = 지금 전 모델 일정에 저장된 날짜 / sync후 = 지금 Portal 기준으로 다시 가져오면 들어갈 날짜")
 print("  * Portal 실제 = Chart 막대·카드 굵은 줄(actual_*) / 계획 = 카드 회색 줄(plan_*). sync 는 실제 우선")
 

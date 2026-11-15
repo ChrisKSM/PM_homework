@@ -35,7 +35,7 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
     },
     {
         "overview_id": "ov-s90c",
-        "program_id": "7a4e1363-a5de-450f-adbe-3aa023e273b6",
+        "program_id": "5c0a2117-859b-4098-b60a-e1825b392d72",
         "label": "S90C (AMLogic)",
     },
     {
@@ -53,7 +53,7 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
 OVERVIEW_IDS_TO_REMOVE: set[str] = {"ov-m5-vi"}
 
 # BE pod 배포 확인용 (sync API 응답에 포함)
-OVERVIEW_SYNC_LOGIC_VERSION = "20261115-actual-dates-first"
+OVERVIEW_SYNC_LOGIC_VERSION = "20261115-s90c-program-5c0a2117"
 
 # Portal all_deliveries 에 placeholder QP(6mo+) 가 올 때 seed milestone 날짜 사용
 SW_MILESTONE_MAX_DAYS = 90
@@ -890,5 +890,10 @@ def compare_overview_with_portal(
     return {
         "sync_logic_version": OVERVIEW_SYNC_LOGIC_VERSION,
         "flag_counts": counts,
+        "missing_linked_programs": [
+            {"overview_id": link["overview_id"], "program_id": link["program_id"], "label": link["label"]}
+            for link in OVERVIEW_PROGRAM_LINKS
+            if link["overview_id"] not in linked_pid_by_oid
+        ],
         "models": out_models,
     }
