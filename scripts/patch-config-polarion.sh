@@ -19,7 +19,7 @@ if "polarion_pat" in t:
 else:
     needle = "    # LLM"
     insert = '''    # Polarion ALM — H7/M7/W7 MR 품질 이슈 연동
-    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
+    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/rest/v1"
     polarion_project_key: str = "AVSWRelProjMgmt"
     polarion_pat: str = ""
     polarion_verify_ssl: bool = False
@@ -30,7 +30,7 @@ else:
     else:
         t = t.replace(
             "    model_config",
-            '''    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/restful/customs/v1"
+            '''    polarion_base_url: str = "https://alm-lge-hlm.singlex.com/polarion/rest/v1"
     polarion_project_key: str = "AVSWRelProjMgmt"
     polarion_pat: str = ""
     polarion_verify_ssl: bool = False

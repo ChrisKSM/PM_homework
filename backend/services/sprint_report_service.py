@@ -7,6 +7,7 @@ LLM 비활성/실패 시에는 규칙기반(deterministic) 요약으로 폴백�
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from datetime import datetime, timezone
@@ -45,11 +46,13 @@ def _velocity_trend(velocity: list[dict[str, Any]]) -> tuple[str, float, float]:
 
 
 async def _collect_metrics() -> dict[str, Any]:
-    sprint = await jira_service.get_sprint_summary()
-    burndown = await jira_service.get_burndown()
-    velocity = await jira_service.get_velocity()
-    workload = await jira_service.get_team_workload()
-    blockers = await jira_service.get_risk_issues()
+    sprint, burndown, velocity, workload, blockers = await asyncio.gather(
+        jira_service.get_sprint_summary(),
+        jira_service.get_burndown(),
+        jira_service.get_velocity(),
+        jira_service.get_team_workload(),
+        jira_service.get_risk_issues(),
+    )
 
     gap = _burndown_gap(burndown)
     trend_label, latest_v, prior_avg_v = _velocity_trend(velocity)

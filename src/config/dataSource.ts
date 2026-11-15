@@ -17,10 +17,12 @@ export function resolveUseMock(): boolean {
   if (mockEnv === 'true') return true
 
   // prod FE — env 미설정 시 API 우선
+  const host = window.location.hostname
   if (
-    window.location.hostname === 'react-audio.apps.hedej.lge.com' ||
-    (window.location.hostname.endsWith('.apps.hedej.lge.com') &&
-      !window.location.hostname.includes('be-audio-test'))
+    host === 'react-audio.apps.axstudio.lge.com' ||
+    host === 'react-audio.apps.hedej.lge.com' ||
+    ((host.endsWith('.apps.axstudio.lge.com') || host.endsWith('.apps.hedej.lge.com')) &&
+      !host.includes('be-audio-test'))
   ) {
     return false
   }

@@ -10,10 +10,12 @@ export interface ProjectConfig {
 export const PROJECTS: ProjectConfig[] = [
   {
     id: 'model-schedule',
-    label: '모델 현황',
+    label: '모델현황',
     color: '#059669',
     nav: [
-      { to: '/model-schedule', label: '모델 현황', icon: 'CalendarRange' },
+      { to: '/model-schedule/overview', label: '전 모델 일정', icon: 'CalendarRange' },
+      { to: '/model-schedule/status', label: '모델현황', icon: 'LayoutDashboard' },
+      { to: '/model-schedule/requirements-review', label: '요구사항 검토', icon: 'ClipboardList' },
     ],
   },
   {

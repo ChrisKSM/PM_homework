@@ -21,13 +21,17 @@ fi
 show() { git show "$REF:$1"; }
 
 echo "=== Apply 모델 현황 FE from $REF ==="
-mkdir -p src/api src/pages src/store
+mkdir -p src/api src/pages src/store src/utils src/components/modelSchedule
 
 for f in \
   src/App.tsx \
   src/store/dashboardStore.ts \
   src/pages/ModelSchedulePage.tsx \
-  src/api/modelScheduleApi.ts
+  src/api/modelScheduleApi.ts \
+  src/utils/modelScheduleMonth.ts \
+  src/utils/modelScheduleDiff.ts \
+  src/utils/modelScheduleRows.ts \
+  src/components/modelSchedule/ScheduleSnapshotDialog.tsx
 do
   show "$f" > "$f"
   echo "  + $f"
@@ -41,7 +45,9 @@ for pair in \
   "src/App.tsx:ModelSchedulePage" \
   "src/store/dashboardStore.ts:model-schedule" \
   "src/pages/ModelSchedulePage.tsx:편집 완료" \
-  "src/api/modelScheduleApi.ts:localStorage"
+  "src/pages/ModelSchedulePage.tsx:daysInMonth" \
+  "src/api/modelScheduleApi.ts:localStorage" \
+  "src/utils/modelScheduleRows.ts:canonicalCategory"
 do
   file="${pair%%:*}"
   needle="${pair##*:}"

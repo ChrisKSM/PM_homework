@@ -1,8 +1,9 @@
 import {
-  Activity, CalendarRange, ChevronDown, GitBranch, LayoutDashboard,
+  Activity, CalendarRange, ChevronDown, ClipboardList, GitBranch, LayoutDashboard,
   Menu, Package, ShieldAlert, ShieldCheck, Users, X, Check,
 } from 'lucide-react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { projectIdFromPathname } from '../../utils/projectFromPath'
 import { useDashboardStore, PROJECTS } from '../../store/dashboardStore'
 import type { ProjectConfig } from '../../store/dashboardStore'
 import clsx from 'clsx'
@@ -16,6 +17,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; className?: 
   ShieldCheck,
   Package,
   ShieldAlert,
+  ClipboardList,
 }
 
 function ProjectSelector() {
@@ -78,8 +80,18 @@ function ProjectSelector() {
 }
 
 export default function Sidebar() {
-  const { sidebarOpen, toggleSidebar, selectedProject } = useDashboardStore()
-  const currentProject = PROJECTS.find((p) => p.id === selectedProject) || PROJECTS[0]
+  const { pathname } = useLocation()
+  const { sidebarOpen, toggleSidebar, selectedProject, setSelectedProject } = useDashboardStore()
+  const routeProjectId = projectIdFromPathname(pathname)
+  const activeProjectId =
+    PROJECTS.some((p) => p.id === routeProjectId) ? routeProjectId : selectedProject
+  const currentProject = PROJECTS.find((p) => p.id === activeProjectId) || PROJECTS[0]
+
+  useEffect(() => {
+    if (routeProjectId !== selectedProject && PROJECTS.some((p) => p.id === routeProjectId)) {
+      setSelectedProject(routeProjectId)
+    }
+  }, [routeProjectId, selectedProject, setSelectedProject])
 
   return (
     <>

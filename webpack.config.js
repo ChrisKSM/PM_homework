@@ -84,7 +84,14 @@ module.exports = (env, argv) => {
       host: '0.0.0.0',
       hot: true,
       historyApiFallback: true,
-      allowedHosts: ['workspace.hedej.lge.com', 'localhost'],
+      // AxStudio Worker Route: react-audio--3000--<user>.apps.axstudio.lge.com
+      allowedHosts: [
+        'localhost',
+        'workspace.hedej.lge.com',
+        'workspace.axstudio.lge.com',
+        '.apps.axstudio.lge.com',
+        '.apps.hedej.lge.com',
+      ],
       // public/ 폴더를 개발 서버에서도 정적 파일로 서빙 (workspace_env.js 포함)
       static: {
         directory: path.join(__dirname, 'public'),
