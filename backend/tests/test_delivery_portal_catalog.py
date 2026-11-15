@@ -62,20 +62,50 @@ def test_iter_portal_merges_schedules_from_all_audio_details():
     assert qp[0]["end"] == "2026-12-24"
 
 
-def test_schedules_to_events_prefers_plan_dates_over_actual():
+def test_schedules_to_events_prefers_actual_dates_over_plan():
+    """Portal Chart 막대 = actual_* (S90C FC 1: plan 10/28~11/28, actual 11/23~11/27)."""
     raw = [
         {
+            "test_name": "FC1",
+            "plan_start_date": "2026-10-28",
+            "plan_end_date": "2026-11-28",
+            "actual_start_date": "2026-11-23",
+            "actual_end_date": "2026-11-27",
+        },
+        {
             "test_name": "QP1",
-            "plan_start_date": "2026-12-14",
-            "plan_end_date": "2026-12-24",
-            "actual_start_date": "2026-06-12",
-            "actual_end_date": "2027-01-22",
-        }
+            "plan_start_date": "2026-06-12",
+            "plan_end_date": "2027-01-22",
+            "actual_start_date": "2026-12-18",
+            "actual_end_date": "2026-12-28",
+        },
+        {"test_name": "QP2", "plan_start_date": "2027-01-05", "plan_end_date": "2027-01-12"},
     ]
-    ev = schedules_to_events(raw)
-    assert len(ev) == 1
-    assert ev[0]["start"] == "2026-12-14"
-    assert ev[0]["end"] == "2026-12-24"
+    ev = {e["name"]: (e["start"], e["end"]) for e in schedules_to_events(raw)}
+    assert ev == {
+        "FC 1": ("2026-11-23", "2026-11-27"),
+        "QP1": ("2026-12-18", "2026-12-28"),
+        "QP2": ("2027-01-05", "2027-01-12"),
+    }
+
+
+def test_merge_details_prefers_actual_row_over_shorter_plan_only_row():
+    from services.delivery_portal_catalog import merge_portal_schedule_lists
+
+    lists = [
+        [{"test_name": "FC1", "plan_start_date": "2026-11-01", "plan_end_date": "2026-11-02"}],
+        [
+            {
+                "test_name": "FC1",
+                "plan_start_date": "2026-10-28",
+                "plan_end_date": "2026-11-28",
+                "actual_start_date": "2026-11-23",
+                "actual_end_date": "2026-11-27",
+            }
+        ],
+    ]
+    ev = schedules_to_events(merge_portal_schedule_lists(lists))
+    assert [(e["start"], e["end"]) for e in ev] == [("2026-11-23", "2026-11-27")]
 
 
 def test_apply_audio_products_preserves_mongo_hw_replaces_sw():

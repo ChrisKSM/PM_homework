@@ -42,6 +42,7 @@ print(f"sync_logic_version: {data.get('sync_logic_version')}")
 counts = data.get("flag_counts") or {}
 print("요약: " + ", ".join(f"{LABEL.get(k, k)} {v}" for k, v in sorted(counts.items())))
 print("  * 화면 = 지금 전 모델 일정에 저장된 날짜 / sync후 = 지금 Portal 기준으로 다시 가져오면 들어갈 날짜")
+print("  * Portal 실제 = Chart 막대·카드 굵은 줄(actual_*) / 계획 = 카드 회색 줄(plan_*). sync 는 실제 우선")
 
 for m in data.get("models") or []:
     if model_q and model_q not in (m.get("model") or "").lower() and model_q not in m["overview_id"].lower():
@@ -61,10 +62,12 @@ for m in data.get("models") or []:
         exp = ", ".join(e["expected"]) or "-"
         mark = "  " if e["flags"] == ["ok"] else "▶ "
         print(f"  {mark}{e['name']:<10} {screen:<23} {exp:<23} {' / '.join(LABEL.get(f, f) for f in e['flags'])}")
-        if e["flags"] != ["ok"]:
-            for p in e["portal"]:
-                tag = "" if p["used"] else " [제외]"
-                print(f"        Portal {p['span']:<23} {p['program_detail']} · detail={p['detail_model'] or '-'} · {p['date_source']}{tag}")
+        for p in e["portal"]:
+            tag = "" if p["used"] else " [제외]"
+            actual = p.get("actual_span") or "-"
+            plan = p.get("plan_span") or "-"
+            soc = p.get("detail_soc") or p.get("detail_model") or "-"
+            print(f"        Portal 실제 {actual:<23} 계획 {plan:<23} {p['program_detail']} · {soc}{tag}")
 EOF
 echo ""
 echo "JSON 원본: $OUT"

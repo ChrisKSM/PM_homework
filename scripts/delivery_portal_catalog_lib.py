@@ -234,6 +234,24 @@ def _norm_test_key(test_name: str) -> str:
     return t
 
 
+def portal_schedule_span(s: dict[str, Any]) -> tuple[str, str, str]:
+    """
+    Portal schedule → (start, end, source).
+
+    Portal Chart 막대·카드 굵은 줄(달력 아이콘)은 actual_*, 회색 줄(시계 아이콘)은 최초 plan_*.
+    plan_* 에는 장기 placeholder(예: QP1 06-12~01-22)가 남아 있으므로 actual_* 우선.
+    """
+    a_s = str(s.get("actual_start_date") or "").strip()[:10]
+    if a_s:
+        a_e = str(s.get("actual_end_date") or "").strip()[:10]
+        return a_s, a_e or a_s, "actual"
+    p_s = str(s.get("plan_start_date") or "").strip()[:10]
+    if p_s:
+        p_e = str(s.get("plan_end_date") or "").strip()[:10]
+        return p_s, p_e or p_s, "plan"
+    return "", "", ""
+
+
 def _schedule_span_days(start: str, end: str) -> int:
     if not start:
         return 999999
@@ -275,26 +293,20 @@ def merge_schedules_from_details(details: list[dict[str, Any]]) -> list[dict[str
             if not test:
                 continue
             key = _norm_test_key(test)
-            plan_s = str(s.get("plan_start_date") or "")[:10]
-            plan_e = str(s.get("plan_end_date") or "")[:10]
-            if plan_s:
-                start, end = plan_s, plan_e or plan_s
-            else:
-                start = str(s.get("actual_start_date") or "")[:10]
-                end = str(s.get("actual_end_date") or start)[:10]
+            start, end, source = portal_schedule_span(s)
             span = _schedule_span_days(start, end)
-            has_plan = bool(plan_s)
+            has_actual = source == "actual"
             prev = best.get(key)
             if prev is None:
-                best[key] = (s, span, pri, has_plan)
+                best[key] = (s, span, pri, has_actual)
                 continue
-            _ps, prev_span, prev_pri, prev_plan = prev
-            if has_plan and not prev_plan:
-                best[key] = (s, span, pri, has_plan)
-            elif has_plan == prev_plan and (
+            _ps, prev_span, prev_pri, prev_actual = prev
+            if has_actual and not prev_actual:
+                best[key] = (s, span, pri, has_actual)
+            elif has_actual == prev_actual and (
                 span < prev_span or (span == prev_span and pri > prev_pri)
             ):
-                best[key] = (s, span, pri, has_plan)
+                best[key] = (s, span, pri, has_actual)
     return [t[0] for t in best.values()]
 
 

@@ -108,7 +108,10 @@ def test_compare_flags_stale_missing_and_other_program_dates():
         "span": "2026-11-03~2026-11-07",
         "program_detail": "S90C (AMLogic)",
         "detail_model": "Others",
+        "detail_soc": "AMLogic",
         "date_source": "plan",
+        "plan_span": "2026-11-03~2026-11-07",
+        "actual_span": "",
         "used": True,
     }
     assert sit1["portal"][1]["used"] is False
@@ -117,6 +120,35 @@ def test_compare_flags_stale_missing_and_other_program_dates():
     assert by_name["QP 1"]["flags"] == ["not_in_portal"]
     assert by_name["SIT 2"]["flags"] == ["other_program_only"]
     assert out["flag_counts"]["stale"] == 1
+
+
+def test_compare_s90c_fc1_screen_plan_vs_portal_actual():
+    portal = _portal(
+        _program(
+            LINKED_S90C,
+            "S90C (AMLogic)",
+            [
+                {
+                    "test_name": "FC1",
+                    "plan_start_date": "2026-10-28",
+                    "plan_end_date": "2026-11-28",
+                    "actual_start_date": "2026-11-23",
+                    "actual_end_date": "2026-11-27",
+                }
+            ],
+            model="S90C",
+        )
+    )
+    models = _s90c_models([{"name": "FC 1", "start": "2026-10-28", "end": "2026-11-28", "kind": "sw"}])
+
+    out = compare_overview_with_portal(models, portal)
+    fc1 = next(e for e in out["models"][0]["events"] if e["name"] == "FC 1")
+    assert fc1["screen"] == ["2026-10-28~2026-11-28"]
+    assert fc1["expected"] == ["2026-11-23~2026-11-27"]
+    assert fc1["flags"] == ["stale"]
+    assert fc1["portal"][0]["actual_span"] == "2026-11-23~2026-11-27"
+    assert fc1["portal"][0]["plan_span"] == "2026-10-28~2026-11-28"
+    assert fc1["portal"][0]["date_source"] == "actual"
 
 
 def test_compare_ok_when_screen_matches_sync():

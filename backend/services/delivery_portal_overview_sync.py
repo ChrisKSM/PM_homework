@@ -53,7 +53,7 @@ OVERVIEW_PROGRAM_LINKS: list[dict[str, str]] = [
 OVERVIEW_IDS_TO_REMOVE: set[str] = {"ov-m5-vi"}
 
 # BE pod 배포 확인용 (sync API 응답에 포함)
-OVERVIEW_SYNC_LOGIC_VERSION = "20261115-linked-program-exclusive"
+OVERVIEW_SYNC_LOGIC_VERSION = "20261115-actual-dates-first"
 
 # Portal all_deliveries 에 placeholder QP(6mo+) 가 올 때 seed milestone 날짜 사용
 SW_MILESTONE_MAX_DAYS = 90
@@ -248,14 +248,15 @@ def merge_overview_events(
 
 
 def _portal_schedule_start_end(s: dict[str, Any]) -> tuple[str, str]:
-    """Program Report Gantt 와 동일: plan_* 우선 (actual_* 는 plan 없을 때만)."""
-    start = _norm_date(s.get("plan_start_date"))
-    end = _norm_date(s.get("plan_end_date"))
-    if start:
-        return start, end or start
-    start = _norm_date(s.get("actual_start_date"))
-    end = _norm_date(s.get("actual_end_date") or start)
-    return start, end or start
+    """Portal Chart 막대와 동일: actual_* 우선 (plan_* 는 actual 없을 때만). portal_schedule_span 참고."""
+    for start_key, end_key in (
+        ("actual_start_date", "actual_end_date"),
+        ("plan_start_date", "plan_end_date"),
+    ):
+        start = _norm_date(s.get(start_key))
+        if start:
+            return start, _norm_date(s.get(end_key)) or start
+    return "", ""
 
 
 def _event_span_days(start: str, end: str) -> int:
@@ -725,14 +726,19 @@ def _portal_schedule_candidates(row: dict[str, Any], cats: set[str]) -> list[dic
             start, end = _portal_schedule_start_end(s)
             if not start:
                 continue
+            plan = {"start": _norm_date(s.get("plan_start_date")), "end": _norm_date(s.get("plan_end_date"))}
+            actual = {"start": _norm_date(s.get("actual_start_date")), "end": _norm_date(s.get("actual_end_date"))}
             out.append(
                 {
                     "name": name,
                     "kind": _infer_kind(name),
                     "start": start,
                     "end": end or start,
-                    "date_source": "plan" if _norm_date(s.get("plan_start_date")) else "actual",
+                    "date_source": "actual" if actual["start"] else "plan",
+                    "plan_span": _span_label(plan) if plan["start"] else "",
+                    "actual_span": _span_label(actual) if actual["start"] else "",
                     "detail_model": str(d.get("model") or ""),
+                    "detail_soc": str(d.get("soc") or ""),
                 }
             )
     return out
@@ -859,7 +865,10 @@ def compare_overview_with_portal(
                             "span": _span_label(c),
                             "program_detail": c["program_detail"],
                             "detail_model": c["detail_model"],
+                            "detail_soc": c["detail_soc"],
                             "date_source": c["date_source"],
+                            "plan_span": c["plan_span"],
+                            "actual_span": c["actual_span"],
                             "used": c["used"],
                         }
                         for c in sorted(key_cands, key=lambda c: (not c["used"], c["start"], c["end"]))
