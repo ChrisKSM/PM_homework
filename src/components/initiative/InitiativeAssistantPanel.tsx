@@ -154,8 +154,10 @@ export default function InitiativeAssistantPanel({
                   >
                     {r.stage === 'po' ? 'PO' : 'ELT'}
                   </span>
-                  <span className="flex-1 text-gray-800">{FIELD_GUIDES[r.id].label}</span>
-                  {r.reason ? <span className="text-[10px] text-amber-700">{r.reason}</span> : null}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-gray-800">{FIELD_GUIDES[r.id].label}</span>
+                    {r.reason ? <span className="block truncate text-[10px] text-amber-700">{r.reason}</span> : null}
+                  </span>
                   <ArrowRight size={12} className="text-gray-300 group-hover:text-red-500" />
                 </button>
               </li>

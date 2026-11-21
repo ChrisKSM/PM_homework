@@ -372,7 +372,7 @@ export default function InitiativeCreateForm({
                     ))}
                     <td className="p-1">
                       <select
-                        className="w-full rounded border border-transparent px-1 py-1.5 text-xs hover:border-surface-border focus:border-indigo-400 focus:outline-none"
+                        className="w-full rounded border border-transparent bg-transparent px-1 py-1.5 text-xs hover:border-surface-border focus:border-indigo-400 focus:outline-none"
                         value={m.sprint}
                         onChange={(e) => updateMilestone(idx, 'sprint', e.target.value)}
                       >

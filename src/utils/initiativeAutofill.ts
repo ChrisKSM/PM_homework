@@ -45,7 +45,8 @@ export function recommendOwners(
   for (const user of directory) {
     const hits = user.components.filter((p) => comps.some((c) => c.startsWith(p.toLowerCase())))
     if (hits.length) {
-      out.push({ user, score: 80 + hits.length * 5, reason: `Component ${hits.join(', ')} 담당` })
+      const exact = hits.filter((p) => comps.includes(p.toLowerCase())).length
+      out.push({ user, score: 80 + hits.length * 5 + exact * 10, reason: `Component ${hits.join(', ')} 담당` })
     }
   }
   if (!out.some((c) => c.user.name === reporter.name)) {
