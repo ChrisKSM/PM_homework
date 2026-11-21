@@ -1,6 +1,6 @@
 import {
   Activity, CalendarRange, ChevronDown, ClipboardList, GitBranch, LayoutDashboard,
-  Menu, Package, ShieldAlert, ShieldCheck, Users, X, Check,
+  Menu, Package, ShieldAlert, ShieldCheck, Target, Users, X, Check,
 } from 'lucide-react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { projectIdFromPathname } from '../../utils/projectFromPath'
@@ -79,10 +79,14 @@ function ProjectSelector() {
   )
 }
 
+/** 프로젝트와 무관한 공통 과제 메뉴 — 사이드바 맨 아래 */
+const TASK_NAV = [{ to: '/initiative', label: 'Initiative 워크벤치', icon: Target }]
+
 export default function Sidebar() {
   const { pathname } = useLocation()
   const { sidebarOpen, toggleSidebar, selectedProject, setSelectedProject } = useDashboardStore()
-  const routeProjectId = projectIdFromPathname(pathname)
+  const onTaskRoute = TASK_NAV.some((t) => pathname.startsWith(t.to))
+  const routeProjectId = onTaskRoute ? selectedProject : projectIdFromPathname(pathname)
   const activeProjectId =
     PROJECTS.some((p) => p.id === routeProjectId) ? routeProjectId : selectedProject
   const currentProject = PROJECTS.find((p) => p.id === activeProjectId) || PROJECTS[0]
@@ -170,6 +174,32 @@ export default function Sidebar() {
             )
           })}
         </nav>
+
+        <div className="px-3 py-3 border-t border-surface-border shrink-0 space-y-1">
+          {sidebarOpen && (
+            <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider mb-2 px-1">
+              과제
+            </p>
+          )}
+          {TASK_NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              className={({ isActive }) =>
+                clsx(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-[3px]',
+                  isActive
+                    ? 'bg-lg-red-light text-lg-red border-lg-red'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-surface-page border-transparent'
+                )
+              }
+              title={!sidebarOpen ? label : undefined}
+            >
+              <Icon size={18} className="shrink-0" />
+              {sidebarOpen && <span>{label}</span>}
+            </NavLink>
+          ))}
+        </div>
 
         {sidebarOpen && (
           <div className="px-4 py-3 border-t border-surface-border shrink-0">
