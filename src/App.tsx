@@ -14,6 +14,7 @@ import RequirementsReviewPage from './pages/RequirementsReviewPage'
 import MrSchedulePage from './pages/mr/MrSchedulePage'
 import MrQualityPage from './pages/mr/MrQualityPage'
 import MrBuildPlanPage from './pages/mr/MrBuildPlanPage'
+import InitiativeWorkbenchPage from './pages/InitiativeWorkbenchPage'
 
 export default function App() {
   return (
@@ -42,6 +43,8 @@ export default function App() {
           <Route path="h7m7w7/mr-schedule" element={<MrSchedulePage />} />
           <Route path="h7m7w7/quality" element={<MrQualityPage />} />
           <Route path="h7m7w7/build-plan" element={<MrBuildPlanPage />} />
+
+          <Route path="initiative" element={<InitiativeWorkbenchPage />} />
 
           {/* 하위 호환 — 기존 /manager 등 경로 리다이렉트 */}
           <Route path="manager" element={<Navigate to="/s80c/manager" replace />} />
