@@ -13,7 +13,7 @@ import { EMPTY_MILESTONE } from '../../utils/initiativeValidation'
 import { TEST_PLAN_SKELETON, type OwnerCandidate, milestoneSpTotal } from '../../utils/initiativeAutofill'
 import { sprintByName, sprintChangeDeadline, sprintForDate, type Sprint } from '../../utils/initiativeSprint'
 import { ChipSelect, ChoiceCards, FieldShell, SectionCard, inputClass } from './InitiativeFieldShell'
-import InitiativeOwnerPicker from './InitiativeOwnerPicker'
+import InitiativeOwnerPicker, { type OwnerOrgSource } from './InitiativeOwnerPicker'
 
 interface Props {
   form: InitiativeForm
@@ -24,6 +24,7 @@ interface Props {
   sprints: Sprint[]
   directory: DirectoryUser[]
   ownerCandidates: OwnerCandidate[]
+  org: OwnerOrgSource
   syncDue: boolean
   onSyncDueChange: (v: boolean) => void
 }
@@ -67,6 +68,7 @@ export default function InitiativeCreateForm({
   sprints,
   directory,
   ownerCandidates,
+  org,
   syncDue,
   onSyncDueChange,
 }: Props) {
@@ -122,6 +124,7 @@ export default function InitiativeCreateForm({
               onChange={(assignee) => onChange({ assignee })}
               directory={directory}
               candidates={ownerCandidates}
+              org={org}
             />
           </FieldShell>
           <div>
@@ -129,7 +132,13 @@ export default function InitiativeCreateForm({
               <span className="text-[13px] font-semibold text-gray-800">PO</span>
               <span className="text-[11px] text-gray-400">customfield_35456</span>
             </div>
-            <InitiativeOwnerPicker value={form.po} onChange={(po) => onChange({ po })} directory={directory} placeholder="PO 검색" />
+            <InitiativeOwnerPicker
+              value={form.po}
+              onChange={(po) => onChange({ po })}
+              directory={directory}
+              placeholder="PO 검색"
+              org={{ ...org, defaultTeam: 'webOS PO' }}
+            />
           </div>
         </div>
 

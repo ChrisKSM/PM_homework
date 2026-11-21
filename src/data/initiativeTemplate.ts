@@ -325,19 +325,6 @@ export interface DirectoryUser {
   components: string[]
 }
 
-/** BE 연동 전 Owner 자동 추천 mock (Jira user search · RPS 조직 대체) */
-export const MOCK_DIRECTORY: DirectoryUser[] = [
-  { name: 'seokmin.koh', displayName: '고석민', team: 'Audio SW PM', components: ['APP.SOUND', 'audio'] },
-  { name: 'hongsoon.lee', displayName: '이홍순', team: 'Soundbar SW개발', components: ['soundbar', 'audio-hal'] },
-  { name: 'inhoon.kim', displayName: '김인훈', team: 'webOS PO', components: [] },
-  { name: 'gold.keum', displayName: '금정현', team: 'webOS PMO', components: ['SERVER.PMO'] },
-  { name: 'yanghee.kim', displayName: '김양희', team: 'TV QE', components: ['qe'] },
-  { name: 'kyungdug.hong', displayName: '홍경덕', team: 'webOS PMO', components: ['davis'] },
-]
-
-export const MOCK_CURRENT_USER = MOCK_DIRECTORY[0]
-export const MOCK_DEFAULT_PO = MOCK_DIRECTORY[2]
-
 export const DESCRIPTION_SECTIONS: { id: InitiativeFieldId; title: string; placeholder: string }[] = [
   { id: 'techScope', title: '기술 요소 · Scope', placeholder: '기술적 주안점, 주변 요소 포함 시스템 컨텍스트, 불확실한 범위의 리스크/완화 방안' },
   { id: 'designImpact', title: '설계 변경 영향도', placeholder: 'Scope of Change 선택 사유' },

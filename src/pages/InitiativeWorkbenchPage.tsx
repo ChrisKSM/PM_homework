@@ -7,14 +7,14 @@ import InitiativeClonePanel from '../components/initiative/InitiativeClonePanel'
 import InitiativeCreateDialog from '../components/initiative/InitiativeCreateDialog'
 import InitiativeCreateForm from '../components/initiative/InitiativeCreateForm'
 import InitiativeReviewGuide from '../components/initiative/InitiativeReviewGuide'
+import { INITIATIVE_TEMPLATE_KEY, REVIEW_STAGES, type InitiativeFieldId } from '../data/initiativeTemplate'
 import {
-  INITIATIVE_TEMPLATE_KEY,
   MOCK_CURRENT_USER,
   MOCK_DEFAULT_PO,
   MOCK_DIRECTORY,
-  REVIEW_STAGES,
-  type InitiativeFieldId,
-} from '../data/initiativeTemplate'
+  MOCK_ORG_TEAMS,
+  MOCK_TEAM_ORGANIZATIONS,
+} from '../data/initiativeOrg'
 import { computeAutofill, recommendOwners } from '../utils/initiativeAutofill'
 import { sprintCalendar } from '../utils/initiativeSprint'
 import {
@@ -30,6 +30,8 @@ type Tab = 'create' | 'clone' | 'review'
 
 const DRAFT_KEY = 'initiative-workbench-draft-v1'
 const CHECKS_KEY = 'initiative-workbench-review-checks-v1'
+
+const ORG_SOURCE = { teams: MOCK_ORG_TEAMS, partsByTeam: MOCK_TEAM_ORGANIZATIONS, defaultTeam: MOCK_CURRENT_USER.team }
 
 const TABS: { id: Tab; label: string; icon: typeof FilePlus2; desc: string }[] = [
   { id: 'create', label: '신규 생성', icon: FilePlus2, desc: '템플릿 기반 작성 · 자동 입력' },
@@ -183,6 +185,7 @@ export default function InitiativeWorkbenchPage() {
               sprints={sprints}
               directory={MOCK_DIRECTORY}
               ownerCandidates={ownerCandidates}
+              org={ORG_SOURCE}
               syncDue={syncDue}
               onSyncDueChange={setSyncDue}
             />
